@@ -1,0 +1,117 @@
+import { z } from 'zod';
+
+const pointSchema = z.object({ x: z.number().finite(), y: z.number().finite() });
+
+export const phaseOneObjectSchema = z.object({
+  id: z.string().regex(/^[a-z0-9-]+$/),
+  name: z.string().min(1),
+  kind: z.enum(['cart', 'light-case', 'heavy-crate', 'toolbox', 'supply-bin']),
+  material: z.enum(['metal', 'plastic', 'cargo']),
+  position: pointSchema,
+  radius: z.number().positive().max(2),
+  mass: z.number().positive().max(250),
+  friction: z.number().min(0).max(1),
+  impactTolerance: z.number().positive(),
+  secured: z.boolean(),
+});
+
+export const phaseOneCabinDefinitionSchema = z.object({
+  id: z.literal('gullwing-technical-fuselage'),
+  width: z.number().positive(),
+  length: z.number().positive(),
+  objects: z.array(phaseOneObjectSchema).min(7),
+});
+
+export type PhaseOneObjectDefinition = z.infer<typeof phaseOneObjectSchema>;
+
+export const phaseOneCabinDefinition = {
+  id: 'gullwing-technical-fuselage',
+  width: 16,
+  length: 36,
+  objects: [
+    {
+      id: 'cart-01',
+      name: 'Service cart',
+      kind: 'cart',
+      material: 'metal',
+      position: { x: 8, y: 17 },
+      radius: 1.1,
+      mass: 58,
+      friction: 0.1,
+      impactTolerance: 10,
+      secured: false,
+    },
+    {
+      id: 'case-01',
+      name: 'Light case',
+      kind: 'light-case',
+      material: 'plastic',
+      position: { x: 4, y: 10 },
+      radius: 0.5,
+      mass: 5,
+      friction: 0.45,
+      impactTolerance: 1.6,
+      secured: false,
+    },
+    {
+      id: 'case-02',
+      name: 'Light case',
+      kind: 'light-case',
+      material: 'plastic',
+      position: { x: 12, y: 12 },
+      radius: 0.5,
+      mass: 5,
+      friction: 0.45,
+      impactTolerance: 1.6,
+      secured: false,
+    },
+    {
+      id: 'toolbox-01',
+      name: 'Repair toolbox',
+      kind: 'toolbox',
+      material: 'metal',
+      position: { x: 5, y: 24 },
+      radius: 0.48,
+      mass: 10,
+      friction: 0.28,
+      impactTolerance: 2.4,
+      secured: false,
+    },
+    {
+      id: 'supply-01',
+      name: 'Supply bin',
+      kind: 'supply-bin',
+      material: 'plastic',
+      position: { x: 11, y: 26 },
+      radius: 0.62,
+      mass: 14,
+      friction: 0.36,
+      impactTolerance: 3.2,
+      secured: false,
+    },
+    {
+      id: 'crate-a',
+      name: 'Strapped heavy crate',
+      kind: 'heavy-crate',
+      material: 'cargo',
+      position: { x: 4, y: 32 },
+      radius: 0.95,
+      mass: 95,
+      friction: 0.74,
+      impactTolerance: 16,
+      secured: true,
+    },
+    {
+      id: 'crate-b',
+      name: 'Loose heavy crate',
+      kind: 'heavy-crate',
+      material: 'cargo',
+      position: { x: 12, y: 32 },
+      radius: 0.95,
+      mass: 95,
+      friction: 0.1,
+      impactTolerance: 16,
+      secured: false,
+    },
+  ],
+} as const;

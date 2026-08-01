@@ -1,0 +1,14 @@
+{
+  "assets": [
+    {
+      "id": "cabin-mayhem-app-icon",
+      "type": "application-icon",
+      "sourceFile": "src-tauri/icons/app-icon.svg",
+      "runtimeFile": "src-tauri/icons/icon.ico",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Generated from original SVG with `pnpm exec tauri icon`.",
+      "usageReferences": ["src-tauri/tauri.conf.json"]
+    }
+  ]
+}
