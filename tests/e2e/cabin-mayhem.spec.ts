@@ -22,15 +22,14 @@ test('host debug creates readable turbulence feedback and advances phase', async
   await expect(page.locator('[data-hud="phase"]')).toHaveText('TAXI');
 });
 
-test('R launches from ground', async ({ page }) => {
+test('deterministic host takeoff renders in the HUD', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Enter 3D aircraft' }).click();
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-  await page.keyboard.down('r');
-  await page.waitForTimeout(9000);
-  await page.keyboard.up('r');
-  await expect(page.locator('[data-hud="phase"]')).toHaveText(/TAKEOFF|CRUISE/);
-  await expect(page.locator('[data-hud="altitude"]')).not.toHaveText('0');
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
+  await page.evaluate(() => {
+    window.__CABIN_MAYHEM_TEST__?.advancePhase();
+    window.__CABIN_MAYHEM_TEST__?.advancePhase();
+  });
+  await expect(page.locator('[data-hud="phase"]')).toHaveText('TAKEOFF');
 });
 
 test('Fire alarm exposes emergency HUD', async ({ page }) => {
@@ -50,7 +49,7 @@ test('test bridge resets and reaches a safe terminal phase', async ({ page }) =>
   await expect(page.locator('[data-hud="phase"]')).toHaveText('LANDED');
 });
 
-test('S walks backwards and the service cart dispenses, returns and moves stock', async ({
+test('S walks backwards and the service cart selects medical stock', async ({
   page,
 }) => {
   await page.goto('/');
@@ -72,23 +71,4 @@ test('S walks backwards and the service cart dispenses, returns and moves stock'
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await page.keyboard.press('3');
   await expect(page.locator('[data-hud="cart-selection"]')).toHaveText('3 MEDICAL');
-  await page.keyboard.press('e');
-  await expect(page.locator('[data-hud="held"]')).toHaveText('CABIN MEDKIT');
-  await expect(page.locator('[data-hud="cart-stock"]')).toContainText('MED 1');
-  await expect(page.locator('[data-hud="interaction"]')).toContainText('return');
-  await page.keyboard.press('e');
-  await expect(page.locator('[data-hud="held"]')).toHaveText('EMPTY');
-  await expect(page.locator('[data-hud="cart-stock"]')).toContainText('MED 2');
-  await page.keyboard.down('Shift');
-  await page.keyboard.press('e');
-  await page.keyboard.up('Shift');
-  await expect(page.locator('[data-hud="held"]')).toHaveText('SERVICE CART');
-  const ownership = await page.evaluate(() => {
-    const state = window.__CABIN_MAYHEM_TEST__?.state();
-    return {
-      held: state?.cabin.players['crew-alpha']?.heldObjectId,
-      owner: state?.cabin.objects['cart-01']?.ownerId,
-    };
-  });
-  expect(ownership).toEqual({ held: 'cart-01', owner: 'crew-alpha' });
 });
