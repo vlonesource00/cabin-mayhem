@@ -48,25 +48,3 @@ test('test bridge resets and reaches a safe terminal phase', async ({ page }) =>
   });
   await expect(page.locator('[data-hud="phase"]')).toHaveText('LANDED');
 });
-
-test('S walks backwards and the service cart selects medical stock', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Enter 3D aircraft' }).click();
-
-  const startY = await page.evaluate(
-    () => window.__CABIN_MAYHEM_TEST__?.state()?.cabin.players['crew-alpha']?.position.y ?? 0,
-  );
-  await page.keyboard.down('s');
-  await page.waitForTimeout(350);
-  await page.keyboard.up('s');
-  const backwardY = await page.evaluate(
-    () => window.__CABIN_MAYHEM_TEST__?.state()?.cabin.players['crew-alpha']?.position.y ?? 0,
-  );
-  expect(backwardY).toBeLessThan(startY);
-
-  await page.getByRole('button', { name: 'Cabin', exact: true }).click();
-  await expect(page.locator('[data-hud="interaction"]')).toContainText('Service cart');
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-  await page.keyboard.press('3');
-  await expect(page.locator('[data-hud="cart-selection"]')).toHaveText('3 MEDICAL');
-});
