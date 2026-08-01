@@ -207,6 +207,7 @@ button {
 
 .flight-header,
 .telemetry-panel,
+.mission-panel,
 .debug-panel,
 .event-caption,
 .held-card,
@@ -260,6 +261,7 @@ button {
 }
 
 .telemetry-panel,
+.mission-panel,
 .debug-panel {
   top: 5.2rem;
   width: 220px;
@@ -272,6 +274,144 @@ button {
 
 .telemetry-panel {
   left: 1.25rem;
+}
+
+.mission-panel {
+  top: 25rem;
+  left: 1.25rem;
+  width: 280px;
+  padding: 0.85rem;
+  border: 1px solid rgb(127 194 218 / 22%);
+  background: linear-gradient(145deg, rgb(6 18 29 / 91%), rgb(11 28 40 / 78%));
+  backdrop-filter: blur(10px);
+}
+
+.mission-heading,
+.mission-score {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mission-heading strong {
+  display: block;
+  margin-top: 0.25rem;
+  color: #70f0ab;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+}
+
+.mission-heading time {
+  color: #f5fbff;
+  font-family: Consolas, monospace;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.mission-score {
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+  padding-block: 0.55rem;
+  border-block: 1px solid rgb(127 194 218 / 16%);
+  color: #71899a;
+  font-size: 0.57rem;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+}
+
+.mission-score b {
+  margin-left: 0.25rem;
+  color: #fff;
+  font-family: Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.cart-stock {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.28rem 0.45rem;
+  align-items: center;
+  margin-top: 0.55rem;
+  color: #71899a;
+  font-size: 0.55rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+}
+
+.cart-stock b {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  color: #d9f6ff;
+  font-family: Consolas, monospace;
+  font-size: 0.66rem;
+  white-space: nowrap;
+}
+
+.cart-stock em {
+  grid-row: 1;
+  grid-column: 2;
+  padding: 0.18rem 0.28rem;
+  border: 1px solid rgb(79 213 255 / 32%);
+  color: #70dfff;
+  font-style: normal;
+}
+
+.request-list {
+  display: grid;
+  gap: 0.42rem;
+  margin-top: 0.65rem;
+}
+
+.request-list article {
+  padding: 0.48rem 0.55rem;
+  border-left: 2px solid #63d9ff;
+  background: rgb(71 128 151 / 11%);
+}
+
+.request-list article[data-need='medical'] {
+  border-color: #ff594e;
+}
+
+.request-list article[data-urgent='true'] {
+  background: rgb(255 74 62 / 14%);
+  animation: urgent-request 0.8s ease-in-out infinite alternate;
+}
+
+.request-list article div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.request-list strong,
+.request-list span {
+  font-size: 0.61rem;
+}
+
+.request-list span {
+  color: #91a7b6;
+}
+
+.request-list i {
+  display: block;
+  width: var(--patience);
+  height: 3px;
+  margin-top: 0.38rem;
+  background: #63d9ff;
+  transition: width 180ms linear;
+}
+
+.request-empty {
+  margin: 0;
+  color: #8da2b0;
+  font-size: 0.62rem;
+}
+
+@keyframes urgent-request {
+  to {
+    border-left-color: #ff594e;
+    box-shadow: inset 0 0 18px rgb(255 89 78 / 10%);
+  }
 }
 
 .debug-panel {
@@ -564,6 +704,12 @@ button {
     width: 180px;
   }
 
+  .mission-panel {
+    top: auto;
+    bottom: 3.2rem;
+    width: 220px;
+  }
+
   .debug-panel {
     top: auto;
     right: 0.65rem;
@@ -584,6 +730,470 @@ button {
   }
 
   .tutorial-card {
+    display: none;
+  }
+}
+
+@media (max-height: 760px) {
+  .mission-panel {
+    top: 5.2rem;
+    right: 14rem;
+    bottom: auto;
+    left: auto;
+    width: 250px;
+  }
+
+  .request-list article:nth-child(n + 4),
+  .tutorial-card,
+  .mouse-hint {
+    display: none;
+  }
+}
+
+/* Flight UI v2: bright, playful panels that occupy deliberate lanes instead of stacking. */
+.game-shell {
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 12% 88%, rgb(255 60 142 / 24%), transparent 24%),
+    radial-gradient(circle at 84% 15%, rgb(67 239 197 / 18%), transparent 24%), #101328;
+}
+
+.game-shell::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  content: '';
+  pointer-events: none;
+  opacity: 0.2;
+  background-image:
+    linear-gradient(135deg, transparent 46%, rgb(255 238 92 / 46%) 46% 48%, transparent 48%),
+    linear-gradient(45deg, transparent 48%, rgb(255 99 163 / 38%) 48% 50%, transparent 50%);
+  background-size:
+    58px 58px,
+    86px 86px;
+  mix-blend-mode: screen;
+}
+
+.flight-header {
+  z-index: 5;
+  padding: 1rem 1.2rem 2.6rem;
+  background: linear-gradient(180deg, rgb(18 16 50 / 96%), rgb(18 16 50 / 5%));
+}
+
+.flight-header p,
+.panel-label,
+.held-card span,
+.network-card span,
+.fire-card span {
+  color: #c8ff35;
+  font-size: 0.58rem;
+  letter-spacing: 0.18em;
+}
+
+.flight-header h1 {
+  color: #fff4e6;
+  font-size: clamp(0.74rem, 1.25vw, 1rem);
+  letter-spacing: 0.16em;
+  text-shadow: 3px 3px 0 #fd4d94;
+}
+
+.authority {
+  border: 2px solid #c8ff35;
+  border-radius: 99px;
+  background: #35205d;
+  box-shadow: 4px 4px 0 #ff5d9d;
+  color: #f8ffdd;
+}
+
+.authority i {
+  background: #c8ff35;
+  box-shadow: 0 0 12px #c8ff35;
+}
+
+.hud-stack {
+  position: absolute;
+  z-index: 4;
+  top: 5.6rem;
+  bottom: 3.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  pointer-events: none;
+}
+
+.hud-stack-left {
+  left: 1rem;
+  width: min(285px, 27vw);
+}
+
+.telemetry-panel,
+.mission-panel,
+.debug-panel {
+  border: 2px solid #fff4e6;
+  border-radius: 14px 3px 14px 3px;
+  background: linear-gradient(135deg, rgb(43 26 94 / 95%), rgb(11 22 55 / 90%)), #201448;
+  box-shadow:
+    5px 6px 0 #ff5d9d,
+    9px 10px 0 rgb(58 230 212 / 38%);
+  backdrop-filter: blur(12px);
+}
+
+.telemetry-panel,
+.mission-panel {
+  position: static;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  width: auto;
+  margin: 0;
+  padding: 0.8rem;
+}
+
+.telemetry-panel {
+  flex: 0 0 auto;
+}
+
+.mission-panel {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgb(23 42 83 / 96%), rgb(51 24 91 / 92%)), #1e2b65;
+  box-shadow:
+    5px 6px 0 #57edcf,
+    9px 10px 0 rgb(255 94 160 / 36%);
+}
+
+.phase-readout {
+  margin: 0.5rem 0;
+  border-block-color: rgb(200 255 53 / 42%);
+}
+
+.phase-readout span,
+.telemetry-panel dt {
+  color: #9fffe7;
+}
+
+.phase-readout strong {
+  color: #ffcf4f;
+  text-shadow: 2px 2px 0 #fe5298;
+}
+
+.telemetry-panel dl {
+  gap: 0.45rem;
+}
+
+.telemetry-panel dl div {
+  border: 1px solid rgb(200 255 53 / 25%);
+  border-radius: 7px;
+  background: rgb(5 13 38 / 46%);
+}
+
+.telemetry-panel dd b {
+  color: #fff4e6;
+}
+
+.system-bars span {
+  border-radius: 99px;
+  background: #17102f;
+}
+
+.system-bars i {
+  background: linear-gradient(90deg, #c8ff35, #57edcf);
+  box-shadow: 0 0 8px #57edcf;
+}
+
+.mission-heading strong {
+  color: #c8ff35;
+}
+
+.mission-heading time {
+  color: #ffcf4f;
+  text-shadow: 2px 2px 0 #ff5d9d;
+}
+
+.mission-score {
+  border-block-color: rgb(255 244 230 / 22%);
+  color: #a7bee8;
+}
+
+.mission-score b {
+  color: #fff4e6;
+}
+
+.cart-stock {
+  color: #b5f7e9;
+}
+
+.cart-stock b {
+  color: #ffdf75;
+}
+
+.cart-stock em {
+  border-color: #c8ff35;
+  border-radius: 4px;
+  background: #243969;
+  color: #c8ff35;
+}
+
+.request-list {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
+.request-list article {
+  border: 1px solid rgb(255 244 230 / 20%);
+  border-left: 5px solid #57edcf;
+  border-radius: 4px 10px 10px 4px;
+  background: rgb(8 20 54 / 55%);
+}
+
+.request-list article[data-need='medical'] {
+  border-left-color: #ff5d9d;
+}
+
+.request-list i {
+  background: linear-gradient(90deg, #57edcf, #c8ff35);
+}
+
+.debug-panel {
+  top: 5.6rem;
+  right: 1rem;
+  width: min(210px, 20vw);
+  padding: 0.75rem;
+  pointer-events: auto;
+  background: linear-gradient(135deg, rgb(95 30 73 / 94%), rgb(49 22 90 / 93%)), #4a1f60;
+}
+
+.debug-grid {
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.debug-grid button {
+  min-height: 35px;
+  border: 1px solid #fff4e6;
+  border-radius: 6px 1px 6px 1px;
+  background: #252c67;
+  box-shadow: 2px 2px 0 #ffcf4f;
+  color: #fff4e6;
+}
+
+.debug-grid button[data-action='fire'] {
+  background: #bd334f;
+  box-shadow: 2px 2px 0 #ffcf4f;
+}
+
+.debug-grid button:hover {
+  border-color: #c8ff35;
+  background: #c8ff35;
+  box-shadow: 3px 3px 0 #ff5d9d;
+  color: #20133e;
+}
+
+.status-stack {
+  position: absolute;
+  z-index: 5;
+  top: 5.6rem;
+  left: 50%;
+  display: grid;
+  gap: 0.35rem;
+  width: min(230px, 24vw);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.held-card,
+.network-card,
+.fire-card {
+  position: static;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.42rem 0.55rem;
+  border: 1px solid rgb(255 244 230 / 62%);
+  border-radius: 8px 2px 8px 2px;
+  background: rgb(22 17 59 / 86%);
+  box-shadow: 3px 3px 0 #57edcf;
+  transform: none;
+}
+
+.fire-card {
+  border-color: #ffcf4f;
+  box-shadow: 3px 3px 0 #ff5d9d;
+}
+
+.fire-card strong {
+  color: #c8ff35;
+  font-family: Consolas, monospace;
+  font-size: 0.65rem;
+}
+
+.game-shell[data-fire-status='active'] .fire-card {
+  border-color: #fff4e6;
+  background: #bd334f;
+  box-shadow: 3px 3px 0 #ffcf4f;
+  animation: fire-card-pulse 0.55s steps(2, end) infinite;
+}
+
+.game-shell[data-fire-status='active'] .fire-card span,
+.game-shell[data-fire-status='active'] .fire-card strong {
+  color: #fff4e6;
+}
+
+.interaction-prompt {
+  z-index: 5;
+  bottom: 4.35rem;
+  min-width: min(480px, 66vw);
+  border: 2px solid #fff4e6;
+  border-radius: 8px 1px 8px 1px;
+  background: rgb(42 19 83 / 92%);
+  box-shadow: 4px 4px 0 #ff5d9d;
+  color: #fff4e6;
+}
+
+.mouse-hint {
+  z-index: 5;
+  right: 1rem;
+  bottom: 3.7rem;
+  color: #9fffe7;
+}
+
+.event-caption {
+  z-index: 5;
+  right: auto;
+  bottom: 7.7rem;
+  left: 50%;
+  width: min(560px, 54vw);
+  border: 2px solid #ffcf4f;
+  border-left-width: 8px;
+  border-radius: 8px 1px 8px 1px;
+  background: rgb(31 18 75 / 88%);
+  box-shadow: 5px 5px 0 #57edcf;
+  transform: translateX(-50%) rotate(-0.4deg);
+}
+
+.event-caption span {
+  color: #c8ff35;
+}
+
+.event-caption strong {
+  color: #fff4e6;
+}
+
+.crosshair i {
+  background: #c8ff35;
+  box-shadow: 0 0 8px #ffcf4f;
+}
+
+.control-ribbon {
+  z-index: 6;
+  gap: clamp(0.55rem, 1.6vw, 1.45rem);
+  padding: 0.65rem 1rem;
+  border-top: 2px solid #ff5d9d;
+  background: linear-gradient(90deg, #241448, #15395e, #4d1f61);
+  color: #c7d6ec;
+}
+
+.control-ribbon b {
+  color: #c8ff35;
+}
+
+@keyframes fire-card-pulse {
+  50% {
+    transform: translateX(2px) rotate(-1deg);
+  }
+}
+
+@media (max-width: 1000px) {
+  .hud-stack-left {
+    width: min(255px, 31vw);
+  }
+
+  .debug-panel {
+    width: min(178px, 22vw);
+  }
+
+  .status-stack {
+    width: min(205px, 24vw);
+  }
+
+  .event-caption {
+    width: min(410px, 45vw);
+  }
+}
+
+@media (max-width: 760px) {
+  .flight-header h1 {
+    max-width: 250px;
+    line-height: 1.25;
+  }
+
+  .authority {
+    font-size: 0.48rem;
+  }
+
+  .hud-stack-left {
+    top: 5rem;
+    bottom: 3.35rem;
+    left: 0.55rem;
+    width: min(238px, 58vw);
+  }
+
+  .telemetry-panel {
+    padding: 0.6rem;
+  }
+
+  .debug-panel {
+    top: auto;
+    right: 0.55rem;
+    bottom: 3.35rem;
+    width: 132px;
+    padding: 0.55rem;
+  }
+
+  .debug-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .debug-grid button {
+    min-height: 26px;
+    font-size: 0.48rem;
+  }
+
+  .status-stack {
+    top: 4.7rem;
+    right: 0.55rem;
+    left: auto;
+    width: 126px;
+    transform: none;
+  }
+
+  .held-card,
+  .network-card,
+  .fire-card {
+    display: grid;
+    gap: 0.12rem;
+  }
+
+  .event-caption {
+    display: none;
+  }
+
+  .interaction-prompt {
+    bottom: 3.8rem;
+    min-width: 0;
+    width: min(320px, 88vw);
+    font-size: 0.53rem;
+  }
+
+  .mouse-hint {
+    display: none;
+  }
+
+  .control-ribbon span:nth-child(n + 6) {
     display: none;
   }
 }

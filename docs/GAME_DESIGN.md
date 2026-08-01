@@ -12,10 +12,10 @@ Cabin Mayhem is original cooperative aviation management with physical comedy an
 - Risk with readable cost: later passenger/cargo contracts must trade payout for identifiable risk.
 - Escalation: director chains unresolved state and recovery windows, not unrelated random tasks.
 
-## Phase 1 completed content boundary
+## Current playable boundary
 
-One walkable first-person 3D aircraft test scene: cockpit, aisle, seats, overhead bins, shelves, rear cargo zone, cart, light objects, heavy crates, straps, two crew and host debug actions. Flight phases are ground, taxi, takeoff, cruise, approach, landed and crashed-ready state. Turbulence, drop, turn, collision and electrical damage produce physical/system feedback.
+One walkable first-person 3D aircraft: cockpit, aisle, seats, overhead bins, shelves, rear cargo zone, finite-stock service cart, loose objects, crates, straps, two crew, eight seated passengers and host debug actions. Holding throttle launches taxi, rotation assist and climb. Players select drink/meal/medical stock, take or return physical items, serve scheduled requests, then suppress a triggered galley fire with the loose extinguisher. Correct deliveries preserve patience and earn score; fire and other incidents raise pressure, panic and injury. Flight phases are ground, taxi, takeoff, cruise, approach, landed and crashed-ready state.
 
 ## Deferred deliberately
 
-No passenger AI, contracts, event director, route selection, economy, progression, production audio, remote browser lobby or save migration. Building these before motion/physics/network proof would hide Phase 1 risks.
+No walking passenger navigation, cargo contracts, event director, route selection, economy, progression, production audio, remote browser lobby or save migration yet. Current passenger behavior is deterministic seated service state, not full autonomous AI.

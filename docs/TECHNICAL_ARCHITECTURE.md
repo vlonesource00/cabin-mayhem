@@ -2,9 +2,13 @@
 
 ## Runtime boundary
 
-TypeScript simulation runs at bounded `<= 50 ms` steps. `HostSession` has sole write access to `MissionState`. Presentation takes structured snapshots and cannot alter phase/object/damage state except through explicit host debug actions.
+TypeScript simulation runs at bounded `<= 50 ms` steps. `HostSession` has sole write access to `MissionState`. Presentation takes structured snapshots and cannot alter phase, object, passenger, score or damage state except through submitted intent and explicit host debug actions.
 
-Three.js owns presentation only. `CabinWorld` maps aircraft-local simulation coordinates into WebGL space, creates project-owned procedural meshes and synchronizes visible crew/props from snapshots. `FirstPersonController` converts pointer-lock camera direction into host command intent.
+Three.js owns presentation only. `CabinWorld` maps aircraft-local simulation coordinates into WebGL space, creates project-owned procedural meshes and synchronizes visible crew, passenger and prop state from snapshots. `FirstPersonController` converts pointer-lock camera direction into host command intent.
+
+## Passenger service
+
+`service-mission.ts` activates authored requests on the deterministic mission clock. It owns finite cart stock, deterministic item dispensing/returns, patience decay, incident-driven panic/injury, delivery validation and score/outcome. `fire-response.ts` owns the authored galley hotspot and active/suppressed state. `CabinWorld` only raycasts candidate cart/passenger/fire IDs; `HostSession` checks cart selection, stock, target, ownership, active request, held extinguisher, item mapping and distance before mutating state.
 
 ## Aircraft reference frame
 
@@ -12,7 +16,7 @@ Aircraft cabin coordinates are local `(x, y)` meters. Flight model exposes roll,
 
 ## Physics model
 
-Crew use stable kinematic movement, crouch/sprint/brace states, static cabin fixture collision and knockdown threshold. Objects have radius, mass, friction, impact tolerance, damage, secured anchor and owner. Pairwise collision scope remains intentionally small and relevant. Object authority stays host-side.
+Crew use stable kinematic movement, crouch/sprint/brace states, static cabin fixture collision and knockdown threshold. Flight automatically transitions ground → taxi → takeoff from throttle/airspeed and applies rotation assist before climb. Objects have radius, mass, friction, impact tolerance, damage, secured anchor and owner. Pairwise collision scope remains intentionally small and relevant. Object authority stays host-side.
 
 ## Extension seams
 

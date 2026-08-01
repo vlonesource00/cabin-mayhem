@@ -2,15 +2,16 @@
 
 ## In progress
 
-- [ ] Phase 1 manual two-device playtest — Martim
+- [ ] Manual full service-flight playtest and tuning — Martim
+- [ ] Replace priority procedural props/NPCs with licensed production GLB assets — unassigned
 
 ## Backlog
 
 - [ ] Add real browser transport adapter behind network interface.
-- [ ] Move Phase 1 object definitions into validated authored data files.
 - [ ] Add player/object collision broadphase before more cabin objects.
 - [ ] Add profile/settings migration for Cabin Mayhem controls/accessibility.
-- [ ] Build Phase 2 passenger, service, cargo, repair and event vertical loop.
+- [ ] Add production sound, passenger voices and interaction animation polish.
+- [ ] Add toolbox repair task and clear debrief screen.
 
 ## Done
 
@@ -23,3 +24,9 @@
 - [x] Static cockpit/seat fixture collisions and 3D loose-object synchronization.
 - [x] Reliable backward movement and first-person pickup/place/throw loop.
 - [x] Browser visual pass and Windows `.exe`/MSI/NSIS build.
+- [x] Validated authored passenger and service-item data.
+- [x] Eight 3D passengers with drink, meal and medical requests.
+- [x] Host-validated service delivery, patience, panic, injury, score and mission result.
+- [x] Host-authoritative service-cart inventory, selection, dispensing, returns and stock HUD.
+- [x] Automatic taxi/takeoff climb plus host-authoritative galley-fire suppression.
+- [x] Colorful responsive indie HUD lanes and GitHub Pages deployment workflow.

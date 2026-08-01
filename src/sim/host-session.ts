@@ -15,7 +15,17 @@ import {
   triggerTurbulence,
   updateFlight,
 } from './flight-model';
+import { activateFire, createFireState, stepFire, suppressFire } from './fire-response';
 import { clamp, distance, normalized, scale } from './math';
+import {
+  applyCabinIncident,
+  createServiceMission,
+  deliverServiceItem,
+  needLabel,
+  restockServiceCartItem,
+  stepServiceMission,
+  takeServiceCartItem,
+} from './service-mission';
 import { SimulatedTransport } from './simulated-transport';
 import {
   emptyCommand,
@@ -48,6 +58,8 @@ export class HostSession {
       hostId: 'crew-alpha',
       flight: createFlightState(),
       cabin: createCabinState(),
+      service: createServiceMission(),
+      fire: createFireState(),
       network: { ...defaultNetwork },
       networkMetrics: { sent: 0, received: 0, dropped: 0, queued: 0, bytes: 0 },
       events: [],
@@ -72,9 +84,31 @@ export class HostSession {
       this.commands[packet.clientId] = packet.command;
 
     const hostCommand = this.commands[this.state.hostId] ?? emptyCommand();
+    const previousPhase = this.state.flight.phase;
     this.state.flight = updateFlight(this.state.flight, hostCommand.pilot, dt);
+    if (this.state.flight.phase !== previousPhase)
+      this.log('flight', `Flight: ${previousPhase} / ${this.state.flight.phase}`);
     this.resolveInteractions();
     this.state.cabin = stepCabin(this.state.cabin, this.state.flight, this.commands, dt);
+    this.state.fire = stepFire(this.state.fire, dt);
+    const previousOutcome = this.state.service.outcome;
+    this.state.service = stepServiceMission(this.state.service, this.state.flight, dt);
+    if (this.state.fire.status === 'active' && this.state.flight.phase === 'landed')
+      this.state.service = {
+        ...this.state.service,
+        outcome: 'failed',
+        score:
+          this.state.service.outcome === 'active'
+            ? this.state.service.score - 80
+            : this.state.service.score,
+      };
+    if (previousOutcome !== this.state.service.outcome)
+      this.log(
+        'service',
+        this.state.service.outcome === 'success'
+          ? 'Cabin service complete. Passengers secured.'
+          : 'Cabin service failed.',
+      );
     this.state.tick += 1;
     this.state.networkMetrics = this.transport.snapshot();
     this.clearTransientActions();
@@ -88,13 +122,22 @@ export class HostSession {
   }
 
   public trigger(
-    kind: 'turbulence' | 'air-pocket' | 'sharp-turn' | 'collision',
+    kind: 'turbulence' | 'air-pocket' | 'sharp-turn' | 'collision' | 'fire',
     severity = 0.72,
   ): void {
+    if (kind === 'fire') {
+      const activation = activateFire(this.state.fire);
+      this.state.fire = activation.fire;
+      if (activation.accepted)
+        this.state.service = applyCabinIncident(this.state.service, 'fire', severity);
+      this.log('emergency', activation.message);
+      return;
+    }
     if (kind === 'turbulence') this.state.flight = triggerTurbulence(this.state.flight, severity);
     else if (kind === 'air-pocket') this.state.flight = triggerAirPocket(this.state.flight);
     else if (kind === 'sharp-turn') this.state.flight = triggerSharpTurn(this.state.flight);
     else this.state.flight = triggerCollision(this.state.flight);
+    this.state.service = applyCabinIncident(this.state.service, kind, severity);
     this.log('physics', this.state.flight.warning ?? kind);
   }
 
@@ -125,12 +168,13 @@ export class HostSession {
     );
   }
 
-  public teleport(playerId: string, station: 'cockpit' | 'cabin' | 'cargo'): void {
+  public teleport(playerId: string, station: 'cockpit' | 'cabin' | 'galley' | 'cargo'): void {
     const player = this.state.cabin.players[playerId];
     if (!player) return;
     const targets = {
       cockpit: { x: 8, y: 3.1 },
       cabin: { x: 8, y: 15.4 },
+      galley: { x: 10.8, y: 22.4 },
       cargo: { x: 8, y: 31.5 },
     };
     player.position = { ...targets[station] };
@@ -147,14 +191,79 @@ export class HostSession {
     for (const [playerId, command] of Object.entries(this.commands)) {
       const player = this.state.cabin.players[playerId];
       if (!player) continue;
+      if (command.selectServiceNeed) {
+        player.selectedServiceNeed = command.selectServiceNeed;
+        player.lastAction = `Cart selection: ${needLabel(command.selectServiceNeed)}`;
+      }
       if (command.throwItem && player.heldObjectId) this.throwHeldObject(playerId);
-      if (command.interact) this.interact(playerId, command.interactionTargetId);
+      if (command.interact) this.interact(playerId, command.interactionTargetId, command.sprint);
     }
   }
 
-  private interact(playerId: string, targetId?: string | null): void {
+  private interact(playerId: string, targetId?: string | null, moveCart = false): void {
     const player = this.state.cabin.players[playerId];
     if (!player) return;
+    if (targetId === this.state.fire.id) {
+      const held = player.heldObjectId ? this.state.cabin.objects[player.heldObjectId] : undefined;
+      const result = suppressFire(this.state.fire, held, player.position);
+      this.state.fire = result.fire;
+      player.lastAction = result.message;
+      this.log('emergency', result.message);
+      return;
+    }
+    if (targetId?.startsWith('passenger-')) {
+      const passenger = this.state.service.passengers[targetId];
+      if (!passenger) return;
+      if (!player.heldObjectId) {
+        player.lastAction =
+          passenger.requestStatus === 'active'
+            ? `${passenger.name} needs ${needLabel(passenger.need)}`
+            : `${passenger.name}: ${passenger.requestStatus}`;
+        return;
+      }
+      const object = this.state.cabin.objects[player.heldObjectId];
+      if (!object) return;
+      const result = deliverServiceItem(this.state.service, targetId, object, player.position);
+      this.state.service = result.service;
+      player.lastAction = result.message;
+      this.log('service', result.message);
+      if (result.consumed) {
+        delete this.state.cabin.objects[object.id];
+        player.heldObjectId = undefined;
+      }
+      return;
+    }
+    const target = closestInteractable(this.state.cabin, player, targetId);
+    if (target?.kind === 'cart') {
+      if (player.heldObjectId) {
+        const object = this.state.cabin.objects[player.heldObjectId];
+        if (!object) return;
+        const result = restockServiceCartItem(this.state.service, object);
+        if (result.accepted) {
+          this.state.service = result.service;
+          delete this.state.cabin.objects[object.id];
+          player.heldObjectId = undefined;
+          player.lastAction = result.message;
+          this.log('service', result.message);
+          return;
+        }
+      } else if (!moveCart) {
+        const result = takeServiceCartItem(
+          this.state.service,
+          player.selectedServiceNeed,
+          target.position,
+          playerId,
+        );
+        this.state.service = result.service;
+        player.lastAction = result.message;
+        this.log('service', result.message);
+        if (result.object) {
+          this.state.cabin.objects[result.object.id] = result.object;
+          player.heldObjectId = result.object.id;
+        }
+        return;
+      }
+    }
     if (player.heldObjectId) {
       const object = this.state.cabin.objects[player.heldObjectId];
       if (!object) return;
@@ -165,7 +274,6 @@ export class HostSession {
       this.log('interaction', `${player.name} placed ${object.name}`);
       return;
     }
-    const target = closestInteractable(this.state.cabin, player, targetId);
     if (!target) {
       player.lastAction = 'No object in range';
       return;
@@ -207,7 +315,12 @@ export class HostSession {
 
   private clearTransientActions(): void {
     for (const [id, command] of Object.entries(this.commands)) {
-      this.commands[id] = { ...command, interact: false, throwItem: false };
+      this.commands[id] = {
+        ...command,
+        interact: false,
+        selectServiceNeed: undefined,
+        throwItem: false,
+      };
     }
   }
 

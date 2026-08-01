@@ -1,4 +1,5 @@
 import { phaseOneCabinDefinition, type PhaseOneObjectDefinition } from '../data/phase-one';
+import { serviceSliceDefinition, type ServiceObjectDefinition } from '../data/service';
 import { add, clamp, distance, length, normalized, scale } from './math';
 import type {
   CabinObject,
@@ -12,7 +13,12 @@ import type {
 const playerRadius = 0.58;
 
 export function createCabinState(): CabinState {
-  const objects = phaseOneCabinDefinition.objects.map(objectFromDefinition);
+  const objects = [
+    ...phaseOneCabinDefinition.objects.map(objectFromDefinition),
+    ...serviceSliceDefinition.objects
+      .filter((definition) => !('serviceNeed' in definition))
+      .map(serviceObjectFromDefinition),
+  ];
   return {
     width: phaseOneCabinDefinition.width,
     length: phaseOneCabinDefinition.length,
@@ -26,7 +32,16 @@ export function createCabinState(): CabinState {
   };
 }
 
-function objectFromDefinition(definition: PhaseOneObjectDefinition): CabinObject {
+function serviceObjectFromDefinition(definition: ServiceObjectDefinition): CabinObject {
+  return {
+    ...objectFromDefinition(definition),
+    serviceNeed: definition.serviceNeed,
+  };
+}
+
+function objectFromDefinition(
+  definition: PhaseOneObjectDefinition | ServiceObjectDefinition,
+): CabinObject {
   return object(
     definition.id,
     definition.name,
@@ -185,6 +200,7 @@ function player(id: string, name: string, color: string, position: Vec2): Player
     crouched: false,
     braced: false,
     knockdown: 0,
+    selectedServiceNeed: 'drink',
     lastAction: 'Ready',
   };
 }

@@ -61,6 +61,13 @@ export class CabinInputController {
     command.crouch = this.pressed.has('ControlLeft') || this.pressed.has('ControlRight');
     command.brace = this.pressed.has('KeyC');
     command.interact = this.consume('KeyE');
+    command.selectServiceNeed = this.consume('Digit1')
+      ? 'drink'
+      : this.consume('Digit2')
+        ? 'meal'
+        : this.consume('Digit3')
+          ? 'medical'
+          : undefined;
     command.throwItem = this.consume('KeyQ');
     command.pilot = {
       pitch: Number(this.pressed.has('ArrowUp')) - Number(this.pressed.has('ArrowDown')),
@@ -114,7 +121,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 function isGameKey(code: string): boolean {
-  return /^(Key[ACDEFGHIJLQRSW]|Arrow(Up|Down|Left|Right)|Shift(Left|Right)|Control(Left|Right))$/.test(
+  return /^(Digit[123]|Key[ACDEFGHIJLQRSW]|Arrow(Up|Down|Left|Right)|Shift(Left|Right)|Control(Left|Right))$/.test(
     code,
   );
 }

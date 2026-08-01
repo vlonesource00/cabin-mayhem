@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import type { CabinObject, MissionState, ObjectKind } from '../sim/types';
+import { needLabel } from '../sim/service-mission';
+import type { CabinObject, MissionState, ObjectKind, PassengerState } from '../sim/types';
 import { cabinToWorld } from './coordinates';
 
 const colors = {
@@ -24,9 +25,11 @@ export class CabinWorld {
   private readonly startedAt = performance.now();
   private readonly raycaster = new THREE.Raycaster();
   private readonly dynamicObjects = new Map<string, THREE.Group>();
+  private readonly passengerAvatars = new Map<string, THREE.Group>();
   private readonly interactionRoots: THREE.Object3D[] = [];
   private readonly cabinLights: THREE.PointLight[] = [];
   private readonly crewBravo: THREE.Group;
+  private readonly galleyFire: THREE.Group;
   private interactionPrompt = 'CLICK TO CAPTURE MOUSE';
   private targetObjectId: string | null = null;
 
@@ -49,6 +52,8 @@ export class CabinWorld {
 
     this.buildLighting();
     this.buildCabin();
+    this.galleyFire = this.createGalleyFire();
+    this.cabin.add(this.galleyFire);
     this.crewBravo = this.createCrewAvatar(0x38bdf8);
     this.cabin.add(this.crewBravo);
     this.scene.add(this.cabin);
@@ -331,6 +336,45 @@ export class CabinWorld {
     return group;
   }
 
+  private createPassengerAvatar(passenger: PassengerState): THREE.Group {
+    const group = new THREE.Group();
+    group.name = passenger.name;
+    const clothes = this.material(Number.parseInt(passenger.color.slice(1), 16), 0.8, 0.03);
+    const skin = this.material(0xc99072, 0.82, 0.01);
+    group.add(this.box('passenger torso', [0.56, 0.72, 0.32], [0, 1.15, 0.05], clothes));
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 14), skin);
+    head.name = 'passenger head';
+    head.position.set(0, 1.68, 0.08);
+    head.castShadow = true;
+    group.add(head);
+    for (const x of [-0.19, 0.19]) {
+      const leg = this.box('passenger leg', [0.15, 0.54, 0.16], [x, 0.57, -0.18], clothes);
+      leg.rotation.x = -1.15;
+      group.add(leg);
+      const arm = this.box('passenger arm', [0.13, 0.55, 0.13], [x * 1.72, 1.12, -0.02], skin);
+      arm.rotation.x = -0.35;
+      group.add(arm);
+    }
+    const beacon = new THREE.Mesh(
+      new THREE.TorusGeometry(0.22, 0.035, 8, 24),
+      new THREE.MeshBasicMaterial({ color: colors.orange, transparent: true, opacity: 0.95 }),
+    );
+    beacon.name = 'request beacon';
+    beacon.position.y = 2.18;
+    beacon.rotation.x = Math.PI / 2;
+    group.add(beacon);
+    const hitbox = new THREE.Mesh(
+      new THREE.BoxGeometry(0.85, 2.25, 0.85),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+    );
+    hitbox.position.y = 1.1;
+    group.add(hitbox);
+    group.userData.passengerId = passenger.id;
+    this.interactionRoots.push(group);
+    this.cabin.add(group);
+    return group;
+  }
+
   private createObjectAsset(object: CabinObject): THREE.Group {
     const group = new THREE.Group();
     group.name = object.name;
@@ -349,7 +393,50 @@ export class CabinWorld {
     return group;
   }
 
+  private createGalleyFire(): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'galley fire';
+    const ember = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.62, 0.8, 0.16, 18),
+      this.material(0x2a1514, 0.56, 0.18, 0x7f1200),
+    );
+    ember.position.y = 0.08;
+    group.add(ember);
+    const flameOffsets: Array<readonly [number, number]> = [
+      [-0.36, 0.24],
+      [0, 0.42],
+      [0.32, 0.18],
+      [0.08, -0.28],
+    ];
+    for (const [index, offset] of flameOffsets.entries()) {
+      const flame = new THREE.Mesh(
+        new THREE.ConeGeometry(index % 2 === 0 ? 0.24 : 0.18, 0.88 + index * 0.08, 10),
+        this.material(index % 2 === 0 ? 0xff5a1f : 0xffca3a, 0.35, 0.15, 0xff3b13),
+      );
+      flame.name = 'fire flame';
+      flame.position.set(offset[0], 0.48, offset[1]);
+      flame.castShadow = true;
+      group.add(flame);
+    }
+    const light = new THREE.PointLight(0xff4d1e, 4.8, 6.5, 1.45);
+    light.name = 'fire light';
+    light.position.y = 1.05;
+    group.add(light);
+    const hitbox = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.25, 1.25, 2.2, 16),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+    );
+    hitbox.position.y = 1;
+    group.add(hitbox);
+    group.userData.fireId = 'fire-galley';
+    group.userData.interaction = 'GALLEY FIRE - extinguisher required';
+    group.visible = false;
+    this.interactionRoots.push(group);
+    return group;
+  }
+
   private syncState(state: MissionState, elapsed: number): void {
+    for (const asset of this.dynamicObjects.values()) asset.visible = false;
     for (const object of Object.values(state.cabin.objects)) {
       const asset = this.dynamicObjects.get(object.id) ?? this.createObjectAsset(object);
       this.dynamicObjects.set(object.id, asset);
@@ -374,6 +461,46 @@ export class CabinWorld {
       if (securedRing instanceof THREE.Mesh) securedRing.visible = object.secured;
     }
 
+    for (const passenger of Object.values(state.service.passengers)) {
+      const avatar =
+        this.passengerAvatars.get(passenger.id) ?? this.createPassengerAvatar(passenger);
+      this.passengerAvatars.set(passenger.id, avatar);
+      const seat = cabinToWorld(passenger.seatPosition);
+      const shake = Math.sin(elapsed * 15 + passenger.requestAt) * passenger.panic * 0.035;
+      avatar.position.set(seat.x + shake, seat.y, seat.z);
+      avatar.rotation.y = passenger.seatPosition.x < 8 ? -0.08 : 0.08;
+      avatar.rotation.z = passenger.injury * (passenger.seatPosition.x < 8 ? 0.22 : -0.22);
+      avatar.userData.interaction = passengerInteraction(passenger);
+      const beacon = avatar.getObjectByName('request beacon');
+      if (beacon instanceof THREE.Mesh && beacon.material instanceof THREE.MeshBasicMaterial) {
+        beacon.visible = passenger.requestStatus === 'active';
+        beacon.material.color.setHex(
+          passenger.need === 'medical'
+            ? colors.red
+            : passenger.patience < 0.35
+              ? 0xffc14d
+              : colors.cyan,
+        );
+        beacon.scale.setScalar(1 + Math.sin(elapsed * 5) * 0.12);
+      }
+    }
+
+    this.galleyFire.position.copy(cabinToWorld(state.fire.position));
+    this.galleyFire.visible = state.fire.status === 'active';
+    if (this.galleyFire.visible) {
+      const pulse = 0.9 + Math.sin(elapsed * 14) * 0.16;
+      this.galleyFire.scale.setScalar(pulse * (0.55 + state.fire.intensity * 0.55));
+      for (const [index, flame] of this.galleyFire.children
+        .filter((entry) => entry.name === 'fire flame')
+        .entries()) {
+        flame.rotation.z = Math.sin(elapsed * 9 + index) * 0.18;
+        flame.scale.y = 0.84 + Math.sin(elapsed * 17 + index * 2) * 0.22;
+      }
+      const fireLight = this.galleyFire.getObjectByName('fire light');
+      if (fireLight instanceof THREE.PointLight)
+        fireLight.intensity = 3.1 + state.fire.intensity * 3.2 + Math.sin(elapsed * 19) * 0.75;
+    }
+
     const bravo = state.cabin.players['crew-bravo'];
     if (bravo) {
       this.crewBravo.position.copy(cabinToWorld(bravo.position));
@@ -392,26 +519,62 @@ export class CabinWorld {
   private updateInteraction(state: MissionState): void {
     const player = state.cabin.players['crew-alpha'];
     const held = player?.heldObjectId ? state.cabin.objects[player.heldObjectId] : undefined;
-    if (held) {
-      this.targetObjectId = held.id;
-      this.interactionPrompt = `${held.name} — E place, Q throw`;
+    this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+    let target: THREE.Object3D | null = null;
+    for (const entry of this.raycaster.intersectObjects(this.interactionRoots, true)) {
+      if (entry.distance > 1.9) break;
+      let candidate: THREE.Object3D | null = entry.object;
+      while (candidate && typeof candidate.userData.interaction !== 'string')
+        candidate = candidate.parent;
+      if (!candidate || candidate.userData.objectId === held?.id) continue;
+      target = candidate;
+      break;
+    }
+    const passengerId =
+      target && typeof target.userData.passengerId === 'string'
+        ? target.userData.passengerId
+        : null;
+    const objectId =
+      target && typeof target.userData.objectId === 'string' ? target.userData.objectId : null;
+    const fireId =
+      target && typeof target.userData.fireId === 'string' ? target.userData.fireId : null;
+    if (held && passengerId) {
+      this.targetObjectId = passengerId;
+      this.interactionPrompt = `${String(target?.userData.interaction)} - E deliver ${held.name}`;
       return;
     }
-
-    this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
-    const hit = this.raycaster
-      .intersectObjects(this.interactionRoots, true)
-      .find((entry) => entry.distance <= 1.9);
-    if (!hit) {
+    if (fireId) {
+      this.targetObjectId = fireId;
+      this.interactionPrompt =
+        held?.kind === 'extinguisher'
+          ? 'GALLEY FIRE - E spray extinguisher'
+          : held
+            ? `GALLEY FIRE - ${held.name} cannot suppress it`
+            : 'GALLEY FIRE - grab extinguisher and spray with E';
+      return;
+    }
+    if (held && objectId === 'cart-01') {
+      this.targetObjectId = objectId;
+      this.interactionPrompt = `Service cart - E return ${held.name}`;
+      return;
+    }
+    if (held) {
+      this.targetObjectId = held.id;
+      this.interactionPrompt = `${held.name} - E place, Q throw`;
+      return;
+    }
+    if (!target) {
       this.targetObjectId = null;
       this.interactionPrompt =
         document.pointerLockElement === this.canvas ? 'SCAN CABIN' : 'CLICK TO CAPTURE MOUSE';
       return;
     }
-    let target: THREE.Object3D | null = hit.object;
-    while (target && typeof target.userData.interaction !== 'string') target = target.parent;
-    this.targetObjectId =
-      target && typeof target.userData.objectId === 'string' ? target.userData.objectId : null;
+    this.targetObjectId = passengerId ?? objectId ?? fireId;
+    if (objectId === 'cart-01' && player) {
+      const need = player.selectedServiceNeed;
+      this.interactionPrompt = `Service cart - 1 drink  2 meal  3 medical - E take ${need.toUpperCase()} (${state.service.cart.stock[need]}) - Shift+E move`;
+      return;
+    }
     this.interactionPrompt = String(target?.userData.interaction ?? 'INTERACT');
   }
 
@@ -527,6 +690,70 @@ function objectAsset(kind: ObjectKind, world: CabinWorld): THREE.Group {
         world.material(0x252a2e, 0.5, 0.65),
       ),
     );
+  } else if (kind === 'drink') {
+    const bottle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.13, 0.16, 0.52, 18),
+      world.material(0x57bde0, 0.28, 0.08, 0x0b3548),
+    );
+    bottle.position.y = 0.3;
+    group.add(bottle);
+    const cap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.09, 0.08, 16),
+      world.material(0xf1f7f8, 0.45, 0.12),
+    );
+    cap.position.y = 0.6;
+    group.add(cap);
+  } else if (kind === 'meal-tray') {
+    group.add(
+      world.box(
+        'meal tray',
+        [0.68, 0.09, 0.48],
+        [0, 0.08, 0],
+        world.material(0x303943, 0.55, 0.18),
+      ),
+    );
+    const meal = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.2, 0.09, 20),
+      world.material(0xe7a63d, 0.8, 0.01),
+    );
+    meal.position.set(-0.11, 0.17, 0);
+    group.add(meal);
+    group.add(world.box('meal side', [0.2, 0.1, 0.2], [0.2, 0.16, 0], world.material(0x5f9e52)));
+  } else if (kind === 'medkit') {
+    group.add(
+      world.box('medkit', [0.64, 0.46, 0.24], [0, 0.27, 0], world.material(0xe7ecee, 0.58, 0.08)),
+    );
+    group.add(
+      world.box(
+        'medical cross horizontal',
+        [0.3, 0.08, 0.03],
+        [0, 0.29, -0.135],
+        world.material(colors.red, 0.5, 0.05, 0x6e1711),
+      ),
+    );
+    group.add(
+      world.box(
+        'medical cross vertical',
+        [0.08, 0.3, 0.03],
+        [0, 0.29, -0.135],
+        world.material(colors.red, 0.5, 0.05, 0x6e1711),
+      ),
+    );
+  } else if (kind === 'extinguisher') {
+    const tank = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.17, 0.2, 0.72, 18),
+      world.material(0xd52d28, 0.38, 0.42),
+    );
+    tank.position.y = 0.4;
+    group.add(tank);
+    group.add(
+      world.box(
+        'extinguisher handle',
+        [0.25, 0.08, 0.12],
+        [0.08, 0.82, 0],
+        world.material(0x20262b, 0.48, 0.65),
+      ),
+    );
   } else {
     const color = kind === 'light-case' ? 0xf2a84b : 0x4aa7ad;
     group.add(world.box(kind, [0.66, 0.48, 0.34], [0, 0.27, 0], world.material(color, 0.68, 0.1)));
@@ -545,4 +772,12 @@ function objectAsset(kind: ObjectKind, world: CabinWorld): THREE.Group {
   secured.visible = false;
   group.add(secured);
   return group;
+}
+
+function passengerInteraction(passenger: PassengerState): string {
+  if (passenger.requestStatus === 'active')
+    return `${passenger.name} needs ${needLabel(passenger.need)} (${Math.round(passenger.patience * 100)}%)`;
+  if (passenger.requestStatus === 'served') return `${passenger.name} - served`;
+  if (passenger.requestStatus === 'missed') return `${passenger.name} - request missed`;
+  return `${passenger.name} - waiting`;
 }

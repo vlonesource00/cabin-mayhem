@@ -17,6 +17,20 @@ describe('flight model', () => {
     expect(advanceFlightPhase(flight)).toEqual(flight);
   });
 
+  it('taxis, rotates and climbs from pilot throttle without debug phase skips', () => {
+    let flight = createFlightState();
+    for (let tick = 0; tick < 720; tick += 1) {
+      flight = updateFlight(
+        flight,
+        { pitch: 0, roll: 0, yaw: 0, throttle: 1, brake: false },
+        1 / 60,
+      );
+    }
+    expect(['takeoff', 'cruise']).toContain(flight.phase);
+    expect(flight.airspeed).toBeGreaterThan(95);
+    expect(flight.altitude).toBeGreaterThan(10);
+  });
+
   it('stays finite under sustained pilot input and turbulence', () => {
     let flight = triggerAirPocket(triggerTurbulence(createFlightState(), 1));
     flight = advanceFlightPhase(flight);

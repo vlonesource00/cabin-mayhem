@@ -8,6 +8,7 @@ describe('Phase 1 technical path', () => {
     session.trigger('air-pocket');
     session.trigger('sharp-turn');
     session.trigger('collision');
+    session.trigger('fire');
     session.damage('electrical');
     for (let tick = 0; tick < 360; tick += 1) session.step(1 / 60);
     for (let phase = 0; phase < 5; phase += 1) session.advancePhase();
@@ -16,5 +17,7 @@ describe('Phase 1 technical path', () => {
     expect(state.cabin.lastImpulse).toBeGreaterThanOrEqual(0);
     expect(state.events.map((event) => event.type)).toContain('physics');
     expect(state.events.map((event) => event.type)).toContain('system');
+    expect(state.events.map((event) => event.type)).toContain('emergency');
+    expect(state.fire.status).toBe('active');
   });
 });

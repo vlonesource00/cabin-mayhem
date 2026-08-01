@@ -34,33 +34,40 @@ export function updateFlight(
 ): FlightState {
   const dt = clamp(finite(deltaSeconds), 0, 0.05);
   const phase = current.phase;
-  const moving =
-    phase === 'taxi' || phase === 'takeoff' || phase === 'cruise' || phase === 'approach';
   const throttle = clamp(current.throttle + clamp(input.throttle, -1, 1) * dt * 0.42, 0, 1);
   const braking = input.brake ? 1 : 0;
   const engineHealth = 0.55 + current.structure * 0.45;
-  const targetSpeed = moving ? throttle * 220 * engineHealth : 0;
+  const targetSpeed =
+    phase === 'ground'
+      ? throttle * 48 * engineHealth
+      : phase === 'taxi'
+        ? throttle * 104 * engineHealth
+        : phase === 'approach'
+          ? throttle * 176 * engineHealth
+          : throttle * 220 * engineHealth;
   const brakeForce = braking * 170;
   const airspeed = clamp(
     current.airspeed + (targetSpeed - current.airspeed) * dt * 0.75 - brakeForce * dt,
     0,
     260,
   );
+  const nextPhase = autoFlightPhase(phase, throttle, airspeed, current.altitude);
+  const rotationAssist = nextPhase === 'takeoff' && airspeed >= 96 && throttle >= 0.58 ? 8.5 : 0;
   const roll = clamp(
     current.roll + clamp(input.roll, -1, 1) * dt * 30 - current.roll * dt * 0.65,
     -35,
     35,
   );
   const pitch = clamp(
-    current.pitch + clamp(input.pitch, -1, 1) * dt * 15 - current.pitch * dt * 0.42,
+    current.pitch + (clamp(input.pitch, -1, 1) * 15 + rotationAssist - current.pitch * 0.42) * dt,
     -18,
     18,
   );
   const yawRate = clamp(input.yaw * 0.3 + roll * 0.024, -1.2, 1.2);
   const heading = (current.heading + yawRate * dt * 40 + 360) % 360;
-  const canClimb = phase === 'takeoff' || phase === 'cruise' || phase === 'approach';
+  const canClimb = nextPhase === 'takeoff' || nextPhase === 'cruise' || nextPhase === 'approach';
   const verticalSpeed = canClimb
-    ? clamp(pitch * airspeed * 0.0024 - (phase === 'approach' ? 3 : 0), -16, 16)
+    ? clamp(pitch * airspeed * 0.012 - (nextPhase === 'approach' ? 3 : 0), -16, 16)
     : 0;
   const altitude = clamp(current.altitude + verticalSpeed * dt, 0, 12000);
   const turbulence = clamp(current.turbulence - dt * 0.035, 0, 1);
@@ -73,7 +80,8 @@ export function updateFlight(
 
   return {
     ...current,
-    phaseElapsed: current.phaseElapsed + dt,
+    phase: nextPhase,
+    phaseElapsed: nextPhase === phase ? current.phaseElapsed + dt : 0,
     clock: current.clock + dt,
     airspeed,
     altitude,
@@ -87,8 +95,28 @@ export function updateFlight(
     airPocket,
     turnImpulse,
     collisionImpulse,
+    warning: nextPhase === phase ? current.warning : phaseMessage(nextPhase),
     cabinAcceleration: { x: finite(lateral), y: finite(longitudinal + vertical) },
   };
+}
+
+function autoFlightPhase(
+  phase: FlightPhase,
+  throttle: number,
+  airspeed: number,
+  altitude: number,
+): FlightPhase {
+  if (phase === 'ground' && throttle >= 0.1 && airspeed >= 4) return 'taxi';
+  if (phase === 'taxi' && throttle >= 0.62 && airspeed >= 64) return 'takeoff';
+  if (phase === 'takeoff' && altitude >= 900) return 'cruise';
+  return phase;
+}
+
+function phaseMessage(phase: FlightPhase): string {
+  if (phase === 'taxi') return 'Taxi rolling - hold R for takeoff power';
+  if (phase === 'takeoff') return 'V1 - rotate assist engaged';
+  if (phase === 'cruise') return 'Cruise altitude captured';
+  return `Phase: ${phase}`;
 }
 
 export function advanceFlightPhase(current: FlightState): FlightState {

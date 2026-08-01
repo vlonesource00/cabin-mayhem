@@ -4,17 +4,17 @@
 
 Vite/Tauri baseline, TypeScript checks, CI, docs, Canvas bootstrap and local test tooling.
 
-## Phase 1 — current
+## Phase 1 — complete
 
 Moving-aircraft technical proof: greybox cabin, host authority, local simulated client, cabin-relative force, grabbing, straps, turbulence, debug display and automated smoke checks.
 
-## Phase 2 — only after Phase 1 playtest passes
+## Phase 2 — current vertical
 
-Real browser transport interface/adapter, passenger seating and requests, service, cargo contracts, subsystem damage/repair, event director, takeoff-to-landing greybox route and debrief.
+Automatic taxi/takeoff/cruise flight, eight passenger NPCs, drink/meal/medical requests, host-authoritative service-cart inventory, physical service props, patience/panic/injury, scoring, landing outcome and the galley-fire/extinguisher objective are implemented. Next: full manual delivery playtest, toolbox repair objective, debrief, production GLB/audio and tuning.
 
 ## Phase 3
 
-Vertical-slice passengers, cargo, events, route/weather, art/audio, save/economy/upgrades and onboarding.
+Real browser transport, cargo contracts, event director, route/weather, production art/audio, save/economy/upgrades and onboarding.
 
 ## Phase 4
 

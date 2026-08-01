@@ -28,7 +28,7 @@ describe('host session', () => {
     expect(state.events.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('grabs only the host-validated crosshair target and owns it', () => {
+  it('moves the cart only with the host-validated Shift+E target', () => {
     const session = new HostSession(46);
     session.teleport('crew-alpha', 'cabin');
 
@@ -49,11 +49,67 @@ describe('host session', () => {
     grab.look = { x: 0, y: 1 };
     grab.interact = true;
     grab.interactionTargetId = 'cart-01';
+    grab.sprint = true;
     session.submitCommand('crew-alpha', grab);
     session.step(1 / 60);
 
     const state = session.snapshot();
     expect(state.cabin.players['crew-alpha']!.heldObjectId).toBe('cart-01');
     expect(state.cabin.objects['cart-01']!.ownerId).toBe('crew-alpha');
+  });
+
+  it('consumes a held medkit only when delivered to the matching passenger', () => {
+    const session = new HostSession(47);
+    session.teleport('crew-alpha', 'cabin');
+    const lookAtCart = emptyCommand();
+    lookAtCart.look = { x: 0, y: 1 };
+    session.submitCommand('crew-alpha', lookAtCart);
+    session.step(1 / 60);
+
+    const take = emptyCommand();
+    take.look = { x: 0, y: 1 };
+    take.selectServiceNeed = 'medical';
+    take.interact = true;
+    take.interactionTargetId = 'cart-01';
+    session.submitCommand('crew-alpha', take);
+    session.step(1 / 60);
+    const heldObjectId = session.snapshot().cabin.players['crew-alpha']!.heldObjectId;
+    expect(heldObjectId).toMatch(/^cart-medical-/);
+    expect(session.snapshot().service.cart.stock.medical).toBe(1);
+
+    const deliver = emptyCommand();
+    deliver.interact = true;
+    deliver.interactionTargetId = 'passenger-sofia';
+    session.submitCommand('crew-alpha', deliver);
+    session.step(1 / 60);
+    const state = session.snapshot();
+    expect(state.cabin.players['crew-alpha']!.heldObjectId).toBeUndefined();
+    expect(state.cabin.objects[heldObjectId!]).toBeUndefined();
+    expect(state.service.passengers['passenger-sofia']!.requestStatus).toBe('served');
+    expect(state.service.score).toBeGreaterThan(100);
+  });
+
+  it('keeps fire authority on the host and suppresses it only with a nearby held extinguisher', () => {
+    const session = new HostSession(48);
+    session.trigger('fire', 0.82);
+    expect(session.snapshot().fire.status).toBe('active');
+    expect(session.snapshot().service.score).toBe(-35);
+
+    session.teleport('crew-alpha', 'cabin');
+    const grab = emptyCommand();
+    grab.interact = true;
+    grab.interactionTargetId = 'extinguisher-01';
+    session.submitCommand('crew-alpha', grab);
+    session.step(1 / 60);
+    expect(session.snapshot().cabin.players['crew-alpha']!.heldObjectId).toBe('extinguisher-01');
+
+    session.teleport('crew-alpha', 'galley');
+    const spray = emptyCommand();
+    spray.interact = true;
+    spray.interactionTargetId = 'fire-galley';
+    session.submitCommand('crew-alpha', spray);
+    session.step(1 / 60);
+    expect(session.snapshot().fire.status).toBe('suppressed');
+    expect(session.snapshot().cabin.players['crew-alpha']!.heldObjectId).toBe('extinguisher-01');
   });
 });
