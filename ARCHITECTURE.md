@@ -8,9 +8,10 @@ Phase 1 web/Tauri technical prototype for Cabin Mayhem. Vite/browser is intentio
 
 ```text
 src/
-  app/       menu, Canvas renderer, HUD, debug UI, test bridge
+  app/       menu, 3D game shell, HUD, debug UI, test bridge
   input/     keyboard/gamepad intent collection
   sim/       host authority, flight model, cabin physics, simulated transport
+  three/     Three.js world, procedural 3D asset kit, FPS camera and coordinate mapping
   data/      validated static Phase 1 cabin definitions
 tests/       unit, integration and browser journeys
 docs/        game, network, authoring, test and roadmap records
@@ -23,7 +24,9 @@ src-tauri/   optional Rust native shell
 - `flight-model`: compact aircraft state; derives cabin acceleration without moving aircraft world coordinates.
 - `cabin-simulation`: aircraft-local kinematic crew plus selective loose-object physics, friction, straps and collision impulses.
 - `simulated-transport`: deterministic latency, jitter and packet loss harness for local host/client proof.
-- `CabinMayhemApp`: presentation only; turns input into intention, reads snapshots and draws Canvas geometry.
+- `CabinMayhemApp`: presentation coordinator; turns input into intention and reads host snapshots.
+- `CabinWorld`: Three.js/WebGL aircraft, lighting, 3D assets, prop synchronization and interaction raycast.
+- `FirstPersonController`: pointer-lock mouse look, camera-relative movement and inertial camera feedback.
 
 ## Data flow
 
@@ -33,7 +36,7 @@ Keyboard/gamepad or local client
   -> simulated transport (non-host)
   -> HostSession validation and fixed-step simulation
   -> MissionState snapshot
-  -> Canvas HUD/debug presentation
+  -> Three.js world + DOM HUD/debug presentation
 ```
 
 ## Dependencies
@@ -45,4 +48,4 @@ Runtime: no required online service. `zod` validates authored cabin data. Build/
 - Aircraft remains local; cabin responds to derived acceleration. Avoids large-coordinate precision and unstable fully-physical aircraft coupling.
 - Only compact intent moves through transport; host creates authoritative state.
 - Phase changes use one explicit transition function, never scattered flags.
-- Canvas runtime geometry is project-owned placeholder art; no copied aviation-game content.
+- Procedural Three.js meshes form a project-owned 3D asset kit; no copied aviation-game content.

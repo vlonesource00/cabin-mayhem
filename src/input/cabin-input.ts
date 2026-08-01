@@ -114,7 +114,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 function isGameKey(code: string): boolean {
-  return /^(Key[ACDEFGHIJLQRW]|Arrow(Up|Down|Left|Right)|Shift(Left|Right)|Control(Left|Right))$/.test(
+  return /^(Key[ACDEFGHIJLQRSW]|Arrow(Up|Down|Left|Right)|Shift(Left|Right)|Control(Left|Right))$/.test(
     code,
   );
 }

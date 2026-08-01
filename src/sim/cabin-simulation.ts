@@ -85,12 +85,13 @@ export function stepCabin(
     object.velocity.x *= damping;
     object.velocity.y *= damping;
     const before = { ...object.position };
-    object.position = clampPosition(
-      add(object.position, scale(object.velocity, dt)),
+    const intended = add(object.position, scale(object.velocity, dt));
+    object.position = resolveCabinFixtures(
+      clampPosition(intended, object.radius, current),
+      before,
       object.radius,
-      current,
     );
-    if (before.x !== object.position.x || before.y !== object.position.y) {
+    if (distance(intended, object.position) > 0.001) {
       const impulse = length(object.velocity) * object.mass * 0.025;
       object.velocity.x *= -0.38;
       object.velocity.y *= -0.38;
@@ -125,11 +126,27 @@ export function stepCabin(
 export function closestInteractable(
   cabin: CabinState,
   player: PlayerState,
+  requestedId?: string | null,
 ): CabinObject | undefined {
-  return Object.values(cabin.objects)
+  const candidates = Object.values(cabin.objects)
     .filter((entry) => !entry.ownerId || entry.ownerId === player.id)
-    .sort((a, b) => distance(a.position, player.position) - distance(b.position, player.position))
-    .find((entry) => distance(entry.position, player.position) <= 1.55);
+    .filter((entry) => distance(entry.position, player.position) <= 1.8);
+
+  if (requestedId === null) return undefined;
+  if (requestedId !== undefined) {
+    const requested = candidates.find((entry) => entry.id === requestedId);
+    if (!requested) return undefined;
+    const towardTarget = normalized({
+      x: requested.position.x - player.position.x,
+      y: requested.position.y - player.position.y,
+    });
+    const facingScore = towardTarget.x * player.facing.x + towardTarget.y * player.facing.y;
+    return facingScore >= 0.2 ? requested : undefined;
+  }
+
+  return candidates.sort(
+    (a, b) => distance(a.position, player.position) - distance(b.position, player.position),
+  )[0];
 }
 
 export function setObjectSecured(object: CabinObject, secured: boolean): CabinObject {
@@ -210,12 +227,14 @@ function stepPlayer(
 ): PlayerState {
   const input = command ?? {
     move: { x: 0, y: 0 },
+    look: player.facing,
     sprint: false,
     crouch: false,
     brace: false,
   };
   const direction = normalized(input.move);
-  const facing = length(direction) > 0.01 ? direction : player.facing;
+  const look = normalized(input.look);
+  const facing = length(look) > 0.01 ? look : length(direction) > 0.01 ? direction : player.facing;
   const speed = input.crouch ? 2.1 : input.sprint ? 5.4 : 3.55;
   const targetVelocity = scale(direction, speed);
   const braceFactor = input.brace ? 0.08 : 0.34;
@@ -237,7 +256,11 @@ function stepPlayer(
   const forcedKnockdown = force > 11 && !input.brace ? Math.max(knockdown, 0.8) : knockdown;
   return {
     ...player,
-    position: clampPosition(add(player.position, scale(velocity, dt)), playerRadius, cabin),
+    position: resolveCabinFixtures(
+      clampPosition(add(player.position, scale(velocity, dt)), playerRadius, cabin),
+      player.position,
+      playerRadius,
+    ),
     velocity,
     facing,
     crouched: input.crouch,
@@ -252,6 +275,66 @@ function clampPosition(position: Vec2, radius: number, cabin: CabinState): Vec2 
     x: clamp(position.x, 0.8 + radius, cabin.width - 0.8 - radius),
     y: clamp(position.y, 0.8 + radius, cabin.length - 0.8 - radius),
   };
+}
+
+interface CabinFixture {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+const cabinFixtures: CabinFixture[] = [
+  { minX: 1.2, maxX: 6.7, minY: 0.75, maxY: 2.25 },
+  { minX: 9.3, maxX: 14.8, minY: 0.75, maxY: 2.25 },
+  ...Array.from({ length: 8 }, (_, row) => {
+    const center = 7.2 + row * 2.76;
+    return [
+      { minX: 1.1, maxX: 5.9, minY: center - 0.9, maxY: center + 0.9 },
+      { minX: 10.1, maxX: 14.9, minY: center - 0.9, maxY: center + 0.9 },
+    ];
+  }).flat(),
+  { minX: 0.8, maxX: 6.2, minY: 29.15, maxY: 29.8 },
+  { minX: 9.8, maxX: 15.2, minY: 29.15, maxY: 29.8 },
+];
+
+function resolveCabinFixtures(position: Vec2, previous: Vec2, radius: number): Vec2 {
+  let resolved = { ...position };
+  for (const fixture of cabinFixtures) {
+    const expanded = {
+      minX: fixture.minX - radius,
+      maxX: fixture.maxX + radius,
+      minY: fixture.minY - radius,
+      maxY: fixture.maxY + radius,
+    };
+    if (!inside(resolved, expanded)) continue;
+    const xOnly = { x: previous.x, y: resolved.y };
+    const yOnly = { x: resolved.x, y: previous.y };
+    if (!inside(xOnly, expanded)) resolved = xOnly;
+    else if (!inside(yOnly, expanded)) resolved = yOnly;
+    else resolved = pushToNearestEdge(resolved, expanded);
+  }
+  return resolved;
+}
+
+function inside(position: Vec2, fixture: CabinFixture): boolean {
+  return (
+    position.x > fixture.minX &&
+    position.x < fixture.maxX &&
+    position.y > fixture.minY &&
+    position.y < fixture.maxY
+  );
+}
+
+function pushToNearestEdge(position: Vec2, fixture: CabinFixture): Vec2 {
+  const edges = [
+    { distance: Math.abs(position.x - fixture.minX), position: { ...position, x: fixture.minX } },
+    { distance: Math.abs(fixture.maxX - position.x), position: { ...position, x: fixture.maxX } },
+    { distance: Math.abs(position.y - fixture.minY), position: { ...position, y: fixture.minY } },
+    { distance: Math.abs(fixture.maxY - position.y), position: { ...position, y: fixture.maxY } },
+  ];
+  edges.sort((first, second) => first.distance - second.distance);
+  return edges[0]?.position ?? position;
 }
 
 function turbulenceVector(flight: FlightState, objectId: string): Vec2 {

@@ -19,10 +19,12 @@ export interface PilotInput {
 
 export interface PlayerCommand {
   move: Vec2;
+  look: Vec2;
   sprint: boolean;
   crouch: boolean;
   brace: boolean;
   interact: boolean;
+  interactionTargetId?: string | null;
   throwItem: boolean;
   pilot: PilotInput;
 }
@@ -125,6 +127,7 @@ export interface MissionState {
 
 export const emptyCommand = (): PlayerCommand => ({
   move: { x: 0, y: 0 },
+  look: { x: 0, y: -1 },
   sprint: false,
   crouch: false,
   brace: false,

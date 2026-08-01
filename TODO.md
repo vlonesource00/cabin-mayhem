@@ -19,4 +19,7 @@
 - [x] Aircraft-local cabin physics, straps, grabbing and throwing.
 - [x] Host authority plus latency/jitter/loss test harness.
 - [x] Greybox technical scene, debug display and automated Phase 1 tests.
+- [x] Three.js first-person aircraft, procedural 3D asset kit and pointer-lock controls.
+- [x] Static cockpit/seat fixture collisions and 3D loose-object synchronization.
+- [x] Reliable backward movement and first-person pickup/place/throw loop.
 - [x] Browser visual pass and Windows `.exe`/MSI/NSIS build.

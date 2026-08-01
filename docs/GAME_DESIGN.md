@@ -14,7 +14,7 @@ Cabin Mayhem is original cooperative aviation management with physical comedy an
 
 ## Phase 1 completed content boundary
 
-One greybox aircraft test scene: cockpit, aisle, seats, shelves, rear cargo zone, cart, light objects, heavy crates, straps, two crew spawns and host debug actions. Flight phases are ground, taxi, takeoff, cruise, approach, landed and crashed-ready state. Turbulence, drop, turn, collision and electrical damage produce physical/system feedback.
+One walkable first-person 3D aircraft test scene: cockpit, aisle, seats, overhead bins, shelves, rear cargo zone, cart, light objects, heavy crates, straps, two crew and host debug actions. Flight phases are ground, taxi, takeoff, cruise, approach, landed and crashed-ready state. Turbulence, drop, turn, collision and electrical damage produce physical/system feedback.
 
 ## Deferred deliberately
 

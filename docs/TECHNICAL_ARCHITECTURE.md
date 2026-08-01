@@ -4,13 +4,15 @@
 
 TypeScript simulation runs at bounded `<= 50 ms` steps. `HostSession` has sole write access to `MissionState`. Presentation takes structured snapshots and cannot alter phase/object/damage state except through explicit host debug actions.
 
+Three.js owns presentation only. `CabinWorld` maps aircraft-local simulation coordinates into WebGL space, creates project-owned procedural meshes and synchronizes visible crew/props from snapshots. `FirstPersonController` converts pointer-lock camera direction into host command intent.
+
 ## Aircraft reference frame
 
 Aircraft cabin coordinates are local `(x, y)` meters. Flight model exposes roll, acceleration, turbulence and collision impulse. Cabin simulation applies derived inertial vectors to crew/loose objects; secured cargo remains attached to local anchors. This hybrid approach avoids unstable global-aircraft Rigidbody simulation.
 
 ## Physics model
 
-Crew use stable kinematic movement, crouch/sprint/brace states and knockdown threshold. Objects have radius, mass, friction, impact tolerance, damage, secured anchor and owner. Pairwise collision scope remains intentionally small and relevant. Object authority stays host-side.
+Crew use stable kinematic movement, crouch/sprint/brace states, static cabin fixture collision and knockdown threshold. Objects have radius, mass, friction, impact tolerance, damage, secured anchor and owner. Pairwise collision scope remains intentionally small and relevant. Object authority stays host-side.
 
 ## Extension seams
 

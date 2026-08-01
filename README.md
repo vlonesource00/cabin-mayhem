@@ -1,6 +1,6 @@
 # Cabin Mayhem
 
-Original cooperative airline-disaster game, currently Phase 1 moving-aircraft prototype. Browser-first Vite application; Tauri wraps same build as Windows desktop app.
+Original first-person cooperative airline-disaster game, currently Phase 1 moving-aircraft 3D prototype. Browser-first Vite application; Tauri wraps same build as Windows desktop app.
 
 ## Run
 
@@ -24,6 +24,8 @@ pnpm desktop:build
 ## Controls
 
 - `WASD`: walk
+- Mouse: first-person look (`Esc` releases pointer lock)
+- Embedded browser fallback: hold left mouse button and drag when pointer lock is unavailable
 - `Shift`: sprint
 - `Ctrl`: crouch
 - `C`: brace against inertial force
@@ -36,13 +38,22 @@ pnpm desktop:build
 
 Gamepad: left stick move, shoulder sprint, face buttons interact/crouch/brace/throw, triggers throttle/brake.
 
+### First playable drill
+
+1. Select `Enter 3D aircraft`, then click the 3D view to capture the mouse.
+2. Use `WASD` to walk; `S` always moves directly backwards from the camera.
+3. Press `Esc`, select `Cabin` under Host Debug, then click the 3D view again.
+4. Center the crosshair on the service cart until its interaction prompt appears.
+5. Press `E` to hold it visibly, `E` again to place it, or `Q` to throw it.
+6. Trigger turbulence, an air pocket or a sharp turn to test cabin physics. Use `C` to brace.
+
 ## Prototype scope
 
-Greybox fuselage, cockpit, aisle, seats, shelves, cart, loose objects, heavy crates, cargo straps, two crew spawns, turbulence, air pocket, sharp turn, collision, subsystem damage, deterministic simulated network conditions and host debug controls. Passenger AI, economy, routes, progression and real remote browser transport intentionally wait for Phase 2+.
+Walkable Three.js fuselage, cockpit, aisle, 3D seats, overhead bins, shelves, cart, loose cases, heavy crates, cargo straps, two crew, turbulence, air pocket, sharp turn, collision, subsystem damage, deterministic simulated network conditions and host debug controls. Passenger AI, economy, routes, progression and real remote browser transport intentionally wait for Phase 2+.
 
 ## Technologies
 
-TypeScript, Vite, Canvas 2D, Zod, Vitest, Playwright, ESLint, Prettier and optional Tauri/Rust desktop wrapper.
+TypeScript, Three.js/WebGL, Vite, Zod, Vitest, Playwright, ESLint, Prettier and optional Tauri/Rust desktop wrapper.
 
 ## Documentation ownership
 

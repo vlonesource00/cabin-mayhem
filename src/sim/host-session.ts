@@ -128,7 +128,11 @@ export class HostSession {
   public teleport(playerId: string, station: 'cockpit' | 'cabin' | 'cargo'): void {
     const player = this.state.cabin.players[playerId];
     if (!player) return;
-    const targets = { cockpit: { x: 8, y: 3.1 }, cabin: { x: 8, y: 17 }, cargo: { x: 8, y: 31.5 } };
+    const targets = {
+      cockpit: { x: 8, y: 3.1 },
+      cabin: { x: 8, y: 15.4 },
+      cargo: { x: 8, y: 31.5 },
+    };
     player.position = { ...targets[station] };
     player.velocity = { x: 0, y: 0 };
     player.lastAction = `Teleported: ${station}`;
@@ -144,11 +148,11 @@ export class HostSession {
       const player = this.state.cabin.players[playerId];
       if (!player) continue;
       if (command.throwItem && player.heldObjectId) this.throwHeldObject(playerId);
-      if (command.interact) this.interact(playerId);
+      if (command.interact) this.interact(playerId, command.interactionTargetId);
     }
   }
 
-  private interact(playerId: string): void {
+  private interact(playerId: string, targetId?: string | null): void {
     const player = this.state.cabin.players[playerId];
     if (!player) return;
     if (player.heldObjectId) {
@@ -161,7 +165,7 @@ export class HostSession {
       this.log('interaction', `${player.name} placed ${object.name}`);
       return;
     }
-    const target = closestInteractable(this.state.cabin, player);
+    const target = closestInteractable(this.state.cabin, player, targetId);
     if (!target) {
       player.lastAction = 'No object in range';
       return;
