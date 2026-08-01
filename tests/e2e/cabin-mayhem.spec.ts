@@ -49,9 +49,7 @@ test('test bridge resets and reaches a safe terminal phase', async ({ page }) =>
   await expect(page.locator('[data-hud="phase"]')).toHaveText('LANDED');
 });
 
-test('S walks backwards and the service cart selects medical stock', async ({
-  page,
-}) => {
+test('S walks backwards and the service cart selects medical stock', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Enter 3D aircraft' }).click();
 
