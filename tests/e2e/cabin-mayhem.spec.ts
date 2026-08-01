@@ -25,7 +25,7 @@ test('host debug creates readable turbulence feedback and advances phase', async
 test('R launches from ground', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Enter 3D aircraft' }).click();
-  await page.getByTestId('three-canvas').click();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await page.keyboard.down('r');
   await page.waitForTimeout(9000);
   await page.keyboard.up('r');
@@ -69,7 +69,7 @@ test('S walks backwards and the service cart dispenses, returns and moves stock'
 
   await page.getByRole('button', { name: 'Cabin', exact: true }).click();
   await expect(page.locator('[data-hud="interaction"]')).toContainText('Service cart');
-  await page.getByTestId('three-canvas').click();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await page.keyboard.press('3');
   await expect(page.locator('[data-hud="cart-selection"]')).toHaveText('3 MEDICAL');
   await page.keyboard.press('e');

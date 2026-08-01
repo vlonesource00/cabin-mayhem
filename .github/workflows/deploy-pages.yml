@@ -27,10 +27,12 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - id: pages
+        uses: actions/configure-pages@v5
       - run: pnpm build
         env:
           VITE_PUBLIC_BASE: /cabin-mayhem/
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: dist
 
