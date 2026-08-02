@@ -9,6 +9,16 @@
       "owner": "Cabin Mayhem",
       "importNotes": "Generated from original SVG with `pnpm exec tauri icon`.",
       "usageReferences": ["src-tauri/tauri.conf.json"]
+    },
+    {
+      "id": "cabin-mayhem-scenario-v1",
+      "type": "production-glb-scenario",
+      "sourceFile": "assets-src/blender/cabin-mayhem-scenario.blend",
+      "runtimeFile": "public/assets/scenarios/cabin-mayhem-scenario.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/build_cabin_scenario.py; 12 material-batched meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/scenario-loader.ts", "src/three/cabin-world.ts"]
     }
   ]
 }

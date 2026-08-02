@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { needLabel } from '../sim/service-mission';
 import type { CabinObject, MissionState, ObjectKind, PassengerState } from '../sim/types';
 import { cabinToWorld } from './coordinates';
+import { disposeScenario, loadCabinScenario } from './scenario-loader';
 
 const colors = {
   navy: 0x101a28,
@@ -22,6 +23,7 @@ export class CabinWorld {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly cabin = new THREE.Group();
+  private readonly proceduralScenario = new THREE.Group();
   private readonly startedAt = performance.now();
   private readonly raycaster = new THREE.Raycaster();
   private readonly dynamicObjects = new Map<string, THREE.Group>();
@@ -33,6 +35,8 @@ export class CabinWorld {
   private readonly galleyBreaker: THREE.Group;
   private interactionPrompt = 'CLICK TO CAPTURE MOUSE';
   private targetObjectId: string | null = null;
+  private productionScenario?: THREE.Group;
+  private disposed = false;
 
   public constructor(private readonly mount: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -50,9 +54,14 @@ export class CabinWorld {
     this.scene.background = new THREE.Color(0x07111d);
     this.scene.fog = new THREE.FogExp2(0x0b1624, 0.018);
     this.mount.append(this.canvas);
+    this.canvas.dataset.assetMode = 'loading';
 
     this.buildLighting();
+    const scenarioStart = this.cabin.children.length;
     this.buildCabin();
+    this.proceduralScenario.name = 'Procedural cabin fallback';
+    this.proceduralScenario.add(...this.cabin.children.slice(scenarioStart));
+    this.cabin.add(this.proceduralScenario);
     this.galleyFire = this.createGalleyFire();
     this.cabin.add(this.galleyFire);
     this.galleyBreaker = this.createGalleyBreaker();
@@ -60,6 +69,7 @@ export class CabinWorld {
     this.crewBravo = this.createCrewAvatar(0x38bdf8);
     this.cabin.add(this.crewBravo);
     this.scene.add(this.cabin);
+    this.loadProductionScenario();
     this.resize();
     window.addEventListener('resize', this.resize);
   }
@@ -84,6 +94,7 @@ export class CabinWorld {
   }
 
   public dispose(): void {
+    this.disposed = true;
     window.removeEventListener('resize', this.resize);
     this.scene.traverse((entry) => {
       if (entry instanceof THREE.Mesh) {
@@ -98,6 +109,44 @@ export class CabinWorld {
     });
     this.renderer.dispose();
     this.canvas.remove();
+  }
+
+  private loadProductionScenario(): void {
+    void loadCabinScenario()
+      .then((scenario) => {
+        if (this.disposed) {
+          disposeScenario(scenario);
+          return;
+        }
+        this.productionScenario = scenario;
+        this.cabin.add(scenario);
+        this.hideProceduralScenario();
+        this.canvas.dataset.assetMode = 'glb';
+      })
+      .catch(() => {
+        if (!this.disposed) this.canvas.dataset.assetMode = 'fallback';
+      });
+  }
+
+  private hideProceduralScenario(): void {
+    const interactive = new Set(this.interactionRoots);
+    this.proceduralScenario.traverse((entry) => {
+      if (!(entry instanceof THREE.Mesh)) return;
+      if (!interactive.has(entry)) {
+        entry.visible = false;
+        return;
+      }
+      const materials = Array.isArray(entry.material) ? entry.material : [entry.material];
+      const invisible = materials.map((material) => {
+        const clone = material.clone();
+        clone.transparent = true;
+        clone.opacity = 0;
+        clone.depthWrite = false;
+        clone.colorWrite = false;
+        return clone;
+      });
+      entry.material = Array.isArray(entry.material) ? invisible : invisible[0]!;
+    });
   }
 
   private readonly resize = (): void => {

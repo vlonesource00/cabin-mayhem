@@ -7,12 +7,24 @@ test('menu enters a compact first-person Three.js aircraft UI', async ({ page })
 
   await expect(page.getByTestId('technical-test-scene')).toBeVisible();
   await expect(page.getByTestId('three-canvas')).toBeVisible();
+  await expect(page.getByTestId('three-canvas')).toHaveAttribute('data-asset-mode', 'glb');
   await expect(page.locator('.landing-grid')).toHaveCount(0);
   await expect(page.locator('.dev-drawer')).toHaveAttribute('aria-hidden', 'true');
   await expect(page.getByRole('button', { name: 'Turbulence' })).toBeHidden();
   await expect(page.getByTestId('service-mission')).toContainText(
     /needs (a drink|a meal|medical help)/,
   );
+});
+
+test('procedural cabin remains playable when production GLB fails', async ({ page }) => {
+  await page.route('**/assets/scenarios/cabin-mayhem-scenario.glb', (route) => route.abort());
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Solo shift' }).click();
+
+  const canvas = page.getByTestId('three-canvas');
+  await expect(canvas).toBeVisible();
+  await expect(canvas).toHaveAttribute('data-asset-mode', 'fallback');
+  await expect(page.getByTestId('service-mission')).toContainText('CABIN CALL');
 });
 
 test('two isolated browsers join one host-authoritative WebRTC room', async ({ browser }) => {

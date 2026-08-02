@@ -32,3 +32,4 @@
 - [x] Icon-first contextual HUD; telemetry and Chaos Lab live in a closed-by-default `F1` development drawer.
 - [x] Free two-player PeerJS/WebRTC rooms with host-only authority, ordered snapshots and disconnect cleanup.
 - [x] Responsive landing debrief with score, passenger reviews, incident verdicts and room-preserving replay.
+- [x] Blender-authored production cabin GLB, tracked `.blend` source, validated loader and procedural fallback.

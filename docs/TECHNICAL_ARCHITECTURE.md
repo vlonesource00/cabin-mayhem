@@ -6,6 +6,8 @@ TypeScript simulation runs at bounded `<= 50 ms` steps. `HostSession` has sole w
 
 Three.js owns presentation only. `CabinWorld` maps aircraft-local simulation coordinates into WebGL space, creates project-owned procedural meshes and synchronizes visible crew, passenger and prop state from snapshots. `FirstPersonController` converts pointer-lock camera direction into host command intent.
 
+The static cabin presentation loads `cabin-mayhem-scenario.glb` through `scenario-loader.ts`. The authored Blender root and minimum mesh contract are validated before activation. Until load succeeds, and whenever fetch/parse validation fails, the procedural cabin remains visible. On success, material-batched GLB visuals replace procedural rendering while invisible procedural interaction proxies and simulation collision fixtures remain authoritative.
+
 `PeerRoom` is the browser transport adapter. In host mode, local `crew-alpha` input and validated remote `crew-bravo` input enter the same `HostSession`; in guest mode the app never steps simulation and only renders host snapshots. PeerJS supplies free signaling while WebRTC carries gameplay directly. The deterministic simulation has no PeerJS dependency.
 
 ## Passenger service

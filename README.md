@@ -66,7 +66,7 @@ Gamepad: left stick move, shoulder sprint, face buttons interact/crouch/brace/th
 
 ## Prototype scope
 
-Walkable Three.js fuselage, cockpit, aisle, seats, bins, shelves, host-authoritative service-cart stock, loose cargo, straps, two crew, eight seated passenger NPCs, drink/meal/medical requests, galley-fire suppression, one coffee-machine breaker repair crisis, service props, patience, panic, injury, scoring, passenger-review debrief, incidents, subsystem damage, deterministic simulated network conditions and free two-player browser rooms. Economy, routes, progression and production audio remain future work.
+Walkable Three.js fuselage with a Blender-authored GLB/procedural fallback, cockpit, aisle, seats, bins, shelves, host-authoritative service-cart stock, loose cargo, straps, two crew, eight seated passenger NPCs, drink/meal/medical requests, galley-fire suppression, one coffee-machine breaker repair crisis, service props, patience, panic, injury, scoring, passenger-review debrief, incidents, subsystem damage, deterministic simulated network conditions and free two-player browser rooms. Economy, routes, progression and production audio remain future work.
 
 ## Technologies
 
