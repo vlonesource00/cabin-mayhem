@@ -1,46 +1,56 @@
 import { expect, test } from '@playwright/test';
 
-test('menu enters the first-person Three.js aircraft', async ({ page }) => {
+test('menu enters a compact first-person Three.js aircraft UI', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /CABIN MAYHEM/i })).toBeVisible();
-  await page.getByRole('button', { name: 'Enter 3D aircraft' }).click();
+  await page.getByRole('button', { name: 'Board the aircraft' }).click();
+
   await expect(page.getByTestId('technical-test-scene')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'CABIN SERVICE UNDER PRESSURE' })).toBeVisible();
   await expect(page.getByTestId('three-canvas')).toBeVisible();
-  await expect(page.getByText('HOST HAS YOUR BACK')).toBeVisible();
-  await expect(page.locator('[data-hud="objects"]')).toHaveText('8');
-  await expect(page.getByTestId('service-mission')).toContainText('Ana');
-  await expect(page.getByTestId('service-mission')).toContainText('medical help');
+  await expect(page.locator('.landing-grid')).toHaveCount(0);
+  await expect(page.locator('.dev-drawer')).toHaveAttribute('aria-hidden', 'true');
+  await expect(page.getByRole('button', { name: 'Turbulence' })).toBeHidden();
+  await expect(page.getByTestId('service-mission')).toContainText(
+    /needs (a drink|a meal|medical help)/,
+  );
 });
 
-test('host debug creates readable turbulence feedback and advances phase', async ({ page }) => {
+test('test bridge drives host turbulence and deterministic flight phases', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Enter 3D aircraft' }).click();
-  await page.getByRole('button', { name: 'Turbulence' }).click();
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.trigger('turbulence'));
+
   await expect(page.locator('[data-hud="caption"]')).toContainText('Turbulence');
-  await page.getByRole('button', { name: 'Complete phase' }).click();
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.advancePhase());
   await expect(page.locator('[data-hud="phase"]')).toHaveText('TAXI');
 });
 
-test('deterministic host takeoff renders in the HUD', async ({ page }) => {
+test('fire is exposed through the compact critical icon', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
-  await page.evaluate(() => {
-    window.__CABIN_MAYHEM_TEST__?.advancePhase();
-    window.__CABIN_MAYHEM_TEST__?.advancePhase();
-  });
-  await expect(page.locator('[data-hud="phase"]')).toHaveText('TAKEOFF');
-});
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.trigger('fire'));
 
-test('Fire alarm exposes emergency HUD', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Enter 3D aircraft' }).click();
-  await page.getByRole('button', { name: 'Fire alarm' }).click();
-  await expect(page.getByTestId('fire-status')).toContainText('BURNING');
+  await expect(page.getByTestId('fire-status')).toContainText('FIRE');
   await expect(page.locator('[data-hud="caption"]')).toContainText('GALLEY FIRE');
 });
 
-test('test bridge resets and reaches a safe terminal phase', async ({ page }) => {
+test('test bridge completes the coffee-machine mutiny through the host', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
+  await page.evaluate(() => {
+    for (let phase = 0; phase < 3; phase += 1) window.__CABIN_MAYHEM_TEST__?.advancePhase();
+    window.__CABIN_MAYHEM_TEST__?.trigger('repair');
+  });
+  await expect(page.getByTestId('service-mission')).toContainText('Coffee machine mutiny');
+
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.completeRepair());
+  await expect
+    .poll(() => page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.repair.status))
+    .toBe('fixed');
+  await expect(page.locator('[data-hud="caption"]')).toContainText('LOST THE ELECTION');
+});
+
+test('test bridge reaches a safe terminal phase', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
   await page.evaluate(() => {

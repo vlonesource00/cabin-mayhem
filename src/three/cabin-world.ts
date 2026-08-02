@@ -30,6 +30,7 @@ export class CabinWorld {
   private readonly cabinLights: THREE.PointLight[] = [];
   private readonly crewBravo: THREE.Group;
   private readonly galleyFire: THREE.Group;
+  private readonly galleyBreaker: THREE.Group;
   private interactionPrompt = 'CLICK TO CAPTURE MOUSE';
   private targetObjectId: string | null = null;
 
@@ -54,6 +55,8 @@ export class CabinWorld {
     this.buildCabin();
     this.galleyFire = this.createGalleyFire();
     this.cabin.add(this.galleyFire);
+    this.galleyBreaker = this.createGalleyBreaker();
+    this.cabin.add(this.galleyBreaker);
     this.crewBravo = this.createCrewAvatar(0x38bdf8);
     this.cabin.add(this.crewBravo);
     this.scene.add(this.cabin);
@@ -435,6 +438,57 @@ export class CabinWorld {
     return group;
   }
 
+  private createGalleyBreaker(): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'coffee machine breaker';
+    group.add(
+      this.box(
+        'breaker housing',
+        [0.8, 1.05, 0.2],
+        [0, 0.65, 0],
+        this.material(0x243342, 0.38, 0.72),
+      ),
+    );
+    group.add(
+      this.box(
+        'breaker glow',
+        [0.58, 0.58, 0.04],
+        [0, 0.72, -0.125],
+        this.material(0xff4e43, 0.28, 0.2, 0xa81820),
+      ),
+    );
+    const sparkPositions: Array<readonly [number, number, number]> = [
+      [-0.32, 1.42, -0.16],
+      [0.28, 1.18, -0.16],
+      [0.06, 1.62, -0.16],
+    ];
+    for (const [index, position] of sparkPositions.entries()) {
+      const spark = new THREE.Mesh(
+        new THREE.BoxGeometry(0.05, 0.36, 0.04),
+        this.material(index === 1 ? 0xff9c35 : 0xfff0a8, 0.3, 0.12, 0xff7200),
+      );
+      spark.name = 'breaker spark';
+      spark.position.set(...position);
+      spark.rotation.z = index * 0.76;
+      group.add(spark);
+    }
+    const light = new THREE.PointLight(0xff4e43, 2.2, 4.5, 1.5);
+    light.name = 'breaker light';
+    light.position.set(0, 1.18, 0.1);
+    group.add(light);
+    const hitbox = new THREE.Mesh(
+      new THREE.BoxGeometry(1.7, 2.25, 1.3),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+    );
+    hitbox.position.y = 0.9;
+    group.add(hitbox);
+    group.userData.repairId = 'repair-galley-breaker';
+    group.userData.interaction = 'COFFEE MACHINE MUTINY - toolbox required';
+    group.visible = false;
+    this.interactionRoots.push(group);
+    return group;
+  }
+
   private syncState(state: MissionState, elapsed: number): void {
     for (const asset of this.dynamicObjects.values()) asset.visible = false;
     for (const object of Object.values(state.cabin.objects)) {
@@ -501,6 +555,38 @@ export class CabinWorld {
         fireLight.intensity = 3.1 + state.fire.intensity * 3.2 + Math.sin(elapsed * 19) * 0.75;
     }
 
+    this.galleyBreaker.position.copy(cabinToWorld(state.repair.position));
+    this.galleyBreaker.visible = state.repair.status !== 'dormant';
+    if (this.galleyBreaker.visible) {
+      const active = state.repair.status === 'active';
+      const repairing = state.repair.status === 'repairing';
+      const pulse = active ? 0.75 + Math.sin(elapsed * 18) * 0.25 : 0.28;
+      const glow = this.galleyBreaker.getObjectByName('breaker glow');
+      if (glow instanceof THREE.Mesh && glow.material instanceof THREE.MeshStandardMaterial) {
+        glow.material.color.setHex(
+          repairing ? 0xffcf4f : state.repair.status === 'fixed' ? 0x57edcf : 0xff4e43,
+        );
+        glow.material.emissive.setHex(
+          repairing ? 0x9d6400 : state.repair.status === 'fixed' ? 0x0e5d55 : 0xa81820,
+        );
+        glow.material.emissiveIntensity = repairing ? 1.1 : pulse;
+      }
+      for (const [index, spark] of this.galleyBreaker.children
+        .filter((entry) => entry.name === 'breaker spark')
+        .entries()) {
+        spark.visible = active;
+        spark.position.y = 1.2 + Math.sin(elapsed * 20 + index) * 0.28 + index * 0.18;
+        spark.rotation.z = elapsed * (index % 2 === 0 ? 7 : -8);
+      }
+      const breakerLight = this.galleyBreaker.getObjectByName('breaker light');
+      if (breakerLight instanceof THREE.PointLight) {
+        breakerLight.color.setHex(
+          state.repair.status === 'fixed' ? 0x57edcf : repairing ? 0xffcf4f : 0xff4e43,
+        );
+        breakerLight.intensity = state.repair.status === 'fixed' ? 0.55 : 1.6 + pulse * 2;
+      }
+    }
+
     const bravo = state.cabin.players['crew-bravo'];
     if (bravo) {
       this.crewBravo.position.copy(cabinToWorld(bravo.position));
@@ -509,10 +595,14 @@ export class CabinWorld {
     }
 
     const health = Math.min(state.flight.electrical, state.flight.structure);
+    const breakerFault = state.repair.status === 'active';
     for (const [index, light] of this.cabinLights.entries()) {
-      const flicker = health < 0.75 && Math.sin(elapsed * 17 + index * 4.2) > health;
+      const flicker =
+        breakerFault && Math.sin(elapsed * 21 + index * 3.1) > 0.12
+          ? true
+          : health < 0.75 && Math.sin(elapsed * 17 + index * 4.2) > health;
       light.intensity = flicker ? 0.18 : 2.3 + health;
-      light.color.setHex(health < 0.45 ? 0xff704d : 0xd8f2ff);
+      light.color.setHex(breakerFault || health < 0.45 ? 0xff704d : 0xd8f2ff);
     }
   }
 
@@ -538,6 +628,8 @@ export class CabinWorld {
       target && typeof target.userData.objectId === 'string' ? target.userData.objectId : null;
     const fireId =
       target && typeof target.userData.fireId === 'string' ? target.userData.fireId : null;
+    const repairId =
+      target && typeof target.userData.repairId === 'string' ? target.userData.repairId : null;
     if (held && passengerId) {
       this.targetObjectId = passengerId;
       this.interactionPrompt = `${String(target?.userData.interaction)} - E deliver ${held.name}`;
@@ -551,6 +643,20 @@ export class CabinWorld {
           : held
             ? `GALLEY FIRE - ${held.name} cannot suppress it`
             : 'GALLEY FIRE - grab extinguisher and spray with E';
+      return;
+    }
+    if (repairId) {
+      this.targetObjectId = repairId;
+      if (state.fire.status === 'active') {
+        this.interactionPrompt = 'GALLEY FIRE TAKES PRIORITY - grab extinguisher';
+        return;
+      }
+      this.interactionPrompt =
+        held?.kind === 'toolbox'
+          ? `COFFEE MACHINE MUTINY - hold E to repair ${Math.round(state.repair.progress * 100)}%`
+          : held
+            ? `COFFEE MACHINE MUTINY - ${held.name} is not a toolbox`
+            : 'COFFEE MACHINE MUTINY - grab the red toolbox';
       return;
     }
     if (held && objectId === 'cart-01') {
@@ -569,7 +675,7 @@ export class CabinWorld {
         document.pointerLockElement === this.canvas ? 'SCAN CABIN' : 'CLICK TO CAPTURE MOUSE';
       return;
     }
-    this.targetObjectId = passengerId ?? objectId ?? fireId;
+    this.targetObjectId = passengerId ?? objectId ?? fireId ?? repairId;
     if (objectId === 'cart-01' && player) {
       const need = player.selectedServiceNeed;
       this.interactionPrompt = `Service cart - 1 drink  2 meal  3 medical - E take ${need.toUpperCase()} (${state.service.cart.stock[need]}) - Shift+E move`;

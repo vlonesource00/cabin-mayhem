@@ -7,7 +7,10 @@ declare global {
       state(): MissionState | undefined;
       step(seconds: number): void;
       advancePhase(): void;
-      trigger(kind: 'turbulence' | 'air-pocket' | 'sharp-turn' | 'collision' | 'fire'): void;
+      trigger(
+        kind: 'turbulence' | 'air-pocket' | 'sharp-turn' | 'collision' | 'fire' | 'repair',
+      ): void;
+      completeRepair(): void;
       reset(): void;
     };
   }

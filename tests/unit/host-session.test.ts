@@ -3,6 +3,33 @@ import { HostSession } from '../../src/sim/host-session';
 import { emptyCommand } from '../../src/sim/types';
 
 describe('host session', () => {
+  it('only completes the breaker repair with the host-owned toolbox in range', () => {
+    const session = new HostSession(48);
+    session.setNetwork({ enabled: false });
+    for (let phase = 0; phase < 3; phase += 1) session.advancePhase();
+    session.trigger('repair');
+    expect(session.snapshot().repair.status).toBe('active');
+
+    session.teleport('crew-alpha', 'repair');
+    const pickup = emptyCommand();
+    pickup.interact = true;
+    pickup.interactionTargetId = 'toolbox-01';
+    session.submitCommand('crew-alpha', pickup);
+    session.step(1 / 60);
+    expect(session.snapshot().cabin.players['crew-alpha']?.heldObjectId).toBe('toolbox-01');
+
+    for (let tick = 0; tick < 61; tick += 1) {
+      const repair = emptyCommand();
+      repair.repair = true;
+      repair.interactionTargetId = 'repair-galley-breaker';
+      session.submitCommand('crew-alpha', repair);
+      session.step(0.05);
+    }
+    const state = session.snapshot();
+    expect(state.repair.status).toBe('fixed');
+    expect(state.service.score).toBeGreaterThanOrEqual(70);
+  });
+
   it('delivers client intent through zero-latency simulated transport', () => {
     const session = new HostSession(44);
     session.setNetwork({ enabled: true, latencyMs: 0, jitterMs: 0, packetLoss: 0 });

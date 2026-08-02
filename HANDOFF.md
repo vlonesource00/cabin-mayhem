@@ -2,12 +2,18 @@
 
 ## Current state
 
-Cabin Mayhem is a browser-first Vite/Three.js first-person game with a Tauri/Rust Windows wrapper. The flight loop, cabin-service vertical and first emergency objective are complete on `codex/flight-fire-indie-ui`. Host authority owns flight, physics, passenger requests, fire, scoring and mission outcome.
+Cabin Mayhem is a browser-first Vite/Three.js first-person game with a Tauri/Rust Windows wrapper. The flight loop, cabin-service vertical and two bounded emergency objectives are complete on `codex/airline-sitcom-repair`. Host authority owns flight, physics, passenger requests, fire, repair, scoring and mission outcome.
 
-The current slice has automatic ground/taxi/takeoff/cruise progression: use `R` to hold takeoff power, then the simulation rotates and climbs. Eight seated passengers request drinks, meals and medical supplies from a finite service cart. A galley fire can be triggered, raises cabin pressure, and must be suppressed by holding the loose extinguisher, aiming at the fire and using `E` within host-validated range.
+The current slice has automatic ground/taxi/takeoff/cruise progression: use `R` to hold takeoff power, then the simulation rotates and climbs. Eight seated passengers request drinks, meals and medical supplies from a finite service cart. A galley fire can be triggered, raises cabin pressure, and must be suppressed by holding the loose extinguisher, aiming at the fire and using `E` within host-validated range. During cruise, after 18 seconds without a fire, the rear-galley coffee-machine breaker faults: carry the loose toolbox, aim at its hotspot and hold `E` for three uninterrupted seconds.
 
 ## Last changes
 
+- Added validated `RepairDefinition` data plus deterministic `RepairState` and `repair-response` flow for the coffee-machine mutiny.
+- Extended `HostSession` with automatic/debug repair activation, held-tool ownership, target/range validation, interruption, pressure/score consequences and a repair snapshot.
+- Added rear-galley breaker glow/sparks/light feedback and toolbox-specific interaction prompts to `CabinWorld`.
+- Replaced permanent dashboard panels with a compact flight chip, critical status icons, a contextual objective card and radio caption; `F1` opens the closed-by-default development drawer.
+- Added repair unit, host, integration and E2E paths; browser visual checks at 1366x768 and 412x915 found and corrected one narrow caption/status overlap.
+- Built current Tauri EXE, MSI and NSIS packages successfully.
 - Fixed the airplane ground stall with authored taxi, takeoff, rotation-assist and cruise transitions.
 - Added validated `src/data/emergencies.ts` and deterministic `src/sim/fire-response.ts` for the one galley-fire objective.
 - Extended `HostSession` with fire trigger, pressure/score consequences, extinguisher/range validation and suppression state.
@@ -41,13 +47,13 @@ The current slice has automatic ground/taxi/takeoff/cruise progression: use `R` 
 
 ## Next recommended task
 
-Add one bounded, host-authoritative toolbox repair objective, then a clear debrief screen. Keep real two-browser transport until the local service/fire/repair loop is stable.
+Add a clear debrief screen after landing, then production GLB loading with procedural fallback. Keep real two-browser transport until the local service/fire/repair loop is stable.
 
 ## Current verification
 
 - Format, ESLint, TypeScript, authored data and asset validation pass.
-- Unit: 19/19; integration: 1/1; Playwright: 6/6.
-- Vite production and GitHub Pages-base builds pass; live browser fire/HUD visual check passes.
+- Unit: 24/24; integration: 2/2; Playwright: 5/5.
+- Vite production build passes; 1366x768 and 412x915 live Chromium repair/HUD visual checks pass.
 - Tauri release EXE, MSI and NSIS builds pass.
 
 ## Verification commands

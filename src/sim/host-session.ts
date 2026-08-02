@@ -16,7 +16,9 @@ import {
   updateFlight,
 } from './flight-model';
 import { activateFire, createFireState, stepFire, suppressFire } from './fire-response';
+import { galleyRepairDefinition } from '../data/emergencies';
 import { clamp, distance, normalized, scale } from './math';
+import { activateRepair, createRepairState, stepRepair } from './repair-response';
 import {
   applyCabinIncident,
   createServiceMission,
@@ -60,6 +62,7 @@ export class HostSession {
       cabin: createCabinState(),
       service: createServiceMission(),
       fire: createFireState(),
+      repair: createRepairState(),
       network: { ...defaultNetwork },
       networkMetrics: { sent: 0, received: 0, dropped: 0, queued: 0, bytes: 0 },
       events: [],
@@ -91,6 +94,8 @@ export class HostSession {
     this.resolveInteractions();
     this.state.cabin = stepCabin(this.state.cabin, this.state.flight, this.commands, dt);
     this.state.fire = stepFire(this.state.fire, dt);
+    this.triggerAutomaticRepair();
+    this.resolveRepair(dt);
     const previousOutcome = this.state.service.outcome;
     this.state.service = stepServiceMission(this.state.service, this.state.flight, dt);
     if (this.state.fire.status === 'active' && this.state.flight.phase === 'landed')
@@ -122,7 +127,7 @@ export class HostSession {
   }
 
   public trigger(
-    kind: 'turbulence' | 'air-pocket' | 'sharp-turn' | 'collision' | 'fire',
+    kind: 'turbulence' | 'air-pocket' | 'sharp-turn' | 'collision' | 'fire' | 'repair',
     severity = 0.72,
   ): void {
     if (kind === 'fire') {
@@ -130,6 +135,16 @@ export class HostSession {
       this.state.fire = activation.fire;
       if (activation.accepted)
         this.state.service = applyCabinIncident(this.state.service, 'fire', severity);
+      this.log('emergency', activation.message);
+      return;
+    }
+    if (kind === 'repair') {
+      const activation = activateRepair(
+        this.state.repair,
+        this.state.flight.phase,
+        this.state.fire.status,
+      );
+      this.state.repair = activation.repair;
       this.log('emergency', activation.message);
       return;
     }
@@ -168,7 +183,10 @@ export class HostSession {
     );
   }
 
-  public teleport(playerId: string, station: 'cockpit' | 'cabin' | 'galley' | 'cargo'): void {
+  public teleport(
+    playerId: string,
+    station: 'cockpit' | 'cabin' | 'galley' | 'cargo' | 'repair',
+  ): void {
     const player = this.state.cabin.players[playerId];
     if (!player) return;
     const targets = {
@@ -176,6 +194,7 @@ export class HostSession {
       cabin: { x: 8, y: 15.4 },
       galley: { x: 10.8, y: 22.4 },
       cargo: { x: 8, y: 31.5 },
+      repair: { x: 5.2, y: 24.8 },
     };
     player.position = { ...targets[station] };
     player.velocity = { x: 0, y: 0 };
@@ -196,7 +215,58 @@ export class HostSession {
         player.lastAction = `Cart selection: ${needLabel(command.selectServiceNeed)}`;
       }
       if (command.throwItem && player.heldObjectId) this.throwHeldObject(playerId);
+      const held = player.heldObjectId ? this.state.cabin.objects[player.heldObjectId] : undefined;
+      if (
+        command.interact &&
+        command.interactionTargetId === this.state.repair.id &&
+        (this.state.repair.status === 'active' || this.state.repair.status === 'repairing') &&
+        held?.kind === 'toolbox'
+      ) {
+        player.lastAction = 'Hold E on the coffee machine breaker';
+        continue;
+      }
       if (command.interact) this.interact(playerId, command.interactionTargetId, command.sprint);
+    }
+  }
+
+  private triggerAutomaticRepair(): void {
+    if (
+      this.state.repair.status === 'dormant' &&
+      this.state.service.outcome === 'active' &&
+      this.state.flight.phase === 'cruise' &&
+      this.state.flight.phaseElapsed >= galleyRepairDefinition.triggerAfterCruiseSeconds &&
+      this.state.fire.status !== 'active'
+    )
+      this.trigger('repair');
+  }
+
+  private resolveRepair(deltaSeconds: number): void {
+    const repairer = Object.entries(this.commands).find(
+      ([, command]) => command.repair && command.interactionTargetId === this.state.repair.id,
+    );
+    const [playerId, command] = repairer ?? [];
+    const player = playerId ? this.state.cabin.players[playerId] : undefined;
+    const held = player?.heldObjectId ? this.state.cabin.objects[player.heldObjectId] : undefined;
+    const result = stepRepair(
+      this.state.repair,
+      {
+        holding: Boolean(command?.repair),
+        targetId: command?.interactionTargetId,
+        playerPosition: player?.position,
+        playerId,
+        heldObject: held,
+        fireStatus: this.state.fire.status,
+      },
+      deltaSeconds,
+    );
+    this.state.repair = result.repair;
+    if (result.pressurePulse)
+      this.state.service = applyCabinIncident(this.state.service, 'repair', 0.26);
+    if (result.completed)
+      this.state.service = { ...this.state.service, score: this.state.service.score + 70 };
+    if (result.message) {
+      if (player) player.lastAction = result.message;
+      this.log('emergency', result.message);
     }
   }
 

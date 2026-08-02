@@ -35,12 +35,14 @@ pnpm desktop:build
 - `C`: brace against inertial force
 - `1` / `2` / `3`: select drink, meal or medical cart stock
 - `E`: take/return cart stock, serve, place, secure or unsecure
+- Hold `E`: repair the active rear-galley breaker while carrying the red toolbox
 - `Shift+E`: grab and move the service cart
 - `Q`: throw held item
 - `R` / `F`: throttle; holding `R` taxis, rotates and climbs automatically
 - Arrow keys: pitch and roll
 - `J` / `L`: yaw
 - `B`: brake
+- `F1`: open/close the development drawer (telemetry, stock and Chaos Lab triggers)
 
 Gamepad: left stick move, shoulder sprint, face buttons interact/crouch/brace/throw, triggers throttle/brake.
 
@@ -48,15 +50,15 @@ Gamepad: left stick move, shoulder sprint, face buttons interact/crouch/brace/th
 
 1. Select `Enter 3D aircraft`, then click the 3D view to capture the mouse.
 2. Use `WASD` to walk; `S` always moves directly backwards from the camera.
-3. Press `Esc`, select `Cabin` under Host Debug, then click the 3D view again.
+3. Press `Esc`, tap `F1`, select `Cabin` in the development drawer, then click the 3D view again.
 4. Aim at the service cart, select drink/meal/medical with `1`/`2`/`3`, then press `E`; stock decreases and the held 3D item appears in front of the camera.
 5. Read the request panel, aim at the matching glowing passenger and press `E` to deliver. Aim back at the cart and press `E` to return unused stock.
-6. Wrong deliveries cost score. Fire Alarm starts a galley fire: grab the loose red extinguisher, aim at flames and press `E`.
+6. Wrong deliveries cost score. Fire Alarm starts a galley fire: grab the loose red extinguisher, aim at flames and press `E`. During cruise the coffee machine can mutiny: grab the red toolbox, aim at the rear-galley breaker and hold `E` for three seconds.
 7. Serve at least three requests and complete the flight phases to earn a successful result.
 
 ## Prototype scope
 
-Walkable Three.js fuselage, cockpit, aisle, seats, bins, shelves, host-authoritative service-cart stock, loose cargo, straps, two crew, eight seated passenger NPCs, drink/meal/medical requests, galley-fire suppression, service props, patience, panic, injury, scoring, mission outcome, incidents, subsystem damage and deterministic simulated network conditions. Economy, routes, progression, production audio and real remote browser transport remain future work.
+Walkable Three.js fuselage, cockpit, aisle, seats, bins, shelves, host-authoritative service-cart stock, loose cargo, straps, two crew, eight seated passenger NPCs, drink/meal/medical requests, galley-fire suppression, one coffee-machine breaker repair crisis, service props, patience, panic, injury, scoring, mission outcome, incidents, subsystem damage and deterministic simulated network conditions. Economy, routes, progression, production audio and real remote browser transport remain future work.
 
 ## Technologies
 

@@ -20,4 +20,16 @@ describe('Phase 1 technical path', () => {
     expect(state.events.map((event) => event.type)).toContain('emergency');
     expect(state.fire.status).toBe('active');
   });
+
+  it('keeps the fire objective ahead of the coffee-machine repair', () => {
+    const session = new HostSession(901);
+    for (let phase = 0; phase < 3; phase += 1) session.advancePhase();
+    session.trigger('fire');
+    session.trigger('repair');
+
+    const state = session.snapshot();
+    expect(state.fire.status).toBe('active');
+    expect(state.repair.status).toBe('dormant');
+    expect(state.events[0]?.message).toContain('fire takes priority');
+  });
 });

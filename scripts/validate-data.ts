@@ -1,10 +1,16 @@
 import { phaseOneCabinDefinition, phaseOneCabinDefinitionSchema } from '../src/data/phase-one';
-import { galleyFireDefinition, galleyFireDefinitionSchema } from '../src/data/emergencies';
+import {
+  galleyFireDefinition,
+  galleyFireDefinitionSchema,
+  galleyRepairDefinition,
+  galleyRepairDefinitionSchema,
+} from '../src/data/emergencies';
 import { serviceSliceDefinition, serviceSliceDefinitionSchema } from '../src/data/service';
 
 const result = phaseOneCabinDefinitionSchema.safeParse(phaseOneCabinDefinition);
 const serviceResult = serviceSliceDefinitionSchema.safeParse(serviceSliceDefinition);
 const fireResult = galleyFireDefinitionSchema.safeParse(galleyFireDefinition);
+const repairResult = galleyRepairDefinitionSchema.safeParse(galleyRepairDefinition);
 const allObjects = [...phaseOneCabinDefinition.objects, ...serviceSliceDefinition.objects];
 const ids = allObjects.map((object) => object.id);
 const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
@@ -23,6 +29,7 @@ if (
   !result.success ||
   !serviceResult.success ||
   !fireResult.success ||
+  !repairResult.success ||
   duplicateIds.length > 0 ||
   duplicatePassengers.length > 0 ||
   outsideCabin.length > 0
@@ -30,6 +37,7 @@ if (
   if (!result.success) console.error(result.error.issues);
   if (!serviceResult.success) console.error(serviceResult.error.issues);
   if (!fireResult.success) console.error(fireResult.error.issues);
+  if (!repairResult.success) console.error(repairResult.error.issues);
   if (duplicateIds.length > 0) console.error(`Duplicate object IDs: ${duplicateIds.join(', ')}`);
   if (duplicatePassengers.length > 0)
     console.error(`Duplicate passenger IDs: ${duplicatePassengers.join(', ')}`);

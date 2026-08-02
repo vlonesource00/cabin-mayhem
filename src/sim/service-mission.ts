@@ -8,7 +8,8 @@ import type {
   ServiceNeed,
 } from './types';
 
-export type CabinIncident = 'turbulence' | 'air-pocket' | 'sharp-turn' | 'collision' | 'fire';
+export type CabinIncident =
+  'turbulence' | 'air-pocket' | 'sharp-turn' | 'collision' | 'fire' | 'repair';
 
 export interface DeliveryResult {
   service: ServiceMissionState;
@@ -176,7 +177,8 @@ export function applyCabinIncident(
           panic: clamp(passenger.panic + panic * strength, 0, 1),
           injury: clamp(passenger.injury + injury, 0, 1),
           patience: clamp(
-            passenger.patience - strength * (incident === 'fire' ? 0.11 : 0.04),
+            passenger.patience -
+              strength * (incident === 'fire' ? 0.11 : incident === 'repair' ? 0.025 : 0.04),
             0,
             1,
           ),
@@ -184,7 +186,11 @@ export function applyCabinIncident(
       ];
     }),
   ) as ServiceMissionState['passengers'];
-  return { ...current, passengers, score: current.score - (incident === 'fire' ? 35 : 0) };
+  return {
+    ...current,
+    passengers,
+    score: current.score - (incident === 'fire' ? 35 : incident === 'repair' ? 8 : 0),
+  };
 }
 
 export function deliverServiceItem(

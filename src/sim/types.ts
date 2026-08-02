@@ -3,6 +3,7 @@ export type FlightPhase =
 
 export type ServiceNeed = 'drink' | 'meal' | 'medical';
 export type FireStatus = 'dormant' | 'active' | 'suppressed';
+export type RepairStatus = 'dormant' | 'active' | 'repairing' | 'fixed';
 export type ObjectKind =
   | 'cart'
   | 'light-case'
@@ -35,6 +36,7 @@ export interface PlayerCommand {
   crouch: boolean;
   brace: boolean;
   interact: boolean;
+  repair: boolean;
   interactionTargetId?: string | null;
   selectServiceNeed?: ServiceNeed;
   throwItem: boolean;
@@ -149,6 +151,18 @@ export interface FireState {
   intensity: number;
 }
 
+export interface RepairState {
+  id: 'repair-galley-breaker';
+  name: string;
+  position: Vec2;
+  radius: number;
+  status: RepairStatus;
+  progress: number;
+  pressure: number;
+  penaltyElapsed: number;
+  activeCaption: string;
+}
+
 export interface NetworkSettings {
   enabled: boolean;
   latencyMs: number;
@@ -179,6 +193,7 @@ export interface MissionState {
   cabin: CabinState;
   service: ServiceMissionState;
   fire: FireState;
+  repair: RepairState;
   network: NetworkSettings;
   networkMetrics: NetworkMetrics;
   events: MissionEvent[];
@@ -191,6 +206,7 @@ export const emptyCommand = (): PlayerCommand => ({
   crouch: false,
   brace: false,
   interact: false,
+  repair: false,
   throwItem: false,
   pilot: { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: false },
 });

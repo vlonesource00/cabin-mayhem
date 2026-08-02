@@ -31,6 +31,7 @@ export class CabinInputController {
       crouch: keyboard.crouch || Boolean(pad.buttons[1]?.pressed),
       brace: keyboard.brace || Boolean(pad.buttons[2]?.pressed),
       interact: keyboard.interact || this.consumePad(pad.buttons[0]?.pressed),
+      repair: keyboard.repair || Boolean(pad.buttons[0]?.pressed),
       throwItem: keyboard.throwItem || this.consumePad(pad.buttons[3]?.pressed),
       pilot: {
         pitch: keyboard.pilot.pitch || deadZone(pad.axes[3] ?? 0),
@@ -61,6 +62,7 @@ export class CabinInputController {
     command.crouch = this.pressed.has('ControlLeft') || this.pressed.has('ControlRight');
     command.brace = this.pressed.has('KeyC');
     command.interact = this.consume('KeyE');
+    command.repair = this.pressed.has('KeyE');
     command.selectServiceNeed = this.consume('Digit1')
       ? 'drink'
       : this.consume('Digit2')

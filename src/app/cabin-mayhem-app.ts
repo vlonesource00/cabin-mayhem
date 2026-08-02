@@ -6,6 +6,15 @@ import { CabinWorld } from '../three/cabin-world';
 import { FirstPersonController } from '../three/first-person-controller';
 
 type Screen = 'menu' | 'flight';
+type IconName = 'plane' | 'alert' | 'tool' | 'fire' | 'hand' | 'people' | 'dev';
+
+interface Objective {
+  kind: 'service' | 'fire' | 'repair' | 'complete';
+  label: string;
+  title: string;
+  detail: string;
+  progress?: number;
+}
 
 export class CabinMayhemApp {
   private readonly input = new CabinInputController();
@@ -17,13 +26,21 @@ export class CabinMayhemApp {
   private lastFrame = 0;
   private accumulator = 0;
   private lastHudUpdate = 0;
+  private devOpen = false;
 
   public constructor(private readonly root: HTMLElement) {}
 
   public mount(): void {
+    window.addEventListener('keydown', this.onKeyDown);
     this.renderMenu();
     this.installTestBridge();
   }
+
+  private readonly onKeyDown = (event: KeyboardEvent): void => {
+    if (event.code !== 'F1' || this.screen !== 'flight') return;
+    event.preventDefault();
+    this.setDevOpen(!this.devOpen);
+  };
 
   private renderMenu(): void {
     this.stopLoop();
@@ -31,21 +48,12 @@ export class CabinMayhemApp {
     this.root.innerHTML = `
       <main class="landing-shell">
         <div class="landing-grid"></div>
-        <section class="landing-copy">
-          <p class="eyebrow">FIRST-PERSON CO-OP AIRLINE DISASTER</p>
-          <h1><span>CABIN</span><br />MAYHEM</h1>
-          <p class="landing-lede">Serve a live cabin, treat injuries and keep loose objects under control while the aircraft fights you.</p>
-          <div class="landing-actions">
-            <button class="primary-button" data-action="start">Enter 3D aircraft</button>
-            <span>Phase 1 · moving-aircraft technical slice</span>
-          </div>
+        <section class="landing-card">
+          <p class="landing-eyebrow">FLIGHT 07 / AIRLINE SITCOM EMERGENCY SHIFT</p>
+          <h1>Cabin<br />Mayhem</h1>
+          <p>Serve a live cabin, stop tiny disasters, and make sure the coffee machine never wins an election.</p>
+          <button class="primary-button" data-action="start">Board the aircraft</button>
         </section>
-        <section class="feature-strip" aria-label="Prototype features">
-          <article><b>01</b><strong>FIRST PERSON</strong><span>Pointer-lock camera, WASD movement, crouch, sprint, brace.</span></article>
-          <article><b>02</b><strong>LIVE PASSENGERS</strong><span>Eight seated NPCs request drinks, meals and medical help.</span></article>
-          <article><b>03</b><strong>SERVICE PRESSURE</strong><span>Patience, panic, injuries, scoring and host-validated delivery.</span></article>
-        </section>
-        <aside class="build-mark">WEBGL / THREE.JS / TAURI</aside>
       </main>`;
     this.button('start', () => this.start());
   }
@@ -54,47 +62,41 @@ export class CabinMayhemApp {
     this.stopLoop();
     this.screen = 'flight';
     this.session = new HostSession();
+    this.devOpen = false;
     this.root.innerHTML = `
-      <main class="game-shell" data-testid="technical-test-scene">
+      <main class="game-shell" data-testid="technical-test-scene" data-debug-open="false">
         <section class="world-stage" data-world-stage></section>
-        <header class="flight-header">
-          <div><p>FLIGHT 07 / CABIN CHAOS</p><h1>CABIN SERVICE UNDER PRESSURE</h1></div>
-          <div class="authority"><i></i> HOST HAS YOUR BACK</div>
+        <header class="flight-chip">
+          ${icon('plane')}
+          <div><p class="flight-chip__eyebrow">FLIGHT 07 / CABIN MAYHEM</p><strong data-hud="phase">GROUND</strong></div>
         </header>
+        <button class="dev-toggle" data-action="debug-toggle" type="button" aria-expanded="false">
+          ${icon('dev')}<span>F1</span>
+        </button>
+        <aside class="critical-icons" aria-label="Critical cabin status">
+          <div class="critical-icon" data-critical="fire" data-testid="fire-status">${icon('fire')}<strong data-hud="fire-status">CLEAR</strong></div>
+          <div class="critical-icon" data-critical="panic">${icon('people')}<strong data-hud="panic">0</strong></div>
+          <div class="critical-icon" data-critical="held">${icon('hand')}<strong data-hud="held">EMPTY</strong></div>
+        </aside>
         <div class="crosshair" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-        <div class="interaction-prompt" data-hud="interaction">CLICK TO CAPTURE MOUSE</div>
-        <div class="mouse-hint" data-hud="mouse">Click to lock · hold + drag fallback · Esc releases</div>
-        <div class="hud-stack hud-stack-left">
-          <aside class="telemetry-panel">
-            <p class="panel-label">PILOT JUICE</p>
-            <div class="phase-readout"><span>FLIGHT MODE</span><strong data-hud="phase">GROUND</strong></div>
-            <dl>
-              <div><dt>AIRSPEED</dt><dd><b data-hud="speed">0</b> kt</dd></div>
-              <div><dt>ALTITUDE</dt><dd><b data-hud="altitude">0</b> ft</dd></div>
-              <div><dt>THROTTLE</dt><dd><b data-hud="throttle">0</b>%</dd></div>
-              <div><dt>LOOSE STUFF</dt><dd><b data-hud="objects">0</b></dd></div>
-            </dl>
-            <div class="system-bars">
-              <label>ELEC <span><i data-system="electrical"></i></span></label>
-              <label>HYDR <span><i data-system="hydraulics"></i></span></label>
-              <label>HULL <span><i data-system="structure"></i></span></label>
-            </div>
-          </aside>
-          <aside class="mission-panel" data-testid="service-mission">
-            <div class="mission-heading"><div><p class="panel-label">PASSENGER PANIC</p><strong data-hud="mission-outcome">ACTIVE</strong></div><time data-hud="mission-time">12:00</time></div>
-            <div class="mission-score"><span>SCORE <b data-hud="score">0</b></span><span>SAVED <b data-hud="served">0/8</b></span></div>
-            <div class="cart-stock" data-testid="cart-stock"><span>SNACK CART</span><b data-hud="cart-stock">D 3 · M 3 · MED 2</b><em data-hud="cart-selection">1 DRINK</em></div>
-            <div class="request-list" data-hud="requests"></div>
-          </aside>
-        </div>
-        <aside class="debug-panel">
-          <p class="panel-label">CHAOS BUTTONS</p>
-          <div class="debug-grid">
+        <section class="interaction-pill">${icon('hand')}<strong data-hud="interaction">CLICK TO CAPTURE MOUSE</strong></section>
+        <section class="objective-card" data-testid="service-mission" data-kind="service">
+          <p class="objective-card__eyebrow" data-hud="objective-label">CABIN CALL</p>
+          <div class="objective-card__headline"><span data-hud="objective-icon">${icon('alert')}</span><strong data-hud="objective-title">Ana needs a drink</strong></div>
+          <p data-hud="objective-detail">Cart is in the aisle. Keep it moving.</p>
+          <i class="objective-progress"><span data-hud="objective-progress"></span></i>
+        </section>
+        <section class="radio-caption" data-hud="caption" aria-live="polite">Host ready. Local client connected.</section>
+        <aside class="dev-drawer" aria-label="Development controls" aria-hidden="true">
+          <p class="dev-drawer__title">CHAOS LAB / F1</p>
+          <div class="dev-readout"><span>Telemetry</span><span data-hud="speed">0 kt</span><span>Altitude</span><span data-hud="altitude">0 ft</span><span>Stock</span><span data-hud="cart-stock">D 3 / M 3 / MED 2</span><span>Objects</span><span data-hud="objects">0</span></div>
+          <div class="dev-drawer__buttons">
             <button data-action="turbulence">Turbulence</button>
             <button data-action="drop">Air pocket</button>
             <button data-action="turn">Sharp turn</button>
             <button data-action="collision">Collision</button>
             <button data-action="fire">Fire alarm</button>
+            <button data-action="repair">Coffee mutiny</button>
             <button data-action="damage">Damage system</button>
             <button data-action="spawn">Spawn cargo</button>
             <button data-action="network">Toggle network</button>
@@ -103,21 +105,11 @@ export class CabinMayhemApp {
             <button data-action="cabin">Cabin</button>
             <button data-action="galley">Galley</button>
             <button data-action="cargo">Cargo</button>
+            <button data-action="repair-bay">Repair bay</button>
             <button data-action="reset">Reset</button>
           </div>
         </aside>
-        <section class="event-caption" data-hud="caption">
-          <span>FLIGHT PLAN</span><strong>Hold R. Taxi, rotate and climb happen automatically. Keep cabin alive.</strong>
-        </section>
-        <div class="status-stack">
-          <section class="held-card"><span>HANDS</span><strong data-hud="held">EMPTY</strong></section>
-          <section class="fire-card" data-testid="fire-status"><span>GALLEY HEAT</span><strong data-hud="fire-status">CLEAR</strong></section>
-          <section class="network-card"><span>SIM NET</span><strong data-hud="network">90ms / 2% loss</strong></section>
-        </div>
-        <footer class="control-ribbon">
-          <span><b>WASD</b> MOVE</span><span><b>MOUSE</b> LOOK</span><span><b>SHIFT</b> SPRINT</span>
-          <span><b>R/F</b> FLY</span><span><b>1/2/3</b> CART</span><span><b>E</b> USE</span><span><b>Q</b> THROW</span>
-        </footer>
+        <p class="sr-only" data-hud="screen-reader-status" aria-live="polite"></p>
       </main>`;
 
     const mount = this.root.querySelector<HTMLElement>('[data-world-stage]');
@@ -136,7 +128,6 @@ export class CabinMayhemApp {
     const frameDelta = Math.min(0.05, Math.max(0, (now - this.lastFrame) / 1000));
     this.lastFrame = now;
     this.accumulator += frameDelta;
-
     while (this.accumulator >= 1 / 60) {
       const command = this.controller.transform(this.input.read());
       command.interactionTargetId = this.world.interactionTarget();
@@ -145,7 +136,6 @@ export class CabinMayhemApp {
       this.session.step(1 / 60);
       this.accumulator -= 1 / 60;
     }
-
     const state = this.session.snapshot();
     const player = state.cabin.players['crew-alpha'];
     if (player)
@@ -168,82 +158,85 @@ export class CabinMayhemApp {
   }
 
   private updateHud(state: MissionState): void {
-    this.text('[data-hud="phase"]', state.flight.phase.toUpperCase());
-    this.text('[data-hud="speed"]', String(Math.round(state.flight.airspeed)));
-    this.text('[data-hud="altitude"]', String(Math.round(state.flight.altitude)));
-    this.text('[data-hud="throttle"]', String(Math.round(state.flight.throttle * 100)));
-    this.text('[data-hud="objects"]', String(Object.keys(state.cabin.objects).length));
-    this.text('[data-hud="interaction"]', this.world?.prompt() ?? 'SCAN CABIN');
     const player = state.cabin.players['crew-alpha'];
     const held = player?.heldObjectId ? state.cabin.objects[player.heldObjectId]?.name : undefined;
+    const panic = Object.values(state.service.passengers).filter(
+      (passenger) => passenger.panic >= 0.35,
+    ).length;
+    const objective = objectiveFor(state);
+    const caption = captionFor(state);
+    this.text('[data-hud="phase"]', state.flight.phase.toUpperCase());
+    this.text('[data-hud="speed"]', `${Math.round(state.flight.airspeed)} kt`);
+    this.text('[data-hud="altitude"]', `${Math.round(state.flight.altitude)} ft`);
+    this.text('[data-hud="objects"]', String(Object.keys(state.cabin.objects).length));
+    this.text('[data-hud="interaction"]', this.world?.prompt() ?? 'SCAN CABIN');
     this.text('[data-hud="held"]', held?.toUpperCase() ?? 'EMPTY');
+    this.text('[data-hud="panic"]', String(panic));
     this.text(
       '[data-hud="fire-status"]',
       state.fire.status === 'active'
-        ? `BURNING ${Math.round(state.fire.intensity * 100)}%`
+        ? `FIRE ${Math.round(state.fire.intensity * 100)}%`
         : state.fire.status === 'suppressed'
-          ? 'SUPPRESSED'
+          ? 'SAFE'
           : 'CLEAR',
     );
-    this.root.dataset.fireStatus = state.fire.status;
-    this.text('[data-hud="score"]', String(state.service.score));
     this.text(
       '[data-hud="cart-stock"]',
-      `D ${state.service.cart.stock.drink} · M ${state.service.cart.stock.meal} · MED ${state.service.cart.stock.medical}`,
+      `D ${state.service.cart.stock.drink} / M ${state.service.cart.stock.meal} / MED ${state.service.cart.stock.medical}`,
     );
+    this.text('[data-hud="objective-label"]', objective.label);
+    this.text('[data-hud="objective-title"]', objective.title);
+    this.text('[data-hud="objective-detail"]', objective.detail);
+    this.text('[data-hud="caption"]', caption);
+    this.root.dataset.fireStatus = state.fire.status;
+    this.root.dataset.repairStatus = state.repair.status;
+    this.setCritical('fire', state.fire.status === 'active');
+    this.setCritical('panic', panic > 0);
+    this.setCritical('held', Boolean(held));
+    const card = this.root.querySelector<HTMLElement>('.objective-card');
+    if (card) card.dataset.kind = objective.kind;
+    const objectiveIcon = this.root.querySelector<HTMLElement>('[data-hud="objective-icon"]');
+    if (objectiveIcon)
+      objectiveIcon.innerHTML = icon(
+        objective.kind === 'repair'
+          ? 'tool'
+          : objective.kind === 'fire'
+            ? 'fire'
+            : objective.kind === 'service'
+              ? 'alert'
+              : 'plane',
+      );
+    const progress = this.root.querySelector<HTMLElement>('[data-hud="objective-progress"]');
+    if (progress) progress.style.width = `${Math.round((objective.progress ?? 0) * 100)}%`;
     this.text(
-      '[data-hud="cart-selection"]',
-      `${player?.selectedServiceNeed === 'drink' ? '1' : player?.selectedServiceNeed === 'meal' ? '2' : '3'} ${player?.selectedServiceNeed?.toUpperCase() ?? 'DRINK'}`,
+      '[data-hud="screen-reader-status"]',
+      `${state.flight.phase} flight, ${Math.round(state.flight.airspeed)} knots, ${Math.round(state.flight.altitude)} feet. ${objective.title}. ${caption}`,
     );
-    this.text(
-      '[data-hud="served"]',
-      `${state.service.served}/${Object.keys(state.service.passengers).length}`,
-    );
-    this.text('[data-hud="mission-outcome"]', state.service.outcome.toUpperCase());
-    this.text(
-      '[data-hud="mission-time"]',
-      formatTime(Math.max(0, state.service.duration - state.service.elapsed)),
-    );
-    const requestList = this.root.querySelector<HTMLElement>('[data-hud="requests"]');
-    if (requestList) {
-      const requests = activeRequests(state.service).slice(0, 4);
-      requestList.innerHTML = requests.length
-        ? requests
-            .map(
-              (passenger) =>
-                `<article data-need="${passenger.need}" data-urgent="${passenger.patience < 0.35}"><div><strong>${passenger.name}</strong><span>${needLabel(passenger.need)}</span></div><i style="--patience:${Math.round(passenger.patience * 100)}%"></i></article>`,
-            )
-            .join('')
-        : '<p class="request-empty">No active requests. Secure the cabin.</p>';
-    }
-    this.text(
-      '[data-hud="network"]',
-      state.network.enabled
-        ? `${Math.round(state.network.latencyMs)}ms / ${Math.round(state.network.packetLoss * 100)}% loss`
-        : 'BYPASSED',
-    );
-    const latest = state.events[0];
-    const caption = this.root.querySelector<HTMLElement>('[data-hud="caption"] strong');
-    if (caption)
-      caption.textContent =
-        state.service.outcome === 'success'
-          ? 'FLIGHT COMPLETE - cabin service passed.'
-          : state.service.outcome === 'failed'
-            ? 'MISSION FAILED - too many unresolved passenger needs.'
-            : state.fire.status === 'active'
-              ? 'GALLEY FIRE - grab the red extinguisher, aim at flames and press E.'
-              : (state.flight.warning ?? latest?.message ?? 'Aircraft nominal.');
-    this.bar('electrical', state.flight.electrical);
-    this.bar('hydraulics', state.flight.hydraulics);
-    this.bar('structure', state.flight.structure);
+  }
+
+  private setCritical(name: string, active: boolean): void {
+    const element = this.root.querySelector<HTMLElement>(`[data-critical="${name}"]`);
+    if (element) element.dataset.active = String(active);
+  }
+
+  private setDevOpen(open: boolean): void {
+    this.devOpen = open;
+    const shell = this.root.querySelector<HTMLElement>('.game-shell');
+    if (shell) shell.dataset.debugOpen = String(open);
+    const toggle = this.root.querySelector<HTMLButtonElement>('[data-action="debug-toggle"]');
+    if (toggle) toggle.setAttribute('aria-expanded', String(open));
+    const drawer = this.root.querySelector<HTMLElement>('.dev-drawer');
+    if (drawer) drawer.setAttribute('aria-hidden', String(!open));
   }
 
   private bindDebugControls(): void {
+    this.button('debug-toggle', () => this.setDevOpen(!this.devOpen));
     this.button('turbulence', () => this.session?.trigger('turbulence', 0.88));
     this.button('drop', () => this.session?.trigger('air-pocket'));
     this.button('turn', () => this.session?.trigger('sharp-turn'));
     this.button('collision', () => this.session?.trigger('collision'));
     this.button('fire', () => this.session?.trigger('fire', 0.82));
+    this.button('repair', () => this.session?.trigger('repair'));
     this.button('damage', () => this.session?.damage('electrical'));
     this.button('spawn', () => this.session?.spawnObject());
     this.button('network', () => {
@@ -255,6 +248,7 @@ export class CabinMayhemApp {
     this.button('cabin', () => this.session?.teleport('crew-alpha', 'cabin'));
     this.button('galley', () => this.session?.teleport('crew-alpha', 'galley'));
     this.button('cargo', () => this.session?.teleport('crew-alpha', 'cargo'));
+    this.button('repair-bay', () => this.session?.teleport('crew-alpha', 'repair'));
     this.button('reset', () => this.start());
   }
 
@@ -265,6 +259,7 @@ export class CabinMayhemApp {
       step: (seconds) => this.session?.step(seconds),
       advancePhase: () => this.session?.advancePhase(),
       trigger: (kind) => this.session?.trigger(kind),
+      completeRepair: () => this.completeRepairForTest(),
       reset: () => this.start(),
     };
   }
@@ -285,22 +280,102 @@ export class CabinMayhemApp {
       ?.addEventListener('click', handler);
   }
 
+  private completeRepairForTest(): void {
+    if (!this.session) return;
+    this.session.setNetwork({ enabled: false });
+    this.session.teleport('crew-alpha', 'repair');
+    const pickup = emptyCommand();
+    pickup.interact = true;
+    pickup.interactionTargetId = 'toolbox-01';
+    this.session.submitCommand('crew-alpha', pickup);
+    this.session.step(1 / 60);
+    for (let tick = 0; tick < 185; tick += 1) {
+      const repair = emptyCommand();
+      repair.repair = true;
+      repair.interactionTargetId = 'repair-galley-breaker';
+      this.session.submitCommand('crew-alpha', repair);
+      this.session.step(1 / 60);
+    }
+  }
+
   private text(selector: string, value: string): void {
     const element = this.root.querySelector<HTMLElement>(selector);
     if (element) element.textContent = value;
   }
-
-  private bar(system: string, value: number): void {
-    const element = this.root.querySelector<HTMLElement>(`[data-system="${system}"]`);
-    if (element) {
-      element.style.width = `${Math.round(value * 100)}%`;
-      element.dataset.danger = value < 0.45 ? 'true' : 'false';
-    }
-  }
 }
 
-function formatTime(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
-  const remaining = Math.floor(seconds % 60);
-  return `${minutes}:${String(remaining).padStart(2, '0')}`;
+function objectiveFor(state: MissionState): Objective {
+  if (state.service.outcome === 'success')
+    return {
+      kind: 'complete',
+      label: 'SHIFT COMPLETE',
+      title: 'Cabin survived',
+      detail: 'Land it neat. Pretend this was normal.',
+      progress: 1,
+    };
+  if (state.service.outcome === 'failed')
+    return {
+      kind: 'fire',
+      label: 'SHIFT LOST',
+      title: 'Too much cabin chaos',
+      detail: 'Reset and give the passengers a better story.',
+    };
+  if (state.fire.status === 'active')
+    return {
+      kind: 'fire',
+      label: 'RED ALERT',
+      title: 'Galley fire burning',
+      detail: 'Grab the extinguisher. The coffee can wait.',
+    };
+  if (state.repair.status === 'active' || state.repair.status === 'repairing')
+    return {
+      kind: 'repair',
+      label: 'UNSCHEDULED MAINTENANCE',
+      title: 'Coffee machine mutiny',
+      detail:
+        state.repair.status === 'repairing'
+          ? 'Hold E on the breaker. It respects confidence.'
+          : 'Grab the red toolbox in the rear galley.',
+      progress: state.repair.progress,
+    };
+  const passenger = activeRequests(state.service)[0];
+  if (passenger)
+    return {
+      kind: 'service',
+      label: 'CABIN CALL',
+      title: `${passenger.name} needs ${needLabel(passenger.need)}`,
+      detail: `Patience ${Math.round(passenger.patience * 100)}%. Make it look effortless.`,
+      progress: passenger.patience,
+    };
+  return {
+    kind: 'complete',
+    label: 'CABIN QUIET',
+    title: 'No active calls',
+    detail: 'Check belts, flight controls, and suspicious appliances.',
+  };
+}
+
+function captionFor(state: MissionState): string {
+  if (state.fire.status === 'active')
+    return 'GALLEY FIRE. EXTINGUISHER FIRST. COFFEE MACHINE CAN WAIT.';
+  if (state.repair.activeCaption) return state.repair.activeCaption;
+  if (state.service.outcome !== 'active')
+    return state.service.outcome === 'success'
+      ? 'SHIFT COMPLETE. TAKE A BOW.'
+      : 'SHIFT LOST. PASSENGERS ARE WRITING REVIEWS.';
+  return state.flight.warning ?? state.events[0]?.message ?? 'HOST READY. LOCAL CLIENT CONNECTED.';
+}
+
+function icon(name: IconName): string {
+  const paths: Record<IconName, string> = {
+    plane: '<path d="M3 12h18M12 3v18M5 12l4-3v6m6-6 4-3v6"/>',
+    alert: '<path d="M12 3 3 20h18L12 3Zm0 6v4m0 3h.01"/>',
+    tool: '<path d="m14 5 5 5m-9 8 9-9M5 4l3 3-3 3-3-3 3-3Zm1 11 4 4"/>',
+    fire: '<path d="M12 3c2 4-1 5 1 8 1-1 3-2 3-5 3 3 5 7 2 12-3 4-9 4-12 0-2-4 0-8 3-11 0 3 1 4 3 5 1-3-1-5 0-9Z"/>',
+    hand: '<path d="M8 21V11a1 1 0 0 1 2 0v4m0-7a1 1 0 0 1 2 0v6m0-7a1 1 0 0 1 2 0v6m0-5a1 1 0 0 1 2 0v7c0 3-2 5-5 5H10c-2 0-4-2-4-4v-3a2 2 0 0 1 2-2Z"/>',
+    people:
+      '<path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 1a2.5 2.5 0 1 0 0-5M3 20c0-4 2-6 5-6s5 2 5 6m1-6c3 0 5 2 5 5"/>',
+    dev: '<path d="M4 8h16v11H4zM8 8V5h8v3m-8 5h8m-8 3h5"/>',
+  };
+  return `<svg class="hud-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[name]}</svg>`;
 }

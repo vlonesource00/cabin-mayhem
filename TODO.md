@@ -11,7 +11,7 @@
 - [ ] Add player/object collision broadphase before more cabin objects.
 - [ ] Add profile/settings migration for Cabin Mayhem controls/accessibility.
 - [ ] Add production sound, passenger voices and interaction animation polish.
-- [ ] Add toolbox repair task and clear debrief screen.
+- [ ] Add a clear debrief screen after the service/fire/repair loop.
 
 ## Done
 
@@ -30,3 +30,5 @@
 - [x] Host-authoritative service-cart inventory, selection, dispensing, returns and stock HUD.
 - [x] Automatic taxi/takeoff climb plus host-authoritative galley-fire suppression.
 - [x] Colorful responsive indie HUD lanes and GitHub Pages deployment workflow.
+- [x] Deterministic host-authoritative coffee-machine repair crisis with tool/range/hold validation, pressure, scoring and sitcom feedback.
+- [x] Icon-first contextual HUD; telemetry and Chaos Lab live in a closed-by-default `F1` development drawer.
