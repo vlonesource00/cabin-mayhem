@@ -562,6 +562,331 @@ button {
   box-shadow: 2px 2px 0 #42dcca;
 }
 
+.debrief {
+  position: absolute;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow: auto;
+  background:
+    radial-gradient(circle at 14% 12%, rgba(255, 74, 153, 0.26), transparent 32%),
+    radial-gradient(circle at 86% 88%, rgba(66, 220, 202, 0.22), transparent 35%),
+    rgba(4, 7, 20, 0.88);
+  backdrop-filter: blur(8px);
+}
+
+.debrief[hidden] {
+  display: none;
+}
+
+.debrief__card {
+  width: min(1000px, 100%);
+  max-height: calc(100vh - 48px);
+  padding: 22px;
+  overflow: auto;
+  border: 3px solid #fff48a;
+  border-radius: 22px 9px 24px 12px;
+  background: linear-gradient(145deg, rgba(28, 19, 78, 0.98), rgba(9, 17, 47, 0.98));
+  box-shadow:
+    7px 7px 0 #ff4a99,
+    12px 12px 0 #42dcca,
+    0 24px 80px rgba(0, 0, 0, 0.62);
+  animation: debrief-arrive 340ms cubic-bezier(0.18, 0.92, 0.28, 1.2);
+}
+
+.debrief__header,
+.debrief__footer,
+.debrief__reviews-heading,
+.passenger-review > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.debrief__eyebrow,
+.debrief__score span,
+.debrief__metrics span,
+.debrief__systems span,
+.debrief__reviews-heading span,
+.passenger-review small {
+  margin: 0;
+  color: #bcd0ed;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.debrief__stamp {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 4px 11px;
+  transform: rotate(-1deg);
+  border: 2px solid #07101e;
+  border-radius: 6px;
+  color: #07101e;
+  background: #9dff31;
+  box-shadow: 3px 3px 0 #ff4a99;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.debrief[data-outcome='failed'] .debrief__stamp {
+  color: #fff;
+  background: #ff416c;
+}
+
+.debrief__score {
+  text-align: right;
+}
+
+.debrief__score strong {
+  display: block;
+  color: #fff48a;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: clamp(34px, 5vw, 58px);
+  line-height: 0.9;
+}
+
+.debrief__headline {
+  margin: 14px 0;
+  padding: 12px 15px;
+  transform: rotate(0.25deg);
+  border-left: 5px solid #42dcca;
+  background: rgba(66, 220, 202, 0.08);
+}
+
+.debrief__headline p {
+  margin: 0 0 3px;
+  color: #fff48a;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: clamp(17px, 2.4vw, 25px);
+  font-weight: 800;
+  letter-spacing: 0.025em;
+}
+
+.debrief__headline h2 {
+  margin: 0;
+  font-size: clamp(20px, 2.6vw, 31px);
+}
+
+.debrief__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.debrief__metrics > div,
+.debrief__systems article,
+.passenger-review {
+  border: 1px solid rgba(255, 255, 255, 0.17);
+  border-radius: 10px;
+  background: rgba(6, 11, 35, 0.76);
+}
+
+.debrief__metrics > div {
+  padding: 9px 13px;
+}
+
+.debrief__metrics strong {
+  display: block;
+  color: #fff;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 25px;
+}
+
+.debrief__systems {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.debrief__systems article {
+  padding: 10px 13px;
+  border-left: 5px solid #8293b8;
+}
+
+.debrief__systems article[data-tone='good'] {
+  border-left-color: #9dff31;
+}
+
+.debrief__systems article[data-tone='bad'] {
+  border-left-color: #ff416c;
+}
+
+.debrief__systems strong {
+  display: block;
+  margin: 2px 0;
+  color: #fff;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 20px;
+}
+
+.debrief__systems p {
+  margin: 0;
+  color: #cbd8ef;
+  font-size: 12px;
+}
+
+.debrief__reviews {
+  margin-top: 13px;
+}
+
+.debrief__reviews-heading h3 {
+  margin: 0;
+  color: #ff80bc;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 19px;
+  letter-spacing: 0.08em;
+}
+
+.debrief__review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.passenger-review {
+  position: relative;
+  padding: 9px 11px 8px;
+  overflow: hidden;
+}
+
+.passenger-review::after {
+  position: absolute;
+  right: -12px;
+  bottom: -19px;
+  width: 50px;
+  height: 50px;
+  transform: rotate(24deg);
+  background: rgba(255, 74, 153, 0.12);
+  content: '';
+}
+
+.passenger-review strong {
+  font-size: 14px;
+}
+
+.passenger-review__stars {
+  color: #fff48a;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+}
+
+.passenger-review p {
+  min-height: 31px;
+  margin: 4px 0;
+  color: #f5f4ff;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.passenger-review[data-status='missed'] small {
+  color: #ff7796;
+}
+
+.passenger-review[data-status='served'] small {
+  color: #9dff31;
+}
+
+.debrief__footer {
+  margin-top: 14px;
+}
+
+.debrief__restart {
+  min-width: 240px;
+  padding: 12px 19px;
+  border: 2px solid #fff48a;
+  border-radius: 9px;
+  color: #fff;
+  background: #5b2bd5;
+  box-shadow: 4px 4px 0 #ff4a99;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.debrief__restart:hover:not(:disabled) {
+  transform: translate(-1px, -1px) rotate(-0.5deg);
+  background: #7441ef;
+  box-shadow: 6px 6px 0 #42dcca;
+}
+
+.debrief__restart:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.75);
+  opacity: 0.55;
+}
+
+.debrief__footer p {
+  margin: 0;
+  color: #bcd0ed;
+  font-size: 12px;
+  text-align: right;
+}
+
+@keyframes debrief-arrive {
+  from {
+    transform: translateY(24px) rotate(-0.6deg) scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) rotate(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@media (max-height: 820px) {
+  .debrief__card {
+    padding: 14px 18px;
+  }
+  .debrief__score strong {
+    font-size: 42px;
+  }
+  .debrief__headline {
+    margin: 8px 0;
+    padding: 7px 12px;
+  }
+  .debrief__metrics > div,
+  .debrief__systems article {
+    padding: 6px 10px;
+  }
+  .debrief__metrics strong {
+    font-size: 21px;
+  }
+  .debrief__systems {
+    margin-top: 6px;
+  }
+  .debrief__reviews {
+    margin-top: 7px;
+  }
+  .debrief__review-grid {
+    gap: 5px 8px;
+    margin-top: 3px;
+  }
+  .passenger-review {
+    padding: 6px 10px;
+  }
+  .passenger-review p {
+    min-height: 0;
+    margin: 2px 0;
+    font-size: 11px;
+  }
+  .debrief__footer {
+    margin-top: 8px;
+  }
+  .debrief__restart {
+    padding: 8px 16px;
+  }
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -637,5 +962,49 @@ button {
     top: 102px;
     right: 11px;
     width: calc(100vw - 22px);
+  }
+  .debrief {
+    align-items: start;
+    padding: 10px;
+  }
+  .debrief__card {
+    max-height: calc(100vh - 20px);
+    padding: 15px;
+    border-radius: 15px 7px;
+    box-shadow:
+      4px 4px 0 #ff4a99,
+      7px 7px 0 #42dcca;
+  }
+  .debrief__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .debrief__metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .debrief__metrics > div {
+    padding: 7px 8px;
+  }
+  .debrief__metrics strong {
+    font-size: 20px;
+  }
+  .debrief__systems strong {
+    font-size: 16px;
+  }
+  .debrief__systems p {
+    font-size: 10px;
+  }
+  .debrief__restart {
+    width: 100%;
+    min-width: 0;
+  }
+  .debrief__footer p {
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .debrief__card {
+    animation: none;
   }
 }

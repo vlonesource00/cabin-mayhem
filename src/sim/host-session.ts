@@ -202,6 +202,30 @@ export class HostSession {
     this.log('system', `${player.name}: ${station}`);
   }
 
+  public teleportToPassenger(playerId: string, passengerId: string): void {
+    const player = this.state.cabin.players[playerId];
+    const passenger = this.state.service.passengers[passengerId];
+    if (!player || !passenger) return;
+    player.position = { ...passenger.servicePosition };
+    player.velocity = { x: 0, y: 0 };
+    player.lastAction = `Teleported: ${passenger.name}`;
+    this.log('system', `${player.name}: passenger station ${passenger.name}`);
+  }
+
+  public teleportToObject(playerId: string, objectId: string): void {
+    const player = this.state.cabin.players[playerId];
+    const object = this.state.cabin.objects[objectId];
+    if (!player || !object) return;
+    const facing = normalized(player.facing);
+    player.position = {
+      x: object.position.x - facing.x * 0.75,
+      y: object.position.y - facing.y * 0.75,
+    };
+    player.velocity = { x: 0, y: 0 };
+    player.lastAction = `Teleported: ${object.name}`;
+    this.log('system', `${player.name}: object station ${object.name}`);
+  }
+
   public disconnectPlayer(playerId: string): void {
     if (playerId === this.state.hostId) return;
     const player = this.state.cabin.players[playerId];

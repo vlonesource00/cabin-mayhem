@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added free two-player PeerJS/WebRTC rooms with strict command validation and host-authoritative snapshots.
+- Added a responsive landing debrief with score, served/missed totals, fire/repair summaries, authored passenger reviews and `Fly another shift` replay.
 - Added eight seated 3D passengers with drink, meal and medical requests.
 - Added physical service props, host-validated delivery, patience, panic, injury, scoring and mission outcome.
 - Added cabin-service HUD, request beacons, tests and next-conversation handoff prompt.

@@ -5,6 +5,7 @@ import { activeRequests, needLabel } from '../sim/service-mission';
 import { emptyCommand, type MissionState, type PlayerCommand } from '../sim/types';
 import { CabinWorld } from '../three/cabin-world';
 import { FirstPersonController } from '../three/first-person-controller';
+import { buildDebrief, type DebriefSystemResult } from './debrief';
 
 type Screen = 'menu' | 'flight';
 type IconName = 'plane' | 'alert' | 'tool' | 'fire' | 'hand' | 'people' | 'dev';
@@ -30,6 +31,7 @@ export class CabinMayhemApp {
   private accumulator = 0;
   private lastHudUpdate = 0;
   private devOpen = false;
+  private debriefVisible = false;
 
   public constructor(private readonly root: HTMLElement) {}
 
@@ -90,6 +92,7 @@ export class CabinMayhemApp {
     if (role !== 'solo') this.session.setNetwork({ enabled: false });
     this.room = new PeerRoom();
     this.devOpen = false;
+    this.debriefVisible = false;
     this.root.innerHTML = `
       <main class="game-shell" data-testid="technical-test-scene" data-debug-open="false" data-room-role="${role}" data-room-phase="idle">
         <section class="world-stage" data-world-stage></section>
@@ -119,6 +122,38 @@ export class CabinMayhemApp {
           <strong data-room="message">LOCAL CABIN</strong>
           <button data-action="copy-room" type="button" hidden><span data-room="code"></span> / COPY</button>
         </aside>
+        <section class="debrief" data-testid="landing-debrief" aria-labelledby="debrief-title" aria-hidden="true" hidden>
+          <div class="debrief__card">
+            <header class="debrief__header">
+              <div>
+                <p class="debrief__eyebrow">FLIGHT 07 / PASSENGER JUDGEMENT COURT</p>
+                <strong class="debrief__stamp" data-debrief="outcome-label">SHIFT CLEARED</strong>
+              </div>
+              <div class="debrief__score"><span>FINAL SCORE</span><strong data-debrief="score">0</strong></div>
+            </header>
+            <div class="debrief__headline">
+              <p data-debrief="verdict">MOST DIGNITY ARRIVED IN THE SAME AIRPORT.</p>
+              <h2 id="debrief-title" data-debrief="title">You landed the punchline.</h2>
+            </div>
+            <div class="debrief__metrics" aria-label="Passenger service results">
+              <div><span>SERVED</span><strong data-debrief="served">0</strong></div>
+              <div><span>MISSED</span><strong data-debrief="missed">0</strong></div>
+              <div><span>OUTCOME</span><strong data-debrief="outcome">SUCCESS</strong></div>
+            </div>
+            <div class="debrief__systems">
+              <article data-debrief-system="fire"><span data-debrief="fire-label">GALLEY FIRE</span><strong data-debrief="fire-result">NO INCIDENT</strong><p data-debrief="fire-detail"></p></article>
+              <article data-debrief-system="repair"><span data-debrief="repair-label">COFFEE MUTINY</span><strong data-debrief="repair-result">NO INCIDENT</strong><p data-debrief="repair-detail"></p></article>
+            </div>
+            <section class="debrief__reviews" aria-labelledby="reviews-title">
+              <div class="debrief__reviews-heading"><h3 id="reviews-title">CABIN REVIEWS</h3><span>Verified passengers. Regrettably.</span></div>
+              <div class="debrief__review-grid" data-debrief="reviews"></div>
+            </section>
+            <footer class="debrief__footer">
+              <button class="debrief__restart" data-action="fly-another" type="button">FLY ANOTHER SHIFT</button>
+              <p data-debrief="restart-note">Fresh cabin. Same questionable airline.</p>
+            </footer>
+          </div>
+        </section>
         <aside class="dev-drawer" aria-label="Development controls" aria-hidden="true">
           <p class="dev-drawer__title">CHAOS LAB / F1</p>
           <div class="dev-readout"><span>Telemetry</span><span data-hud="speed">0 kt</span><span>Altitude</span><span data-hud="altitude">0 ft</span><span>Stock</span><span data-hud="cart-stock">D 3 / M 3 / MED 2</span><span>Objects</span><span data-hud="objects">0</span></div>
@@ -256,6 +291,7 @@ export class CabinMayhemApp {
       '[data-hud="screen-reader-status"]',
       `${state.flight.phase} flight, ${Math.round(state.flight.airspeed)} knots, ${Math.round(state.flight.altitude)} feet. ${objective.title}. ${caption}`,
     );
+    this.updateDebrief(state);
   }
 
   private setCritical(name: string, active: boolean): void {
@@ -301,7 +337,8 @@ export class CabinMayhemApp {
     this.button('repair-bay', () =>
       this.hostOnly(() => this.session?.teleport('crew-alpha', 'repair')),
     );
-    this.button('reset', () => this.start(this.roomRole, this.room?.status().roomCode ?? ''));
+    this.button('reset', () => this.flyAnotherShift());
+    this.button('fly-another', () => this.flyAnotherShift());
   }
 
   private installTestBridge(): void {
@@ -314,6 +351,7 @@ export class CabinMayhemApp {
       advancePhase: () => this.session?.advancePhase(),
       trigger: (kind) => this.session?.trigger(kind),
       completeRepair: () => this.completeRepairForTest(),
+      completeShift: (outcome) => this.completeShiftForTest(outcome),
       reset: () => this.start(),
     };
   }
@@ -397,6 +435,113 @@ export class CabinMayhemApp {
       this.session.submitCommand('crew-alpha', repair);
       this.session.step(1 / 60);
     }
+  }
+
+  private completeShiftForTest(outcome: 'success' | 'failed'): void {
+    if (!this.session) return;
+    this.session.setNetwork({ enabled: false });
+    if (outcome === 'success') {
+      for (const passengerId of ['passenger-ana', 'passenger-malik', 'passenger-sofia']) {
+        const passenger = this.session.snapshot().service.passengers[passengerId];
+        if (!passenger) continue;
+        const select = emptyCommand();
+        select.selectServiceNeed = passenger.need;
+        this.session.submitCommand('crew-alpha', select);
+        this.session.step(1 / 60);
+        this.session.teleportToObject('crew-alpha', 'cart-01');
+        const take = emptyCommand();
+        take.interact = true;
+        take.interactionTargetId = 'cart-01';
+        this.session.submitCommand('crew-alpha', take);
+        this.session.step(1 / 60);
+        this.session.teleportToPassenger('crew-alpha', passengerId);
+        const deliver = emptyCommand();
+        deliver.interact = true;
+        deliver.interactionTargetId = passengerId;
+        this.session.submitCommand('crew-alpha', deliver);
+        this.session.step(1 / 60);
+      }
+    }
+    for (let phase = 0; phase < 5; phase += 1) this.session.advancePhase();
+    this.session.step(1 / 60);
+  }
+
+  private updateDebrief(state: MissionState): void {
+    const debrief = this.root.querySelector<HTMLElement>('.debrief');
+    const shell = this.root.querySelector<HTMLElement>('.game-shell');
+    const model = buildDebrief(state);
+    if (!debrief || !shell) return;
+    if (!model) {
+      debrief.hidden = true;
+      debrief.setAttribute('aria-hidden', 'true');
+      shell.dataset.debrief = 'false';
+      this.debriefVisible = false;
+      return;
+    }
+    if (this.debriefVisible) return;
+    this.debriefVisible = true;
+    debrief.hidden = false;
+    debrief.setAttribute('aria-hidden', 'false');
+    debrief.dataset.outcome = model.outcome;
+    shell.dataset.debrief = 'true';
+    this.text('[data-debrief="outcome-label"]', model.outcomeLabel);
+    this.text('[data-debrief="title"]', model.title);
+    this.text('[data-debrief="verdict"]', model.verdict);
+    this.text('[data-debrief="score"]', String(model.score));
+    this.text('[data-debrief="served"]', String(model.served));
+    this.text('[data-debrief="missed"]', String(model.missed));
+    this.text('[data-debrief="outcome"]', model.outcome.toUpperCase());
+    this.updateDebriefSystem('fire', model.fire);
+    this.updateDebriefSystem('repair', model.repair);
+    const reviews = this.root.querySelector<HTMLElement>('[data-debrief="reviews"]');
+    if (reviews) {
+      reviews.replaceChildren(
+        ...model.reviews.map((review) => {
+          const article = document.createElement('article');
+          article.className = 'passenger-review';
+          article.dataset.status = review.status;
+          const heading = document.createElement('div');
+          const name = document.createElement('strong');
+          name.textContent = review.name;
+          const stars = document.createElement('span');
+          stars.className = 'passenger-review__stars';
+          stars.setAttribute('aria-label', `${review.stars} out of 5 stars`);
+          stars.textContent = `${'★'.repeat(review.stars)}${'☆'.repeat(5 - review.stars)}`;
+          heading.append(name, stars);
+          const quote = document.createElement('p');
+          quote.textContent = `“${review.quote}”`;
+          const status = document.createElement('small');
+          status.textContent = review.status.toUpperCase();
+          article.append(heading, quote, status);
+          return article;
+        }),
+      );
+    }
+    const restart = this.root.querySelector<HTMLButtonElement>('[data-action="fly-another"]');
+    if (restart) restart.disabled = this.roomRole === 'guest';
+    this.text(
+      '[data-debrief="restart-note"]',
+      this.roomRole === 'guest'
+        ? 'Waiting for the host to book the next questionable flight.'
+        : 'Fresh cabin. Same questionable airline.',
+    );
+  }
+
+  private updateDebriefSystem(kind: 'fire' | 'repair', result: DebriefSystemResult): void {
+    const card = this.root.querySelector<HTMLElement>(`[data-debrief-system="${kind}"]`);
+    if (card) card.dataset.tone = result.tone;
+    this.text(`[data-debrief="${kind}-label"]`, result.label);
+    this.text(`[data-debrief="${kind}-result"]`, result.result);
+    this.text(`[data-debrief="${kind}-detail"]`, result.detail);
+  }
+
+  private flyAnotherShift(): void {
+    if (this.roomRole === 'guest') return;
+    this.session = new HostSession();
+    if (this.roomRole !== 'solo') this.session.setNetwork({ enabled: false });
+    this.debriefVisible = false;
+    this.lastHudUpdate = 0;
+    this.setDevOpen(false);
   }
 
   private text(selector: string, value: string): void {

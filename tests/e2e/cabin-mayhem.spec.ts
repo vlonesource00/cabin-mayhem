@@ -55,6 +55,24 @@ test('two isolated browsers join one host-authoritative WebRTC room', async ({ b
     .poll(() => guest.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.tick))
     .toBeGreaterThan(5);
 
+  await host.evaluate(() => window.__CABIN_MAYHEM_TEST__?.completeShift('failed'));
+  await expect
+    .poll(() => guest.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.service.outcome))
+    .toBe('failed');
+  await host
+    .getByTestId('landing-debrief')
+    .getByRole('button', { name: 'FLY ANOTHER SHIFT' })
+    .click();
+  await expect
+    .poll(() => guest.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.service.outcome))
+    .toBe('active');
+  await expect
+    .poll(() => host.evaluate(() => window.__CABIN_MAYHEM_TEST__?.roomStatus()?.phase))
+    .toBe('connected');
+  await expect(
+    host.evaluate(() => window.__CABIN_MAYHEM_TEST__?.roomStatus()?.roomCode),
+  ).resolves.toBe(roomCode);
+
   await hostContext.close();
   await guestContext.close();
 });
@@ -94,11 +112,57 @@ test('test bridge completes the coffee-machine mutiny through the host', async (
   await expect(page.locator('[data-hud="caption"]')).toContainText('LOST THE ELECTION');
 });
 
-test('test bridge reaches a safe terminal phase', async ({ page }) => {
+test('failed landing shows reviews, score and incident results', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
   await page.evaluate(() => {
-    for (let index = 0; index < 5; index += 1) window.__CABIN_MAYHEM_TEST__?.advancePhase();
+    window.__CABIN_MAYHEM_TEST__?.trigger('fire');
+    window.__CABIN_MAYHEM_TEST__?.completeShift('failed');
   });
   await expect(page.locator('[data-hud="phase"]')).toHaveText('LANDED');
+  const debrief = page.getByTestId('landing-debrief');
+  await expect(debrief).toBeVisible();
+  await expect(debrief.locator('[data-debrief="outcome-label"]')).toHaveText('SHIFT LOST');
+  await expect(debrief.locator('[data-debrief="score"]')).toHaveText('-35');
+  await expect(debrief.locator('[data-debrief="served"]')).toHaveText('0');
+  await expect(debrief.locator('[data-debrief="missed"]')).toHaveText('0');
+  await expect(debrief.locator('[data-debrief="fire-result"]')).toHaveText('STILL BURNING');
+  await expect(debrief.locator('[data-debrief="repair-result"]')).toHaveText('NO INCIDENT');
+  await expect(debrief.locator('.passenger-review')).toHaveCount(4);
+});
+
+test('successful landing can fly another shift', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.completeShift('success'));
+
+  const debrief = page.getByTestId('landing-debrief');
+  await expect(debrief).toBeVisible();
+  await expect(debrief.locator('[data-debrief="outcome-label"]')).toHaveText('SHIFT CLEARED');
+  await expect(debrief.locator('[data-debrief="served"]')).toHaveText('3');
+  await expect(debrief.locator('[data-debrief="missed"]')).toHaveText('0');
+  await expect(debrief.locator('[data-debrief="outcome"]')).toHaveText('SUCCESS');
+
+  await debrief.getByRole('button', { name: 'FLY ANOTHER SHIFT' }).click();
+  await expect(debrief).toBeHidden();
+  await expect(page.locator('[data-hud="phase"]')).toHaveText('GROUND');
+  await expect
+    .poll(() => page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.service.outcome))
+    .toBe('active');
+});
+
+test('landing debrief remains usable on a narrow viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 720 });
+  await page.goto('/');
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.completeShift('failed'));
+
+  const debrief = page.getByTestId('landing-debrief');
+  await expect(debrief).toBeVisible();
+  const card = debrief.locator('.debrief__card');
+  await expect(card).toBeVisible();
+  const box = await card.boundingBox();
+  expect(box?.x).toBeGreaterThanOrEqual(0);
+  expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(390);
+  await expect(debrief.getByRole('button', { name: 'FLY ANOTHER SHIFT' })).toBeVisible();
 });

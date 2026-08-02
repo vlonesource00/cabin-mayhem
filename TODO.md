@@ -7,11 +7,9 @@
 
 ## Backlog
 
-- [ ] Add real browser transport adapter behind network interface.
 - [ ] Add player/object collision broadphase before more cabin objects.
 - [ ] Add profile/settings migration for Cabin Mayhem controls/accessibility.
 - [ ] Add production sound, passenger voices and interaction animation polish.
-- [ ] Add a clear debrief screen after the service/fire/repair loop.
 
 ## Done
 
@@ -32,3 +30,5 @@
 - [x] Colorful responsive indie HUD lanes and GitHub Pages deployment workflow.
 - [x] Deterministic host-authoritative coffee-machine repair crisis with tool/range/hold validation, pressure, scoring and sitcom feedback.
 - [x] Icon-first contextual HUD; telemetry and Chaos Lab live in a closed-by-default `F1` development drawer.
+- [x] Free two-player PeerJS/WebRTC rooms with host-only authority, ordered snapshots and disconnect cleanup.
+- [x] Responsive landing debrief with score, passenger reviews, incident verdicts and room-preserving replay.

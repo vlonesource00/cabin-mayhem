@@ -10,11 +10,11 @@ Moving-aircraft technical proof: greybox cabin, host authority, local simulated 
 
 ## Phase 2 — current vertical
 
-Automatic taxi/takeoff/cruise flight, eight passenger NPCs, drink/meal/medical requests, host-authoritative service-cart inventory, physical service props, patience/panic/injury, scoring, landing outcome and the galley-fire/extinguisher objective are implemented. Next: full manual delivery playtest, toolbox repair objective, debrief, production GLB/audio and tuning.
+Automatic flight, passenger service, galley fire, coffee-machine repair, free host-authoritative two-player WebRTC rooms and a responsive airline-sitcom landing debrief are implemented. Next: full manual delivery playtest, production GLB loading with procedural fallback, audio/interaction animation and tuning.
 
 ## Phase 3
 
-Real browser transport, cargo contracts, event director, route/weather, production art/audio, save/economy/upgrades and onboarding.
+Cargo contracts, event director, route/weather, production art/audio, save/economy/upgrades, onboarding and hardened relay-backed networking.
 
 ## Phase 4
 

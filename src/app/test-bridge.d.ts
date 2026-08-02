@@ -14,6 +14,7 @@ declare global {
         kind: 'turbulence' | 'air-pocket' | 'sharp-turn' | 'collision' | 'fire' | 'repair',
       ): void;
       completeRepair(): void;
+      completeShift(outcome: 'success' | 'failed'): void;
       reset(): void;
     };
   }
