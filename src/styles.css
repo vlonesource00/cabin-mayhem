@@ -107,6 +107,8 @@ button {
 }
 
 .primary-button,
+.secondary-button,
+.room-join button,
 .dev-toggle,
 .dev-drawer button {
   border: 2px solid #fff7d6;
@@ -128,6 +130,64 @@ button {
   background: #bcff2d;
   color: #16123a;
   box-shadow: 4px 4px 0 #ff54b3;
+}
+
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 11px;
+}
+
+.secondary-button,
+.room-join button {
+  padding: 11px 16px;
+  background: #273577;
+}
+
+.room-join {
+  margin-top: 22px;
+}
+
+.room-join label {
+  display: block;
+  margin-bottom: 6px;
+  color: #c8ff32;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.room-join div {
+  display: flex;
+  gap: 8px;
+}
+
+.room-join input {
+  width: min(210px, 54vw);
+  border: 2px solid #fff7d6;
+  border-radius: 10px;
+  outline: none;
+  padding: 10px 12px;
+  background: #0d1237;
+  color: #fff7d6;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.room-join input:focus {
+  border-color: #c8ff32;
+  box-shadow: 3px 3px 0 #f653b1;
+}
+
+.landing-card .menu-status {
+  margin: 12px 0 0;
+  color: #b9cbea;
+  font-size: 13px;
 }
 
 .primary-button:hover,
@@ -394,6 +454,62 @@ button {
   text-align: center;
 }
 
+.room-chip {
+  position: absolute;
+  bottom: 18px;
+  left: 18px;
+  z-index: 2;
+  display: grid;
+  min-width: 184px;
+  max-width: min(310px, calc(100vw - 36px));
+  padding: 8px 11px;
+  border: 2px solid #66ebda;
+  border-radius: 12px;
+  background: rgba(13, 16, 47, 0.91);
+  box-shadow: 3px 3px 0 #f352ae;
+  font-family: 'Barlow Condensed', sans-serif;
+}
+
+.room-chip > span {
+  color: #c8ff32;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.room-chip > strong {
+  margin-top: 1px;
+  color: #fff7d6;
+  font-size: 14px;
+}
+
+.room-chip button {
+  margin-top: 6px;
+  border: 1px solid #fff7d6;
+  border-radius: 7px;
+  padding: 4px 7px;
+  background: #273577;
+  color: #fff7d6;
+  font-family: inherit;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.game-shell[data-room-phase='connected'] .room-chip {
+  border-color: #c8ff32;
+  box-shadow: 3px 3px 0 #42dcca;
+}
+
+.game-shell[data-room-phase='error'] .room-chip {
+  border-color: #ff765f;
+  box-shadow: 3px 3px 0 #ff3c78;
+}
+
+.game-shell[data-room-role='guest'] .dev-drawer__buttons {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 .dev-drawer {
   position: absolute;
   top: 112px;
@@ -459,6 +575,19 @@ button {
 }
 
 @media (max-width: 680px) {
+  .landing-card {
+    padding: 24px;
+  }
+  .landing-actions,
+  .room-join div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .landing-actions button,
+  .room-join input,
+  .room-join button {
+    width: 100%;
+  }
   .flight-chip {
     top: 11px;
     left: 11px;
@@ -494,6 +623,12 @@ button {
   }
   .objective-card {
     bottom: 15px;
+  }
+  .room-chip {
+    bottom: 126px;
+    left: 11px;
+    min-width: 150px;
+    max-width: 45vw;
   }
   .objective-card__headline {
     font-size: 18px;

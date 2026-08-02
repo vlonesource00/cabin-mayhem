@@ -11,6 +11,14 @@ pnpm dev
 
 Open `http://127.0.0.1:5173`.
 
+### Free two-player rooms
+
+1. One player selects **Host 2-player room** and copies the eight-character code.
+2. The second player opens the same build, enters the code and selects **Join room**.
+3. The host remains authoritative; the guest sends controls and receives cabin snapshots over an encrypted WebRTC data channel.
+
+Rooms use the free PeerJS cloud for signaling and a direct peer-to-peer connection. Players in the same city will usually get a short route, but restrictive or symmetric NAT can still require TURN. Optional production overrides are `VITE_PEER_HOST`, `VITE_PEER_PORT`, `VITE_PEER_PATH`, `VITE_PEER_SECURE`, `VITE_TURN_URL`, `VITE_TURN_USERNAME` and `VITE_TURN_CREDENTIAL`. Never commit TURN credentials.
+
 ## Play online
 
 After GitHub Pages deploys this branch, play at [vlonesource00.github.io/cabin-mayhem](https://vlonesource00.github.io/cabin-mayhem/).
@@ -48,7 +56,7 @@ Gamepad: left stick move, shoulder sprint, face buttons interact/crouch/brace/th
 
 ### First service drill
 
-1. Select `Enter 3D aircraft`, then click the 3D view to capture the mouse.
+1. Select `Solo shift`, then click the 3D view to capture the mouse.
 2. Use `WASD` to walk; `S` always moves directly backwards from the camera.
 3. Press `Esc`, tap `F1`, select `Cabin` in the development drawer, then click the 3D view again.
 4. Aim at the service cart, select drink/meal/medical with `1`/`2`/`3`, then press `E`; stock decreases and the held 3D item appears in front of the camera.
@@ -58,7 +66,7 @@ Gamepad: left stick move, shoulder sprint, face buttons interact/crouch/brace/th
 
 ## Prototype scope
 
-Walkable Three.js fuselage, cockpit, aisle, seats, bins, shelves, host-authoritative service-cart stock, loose cargo, straps, two crew, eight seated passenger NPCs, drink/meal/medical requests, galley-fire suppression, one coffee-machine breaker repair crisis, service props, patience, panic, injury, scoring, mission outcome, incidents, subsystem damage and deterministic simulated network conditions. Economy, routes, progression, production audio and real remote browser transport remain future work.
+Walkable Three.js fuselage, cockpit, aisle, seats, bins, shelves, host-authoritative service-cart stock, loose cargo, straps, two crew, eight seated passenger NPCs, drink/meal/medical requests, galley-fire suppression, one coffee-machine breaker repair crisis, service props, patience, panic, injury, scoring, mission outcome, incidents, subsystem damage, deterministic simulated network conditions and free two-player browser rooms. Economy, routes, progression and production audio remain future work.
 
 ## Technologies
 

@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('menu enters a compact first-person Three.js aircraft UI', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /CABIN MAYHEM/i })).toBeVisible();
-  await page.getByRole('button', { name: 'Board the aircraft' }).click();
+  await page.getByRole('button', { name: 'Solo shift' }).click();
 
   await expect(page.getByTestId('technical-test-scene')).toBeVisible();
   await expect(page.getByTestId('three-canvas')).toBeVisible();
@@ -13,6 +13,50 @@ test('menu enters a compact first-person Three.js aircraft UI', async ({ page })
   await expect(page.getByTestId('service-mission')).toContainText(
     /needs (a drink|a meal|medical help)/,
   );
+});
+
+test('two isolated browsers join one host-authoritative WebRTC room', async ({ browser }) => {
+  test.skip(!process.env.LIVE_MULTIPLAYER, 'Run with LIVE_MULTIPLAYER=1 for PeerJS cloud smoke.');
+  const hostContext = await browser.newContext();
+  const guestContext = await browser.newContext();
+  const host = await hostContext.newPage();
+  const guest = await guestContext.newPage();
+  await Promise.all([host.goto('/'), guest.goto('/')]);
+
+  await host.evaluate(() => window.__CABIN_MAYHEM_TEST__?.startMultiplayer('host'));
+  await expect
+    .poll(() => host.evaluate(() => window.__CABIN_MAYHEM_TEST__?.roomStatus()?.phase))
+    .toBe('waiting');
+  const roomCode = await host.evaluate(
+    () => window.__CABIN_MAYHEM_TEST__?.roomStatus()?.roomCode ?? '',
+  );
+  expect(roomCode).toMatch(/^[A-Z2-9]{8}$/);
+
+  await guest.evaluate(
+    (code) => window.__CABIN_MAYHEM_TEST__?.startMultiplayer('guest', code),
+    roomCode,
+  );
+  await expect
+    .poll(() => host.evaluate(() => window.__CABIN_MAYHEM_TEST__?.roomStatus()?.phase), {
+      timeout: 20_000,
+    })
+    .toBe('connected');
+  await expect
+    .poll(() => guest.evaluate(() => window.__CABIN_MAYHEM_TEST__?.roomStatus()?.phase), {
+      timeout: 20_000,
+    })
+    .toBe('connected');
+
+  await host.evaluate(() => window.__CABIN_MAYHEM_TEST__?.advancePhase());
+  await expect
+    .poll(() => guest.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.flight.phase))
+    .toBe('taxi');
+  await expect
+    .poll(() => guest.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.tick))
+    .toBeGreaterThan(5);
+
+  await hostContext.close();
+  await guestContext.close();
 });
 
 test('test bridge drives host turbulence and deterministic flight phases', async ({ page }) => {

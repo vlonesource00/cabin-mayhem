@@ -202,6 +202,23 @@ export class HostSession {
     this.log('system', `${player.name}: ${station}`);
   }
 
+  public disconnectPlayer(playerId: string): void {
+    if (playerId === this.state.hostId) return;
+    const player = this.state.cabin.players[playerId];
+    if (!player) return;
+    const held = player.heldObjectId ? this.state.cabin.objects[player.heldObjectId] : undefined;
+    if (held) {
+      held.ownerId = undefined;
+      held.position = { ...player.position };
+      held.velocity = { x: 0, y: 0 };
+      player.heldObjectId = undefined;
+    }
+    player.velocity = { x: 0, y: 0 };
+    player.lastAction = 'Disconnected';
+    this.commands[playerId] = emptyCommand();
+    this.log('network', `${player.name} disconnected. Held item released.`);
+  }
+
   public snapshot(): MissionState {
     return structuredClone(this.state);
   }

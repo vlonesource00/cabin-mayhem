@@ -43,6 +43,30 @@ describe('host session', () => {
     expect(state.cabin.players['crew-bravo']!.position.y).toBeLessThan(start);
   });
 
+  it('stops disconnected client input and releases its held object', () => {
+    const session = new HostSession(92);
+    session.setNetwork({ enabled: false });
+    session.teleport('crew-bravo', 'cabin');
+    const look = emptyCommand();
+    look.look = { x: 0, y: 1 };
+    session.submitCommand('crew-bravo', look);
+    session.step(1 / 60);
+    const grab = emptyCommand();
+    grab.look = { x: 0, y: 1 };
+    grab.interact = true;
+    grab.interactionTargetId = 'cart-01';
+    grab.sprint = true;
+    session.submitCommand('crew-bravo', grab);
+    session.step(1 / 60);
+    expect(session.snapshot().cabin.objects['cart-01']?.ownerId).toBe('crew-bravo');
+
+    session.disconnectPlayer('crew-bravo');
+    const state = session.snapshot();
+    expect(state.cabin.players['crew-bravo']?.heldObjectId).toBeUndefined();
+    expect(state.cabin.objects['cart-01']?.ownerId).toBeUndefined();
+    expect(state.cabin.players['crew-bravo']?.velocity).toEqual({ x: 0, y: 0 });
+  });
+
   it('owns phase, subsystem damage, spawn and resettable bounded state', () => {
     const session = new HostSession(45);
     session.advancePhase();

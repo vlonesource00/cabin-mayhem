@@ -1,4 +1,5 @@
 import { CabinInputController } from '../input/cabin-input';
+import { normalizeRoomCode, PeerRoom, type RoomRole, type RoomStatus } from '../network/peer-room';
 import { HostSession } from '../sim/host-session';
 import { activeRequests, needLabel } from '../sim/service-mission';
 import { emptyCommand, type MissionState, type PlayerCommand } from '../sim/types';
@@ -20,6 +21,8 @@ export class CabinMayhemApp {
   private readonly input = new CabinInputController();
   private screen: Screen = 'menu';
   private session?: HostSession;
+  private room?: PeerRoom;
+  private roomRole: RoomRole = 'solo';
   private world?: CabinWorld;
   private controller?: FirstPersonController;
   private frame?: number;
@@ -52,19 +55,43 @@ export class CabinMayhemApp {
           <p class="landing-eyebrow">FLIGHT 07 / AIRLINE SITCOM EMERGENCY SHIFT</p>
           <h1>Cabin<br />Mayhem</h1>
           <p>Serve a live cabin, stop tiny disasters, and make sure the coffee machine never wins an election.</p>
-          <button class="primary-button" data-action="start">Board the aircraft</button>
+          <div class="landing-actions">
+            <button class="primary-button" data-action="start">Solo shift</button>
+            <button class="secondary-button" data-action="host-room">Host 2-player room</button>
+          </div>
+          <form class="room-join" data-room-form>
+            <label for="room-code">Friend's room code</label>
+            <div><input id="room-code" name="room-code" maxlength="10" autocomplete="off" placeholder="ABCD2345" /><button type="submit">Join flight</button></div>
+          </form>
+          <p class="menu-status" data-menu-status aria-live="polite">WebRTC is free and peer-to-peer. Same-city players usually get a short direct route.</p>
         </section>
       </main>`;
-    this.button('start', () => this.start());
+    this.button('start', () => this.start('solo'));
+    this.button('host-room', () => this.start('host'));
+    const form = this.root.querySelector<HTMLFormElement>('[data-room-form]');
+    form?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const input = form.querySelector<HTMLInputElement>('[name="room-code"]');
+      const roomCode = normalizeRoomCode(input?.value ?? '');
+      if (roomCode.length !== 8) {
+        this.text('[data-menu-status]', 'Room code needs 8 letters or numbers.');
+        input?.focus();
+        return;
+      }
+      this.start('guest', roomCode);
+    });
   }
 
-  private start(): void {
+  private start(role: RoomRole = 'solo', roomCode = ''): void {
     this.stopLoop();
     this.screen = 'flight';
+    this.roomRole = role;
     this.session = new HostSession();
+    if (role !== 'solo') this.session.setNetwork({ enabled: false });
+    this.room = new PeerRoom();
     this.devOpen = false;
     this.root.innerHTML = `
-      <main class="game-shell" data-testid="technical-test-scene" data-debug-open="false">
+      <main class="game-shell" data-testid="technical-test-scene" data-debug-open="false" data-room-role="${role}" data-room-phase="idle">
         <section class="world-stage" data-world-stage></section>
         <header class="flight-chip">
           ${icon('plane')}
@@ -87,6 +114,11 @@ export class CabinMayhemApp {
           <i class="objective-progress"><span data-hud="objective-progress"></span></i>
         </section>
         <section class="radio-caption" data-hud="caption" aria-live="polite">Host ready. Local client connected.</section>
+        <aside class="room-chip" data-testid="room-status" aria-live="polite">
+          <span data-room="role">SOLO</span>
+          <strong data-room="message">LOCAL CABIN</strong>
+          <button data-action="copy-room" type="button" hidden><span data-room="code"></span> / COPY</button>
+        </aside>
         <aside class="dev-drawer" aria-label="Development controls" aria-hidden="true">
           <p class="dev-drawer__title">CHAOS LAB / F1</p>
           <div class="dev-readout"><span>Telemetry</span><span data-hud="speed">0 kt</span><span>Altitude</span><span data-hud="altitude">0 ft</span><span>Stock</span><span data-hud="cart-stock">D 3 / M 3 / MED 2</span><span>Objects</span><span data-hud="objects">0</span></div>
@@ -118,6 +150,9 @@ export class CabinMayhemApp {
     this.controller = new FirstPersonController(this.world.canvas);
     this.input.setActive(true);
     this.bindDebugControls();
+    this.room.onStatus((status) => this.updateRoomStatus(status));
+    if (role === 'host') void this.room.host().catch(() => undefined);
+    else if (role === 'guest') void this.room.join(roomCode).catch(() => undefined);
     this.lastFrame = performance.now();
     this.accumulator = 0;
     this.frame = requestAnimationFrame(this.loop);
@@ -131,13 +166,22 @@ export class CabinMayhemApp {
     while (this.accumulator >= 1 / 60) {
       const command = this.controller.transform(this.input.read());
       command.interactionTargetId = this.world.interactionTarget();
-      this.session.submitCommand('crew-alpha', command);
-      this.session.submitCommand('crew-bravo', this.botCommand(now));
-      this.session.step(1 / 60);
+      if (this.roomRole === 'guest') this.room?.sendCommand(command, now);
+      else {
+        this.session.submitCommand('crew-alpha', command);
+        this.session.submitCommand(
+          'crew-bravo',
+          this.roomRole === 'host'
+            ? (this.room?.remoteCommand() ?? emptyCommand())
+            : this.botCommand(now),
+        );
+        this.session.step(1 / 60);
+      }
       this.accumulator -= 1 / 60;
     }
-    const state = this.session.snapshot();
-    const player = state.cabin.players['crew-alpha'];
+    const state = this.currentState();
+    if (this.roomRole === 'host') this.room?.sendSnapshot(state, now);
+    const player = state.cabin.players[this.localPlayerId()];
     if (player)
       this.controller.updateCamera(this.world.camera, player, state.flight, this.world.elapsed());
     this.world.render(state);
@@ -158,7 +202,7 @@ export class CabinMayhemApp {
   }
 
   private updateHud(state: MissionState): void {
-    const player = state.cabin.players['crew-alpha'];
+    const player = state.cabin.players[this.localPlayerId()];
     const held = player?.heldObjectId ? state.cabin.objects[player.heldObjectId]?.name : undefined;
     const panic = Object.values(state.service.passengers).filter(
       (passenger) => passenger.panic >= 0.35,
@@ -231,31 +275,41 @@ export class CabinMayhemApp {
 
   private bindDebugControls(): void {
     this.button('debug-toggle', () => this.setDevOpen(!this.devOpen));
-    this.button('turbulence', () => this.session?.trigger('turbulence', 0.88));
-    this.button('drop', () => this.session?.trigger('air-pocket'));
-    this.button('turn', () => this.session?.trigger('sharp-turn'));
-    this.button('collision', () => this.session?.trigger('collision'));
-    this.button('fire', () => this.session?.trigger('fire', 0.82));
-    this.button('repair', () => this.session?.trigger('repair'));
-    this.button('damage', () => this.session?.damage('electrical'));
-    this.button('spawn', () => this.session?.spawnObject());
+    this.button('copy-room', () => this.copyRoomCode());
+    this.button('turbulence', () => this.hostOnly(() => this.session?.trigger('turbulence', 0.88)));
+    this.button('drop', () => this.hostOnly(() => this.session?.trigger('air-pocket')));
+    this.button('turn', () => this.hostOnly(() => this.session?.trigger('sharp-turn')));
+    this.button('collision', () => this.hostOnly(() => this.session?.trigger('collision')));
+    this.button('fire', () => this.hostOnly(() => this.session?.trigger('fire', 0.82)));
+    this.button('repair', () => this.hostOnly(() => this.session?.trigger('repair')));
+    this.button('damage', () => this.hostOnly(() => this.session?.damage('electrical')));
+    this.button('spawn', () => this.hostOnly(() => this.session?.spawnObject()));
     this.button('network', () => {
+      if (this.roomRole === 'guest') return;
       const enabled = this.session?.snapshot().network.enabled ?? true;
       this.session?.setNetwork({ enabled: !enabled });
     });
-    this.button('phase', () => this.session?.advancePhase());
-    this.button('cockpit', () => this.session?.teleport('crew-alpha', 'cockpit'));
-    this.button('cabin', () => this.session?.teleport('crew-alpha', 'cabin'));
-    this.button('galley', () => this.session?.teleport('crew-alpha', 'galley'));
-    this.button('cargo', () => this.session?.teleport('crew-alpha', 'cargo'));
-    this.button('repair-bay', () => this.session?.teleport('crew-alpha', 'repair'));
-    this.button('reset', () => this.start());
+    this.button('phase', () => this.hostOnly(() => this.session?.advancePhase()));
+    this.button('cockpit', () =>
+      this.hostOnly(() => this.session?.teleport('crew-alpha', 'cockpit')),
+    );
+    this.button('cabin', () => this.hostOnly(() => this.session?.teleport('crew-alpha', 'cabin')));
+    this.button('galley', () =>
+      this.hostOnly(() => this.session?.teleport('crew-alpha', 'galley')),
+    );
+    this.button('cargo', () => this.hostOnly(() => this.session?.teleport('crew-alpha', 'cargo')));
+    this.button('repair-bay', () =>
+      this.hostOnly(() => this.session?.teleport('crew-alpha', 'repair')),
+    );
+    this.button('reset', () => this.start(this.roomRole, this.room?.status().roomCode ?? ''));
   }
 
   private installTestBridge(): void {
     window.__CABIN_MAYHEM_TEST__ = {
       start: () => this.start(),
-      state: () => this.session?.snapshot(),
+      startMultiplayer: (role, roomCode) => this.start(role, roomCode),
+      state: () => (this.session ? this.currentState() : undefined),
+      roomStatus: () => this.room?.status(),
       step: (seconds) => this.session?.step(seconds),
       advancePhase: () => this.session?.advancePhase(),
       trigger: (kind) => this.session?.trigger(kind),
@@ -269,8 +323,10 @@ export class CabinMayhemApp {
     this.frame = undefined;
     this.controller?.destroy();
     this.world?.dispose();
+    this.room?.close();
     this.controller = undefined;
     this.world = undefined;
+    this.room = undefined;
     this.input.setActive(false);
   }
 
@@ -278,6 +334,51 @@ export class CabinMayhemApp {
     this.root
       .querySelector<HTMLButtonElement>(`[data-action="${action}"]`)
       ?.addEventListener('click', handler);
+  }
+
+  private currentState(): MissionState {
+    if (!this.session) throw new Error('Session missing');
+    return this.roomRole === 'guest'
+      ? (this.room?.snapshot() ?? this.session.snapshot())
+      : this.session.snapshot();
+  }
+
+  private localPlayerId(): 'crew-alpha' | 'crew-bravo' {
+    return this.roomRole === 'guest' ? 'crew-bravo' : 'crew-alpha';
+  }
+
+  private hostOnly(action: () => void): void {
+    if (this.roomRole !== 'guest') action();
+  }
+
+  private updateRoomStatus(status: RoomStatus): void {
+    const shell = this.root.querySelector<HTMLElement>('.game-shell');
+    if (shell) {
+      if (
+        this.roomRole === 'host' &&
+        shell.dataset.roomPhase === 'connected' &&
+        status.phase === 'waiting'
+      )
+        this.session?.disconnectPlayer('crew-bravo');
+      shell.dataset.roomRole = status.role;
+      shell.dataset.roomPhase = status.phase;
+      shell.dataset.roomCode = status.roomCode;
+      shell.dataset.roomTick = String(status.remoteTick);
+      shell.dataset.stateHash = status.stateHash;
+    }
+    this.text('[data-room="role"]', status.role.toUpperCase());
+    this.text('[data-room="message"]', status.message.toUpperCase());
+    this.text('[data-room="code"]', status.roomCode);
+    const copy = this.root.querySelector<HTMLButtonElement>('[data-action="copy-room"]');
+    if (copy) copy.hidden = status.role !== 'host' || !status.roomCode;
+  }
+
+  private copyRoomCode(): void {
+    const roomCode = this.room?.status().roomCode;
+    if (!roomCode || !navigator.clipboard) return;
+    void navigator.clipboard.writeText(roomCode).then(() => {
+      this.text('[data-room="message"]', 'CODE COPIED');
+    });
   }
 
   private completeRepairForTest(): void {

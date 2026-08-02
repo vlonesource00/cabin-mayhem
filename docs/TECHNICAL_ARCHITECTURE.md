@@ -6,6 +6,8 @@ TypeScript simulation runs at bounded `<= 50 ms` steps. `HostSession` has sole w
 
 Three.js owns presentation only. `CabinWorld` maps aircraft-local simulation coordinates into WebGL space, creates project-owned procedural meshes and synchronizes visible crew, passenger and prop state from snapshots. `FirstPersonController` converts pointer-lock camera direction into host command intent.
 
+`PeerRoom` is the browser transport adapter. In host mode, local `crew-alpha` input and validated remote `crew-bravo` input enter the same `HostSession`; in guest mode the app never steps simulation and only renders host snapshots. PeerJS supplies free signaling while WebRTC carries gameplay directly. The deterministic simulation has no PeerJS dependency.
+
 ## Passenger service
 
 `service-mission.ts` activates authored requests on the deterministic mission clock. It owns finite cart stock, deterministic item dispensing/returns, patience decay, incident-driven panic/injury, delivery validation and score/outcome. `fire-response.ts` owns the authored galley hotspot and active/suppressed state. `CabinWorld` only raycasts candidate cart/passenger/fire IDs; `HostSession` checks cart selection, stock, target, ownership, active request, held extinguisher, item mapping and distance before mutating state.
