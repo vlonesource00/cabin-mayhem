@@ -7,6 +7,19 @@ import type {
   PassengerRequestStatus,
   PassengerState,
 } from '../sim/types';
+import { instantiate, loadRig, type LoadedRig, type RigInstance } from './animated-rig';
+import { characterRigId, firstPersonRigId } from './animation-contract';
+import {
+  crewClips,
+  crewMotion,
+  crewOneShotClip,
+  crewOneShots,
+  crewStance,
+  firstPersonClip,
+  firstPersonOneShotClip,
+  passengerAnimationState,
+  passengerClip,
+} from './animation-state';
 import { cabinToWorld } from './coordinates';
 import { GesturePlayer, handGestures, passengerPose } from './interaction-animation';
 import { disposeScenario, loadCabinScenario } from './scenario-loader';
@@ -25,6 +38,21 @@ const colors = {
 
 /** The camera always follows this crew slot; the peer is rendered as an avatar. */
 const localCrewId = 'crew-alpha';
+
+/**
+ * Name of the sub-group holding an avatar's procedural box body. Everything
+ * else on the avatar — beacons, hitboxes, interaction metadata — stays outside
+ * it, so swapping in an authored rig is one `visible = false`.
+ */
+const proceduralBodyName = 'procedural body';
+
+const proceduralBody = (avatar: THREE.Object3D): THREE.Object3D[] =>
+  avatar.getObjectByName(proceduralBodyName)?.children ?? [];
+
+const hideProceduralCharacter = (avatar: THREE.Object3D): void => {
+  const body = avatar.getObjectByName(proceduralBodyName);
+  if (body) body.visible = false;
+};
 
 export class CabinWorld {
   public readonly canvas: HTMLCanvasElement;
@@ -51,6 +79,13 @@ export class CabinWorld {
   private targetObjectId: string | null = null;
   private productionScenario?: THREE.Group;
   private disposed = false;
+
+  /** Authored-rig layer. Absent until the GLBs load; may never arrive. */
+  private characterRig?: LoadedRig;
+  private crewBravoRig?: RigInstance;
+  private firstPersonArms?: RigInstance;
+  private readonly passengerRigs = new Map<string, RigInstance>();
+  private lastFrameAt?: number;
 
   public constructor(private readonly mount: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -83,16 +118,24 @@ export class CabinWorld {
     this.crewBravo = this.createCrewAvatar(0x38bdf8);
     this.cabin.add(this.crewBravo);
     this.scene.add(this.cabin);
+    this.scene.add(this.camera);
     this.loadProductionScenario();
+    this.loadAuthoredRigs();
     this.resize();
     window.addEventListener('resize', this.resize);
   }
 
   public render(state: MissionState): void {
     const elapsed = this.elapsed();
+    // Clamped the same way the simulation clamps its own step: a backgrounded
+    // tab must not fast-forward every mixer when it comes back.
+    const delta = Math.min(elapsed - (this.lastFrameAt ?? elapsed), 0.05);
+    this.lastFrameAt = elapsed;
     this.gestures.push(handGestures(this.previousState, state, localCrewId), elapsed);
+    this.syncRigs(state);
     this.previousState = state;
     this.syncState(state, elapsed);
+    this.updateRigs(delta);
     this.updateInteraction(state);
     this.renderer.render(this.scene, this.camera);
   }
@@ -112,6 +155,10 @@ export class CabinWorld {
   public dispose(): void {
     this.disposed = true;
     window.removeEventListener('resize', this.resize);
+    this.crewBravoRig?.dispose();
+    this.firstPersonArms?.dispose();
+    for (const rig of this.passengerRigs.values()) rig.dispose();
+    this.passengerRigs.clear();
     this.scene.traverse((entry) => {
       if (entry instanceof THREE.Mesh) {
         entry.geometry.dispose();
@@ -142,6 +189,62 @@ export class CabinWorld {
       .catch(() => {
         if (!this.disposed) this.canvas.dataset.assetMode = 'fallback';
       });
+  }
+
+  /**
+   * Loads the authored skeletal rigs. Each rig is independent: if the arms load
+   * and the characters do not, the arms still animate and the crew stay on the
+   * procedural layer. Nothing here can fail the frame loop.
+   */
+  private loadAuthoredRigs(): void {
+    void loadRig(characterRigId)
+      .then((rig) => {
+        if (this.disposed) return;
+        this.characterRig = rig;
+        this.crewBravoRig = instantiate(rig, 'CM_CREW');
+        hideProceduralCharacter(this.crewBravo);
+        this.crewBravo.add(this.crewBravoRig.root);
+        this.canvas.dataset.characterRig = 'glb';
+      })
+      .catch(() => {
+        if (!this.disposed) this.canvas.dataset.characterRig = 'fallback';
+      });
+
+    void loadRig(firstPersonRigId)
+      .then((rig) => {
+        if (this.disposed) return;
+        const arms = instantiate(rig, 'CM_FP_ARMS');
+        // Parented to the camera, so the arms inherit look direction for free.
+        arms.root.position.set(0, -0.06, 0);
+        this.camera.add(arms.root);
+        this.firstPersonArms = arms;
+        this.canvas.dataset.armsRig = 'glb';
+      })
+      .catch(() => {
+        if (!this.disposed) this.canvas.dataset.armsRig = 'fallback';
+      });
+  }
+
+  /**
+   * The authored rig for one seated passenger, created on first sight. Returns
+   * undefined while the GLB is still loading or if it never arrives, which is
+   * what keeps the procedural seat pose in charge.
+   */
+  private passengerRig(passengerId: string, avatar: THREE.Group): RigInstance | undefined {
+    const existing = this.passengerRigs.get(passengerId);
+    if (existing || !this.characterRig) return existing;
+    const rig = instantiate(this.characterRig, 'CM_PASSENGER');
+    hideProceduralCharacter(avatar);
+    avatar.add(rig.root);
+    this.passengerRigs.set(passengerId, rig);
+    return rig;
+  }
+
+  /** Advances every live mixer. Delta is clamped so a stalled tab cannot skip. */
+  private updateRigs(delta: number): void {
+    this.crewBravoRig?.update(delta);
+    this.firstPersonArms?.update(delta);
+    for (const rig of this.passengerRigs.values()) rig.update(delta);
   }
 
   private hideProceduralScenario(): void {
@@ -392,17 +495,22 @@ export class CabinWorld {
 
   private createCrewAvatar(color: number): THREE.Group {
     const group = new THREE.Group();
+    // Body parts live in their own group so the authored rig can replace them
+    // wholesale without touching beacons, hitboxes or attachment points.
+    const body = new THREE.Group();
+    body.name = proceduralBodyName;
     const uniform = this.material(color, 0.72, 0.08);
     const skin = this.material(0xc58c6c, 0.78, 0.02);
-    group.add(this.box('crew torso', [0.58, 0.82, 0.34], [0, 1.08, 0], uniform));
+    body.add(this.box('crew torso', [0.58, 0.82, 0.34], [0, 1.08, 0], uniform));
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.23, 16, 12), skin);
     head.position.y = 1.66;
     head.castShadow = true;
-    group.add(head);
+    body.add(head);
     for (const x of [-0.18, 0.18]) {
-      group.add(this.box('crew leg', [0.16, 0.72, 0.18], [x, 0.36, 0], this.material(colors.navy)));
-      group.add(this.box('crew arm', [0.14, 0.6, 0.14], [x * 2.3, 1.06, 0], skin));
+      body.add(this.box('crew leg', [0.16, 0.72, 0.18], [x, 0.36, 0], this.material(colors.navy)));
+      body.add(this.box('crew arm', [0.14, 0.6, 0.14], [x * 2.3, 1.06, 0], skin));
     }
+    group.add(body);
     return group;
   }
 
@@ -411,20 +519,23 @@ export class CabinWorld {
     group.name = passenger.name;
     const clothes = this.material(Number.parseInt(passenger.color.slice(1), 16), 0.8, 0.03);
     const skin = this.material(0xc99072, 0.82, 0.01);
-    group.add(this.box('passenger torso', [0.56, 0.72, 0.32], [0, 1.15, 0.05], clothes));
+    const body = new THREE.Group();
+    body.name = proceduralBodyName;
+    body.add(this.box('passenger torso', [0.56, 0.72, 0.32], [0, 1.15, 0.05], clothes));
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 14), skin);
     head.name = 'passenger head';
     head.position.set(0, 1.68, 0.08);
     head.castShadow = true;
-    group.add(head);
+    body.add(head);
     for (const x of [-0.19, 0.19]) {
       const leg = this.box('passenger leg', [0.15, 0.54, 0.16], [x, 0.57, -0.18], clothes);
       leg.rotation.x = -1.15;
-      group.add(leg);
+      body.add(leg);
       const arm = this.box('passenger arm', [0.13, 0.55, 0.13], [x * 1.72, 1.12, -0.02], skin);
       arm.rotation.x = -0.35;
-      group.add(arm);
+      body.add(arm);
     }
+    group.add(body);
     const beacon = new THREE.Mesh(
       new THREE.TorusGeometry(0.22, 0.035, 8, 24),
       new THREE.MeshBasicMaterial({ color: colors.orange, transparent: true, opacity: 0.95 }),
@@ -561,6 +672,35 @@ export class CabinWorld {
     return heldId ? state.cabin.objects[heldId]?.kind : undefined;
   }
 
+  private held(state: MissionState, playerId: string): CabinObject | undefined {
+    const heldId = state.cabin.players[playerId]?.heldObjectId;
+    return heldId ? state.cabin.objects[heldId] : undefined;
+  }
+
+  /**
+   * Projects the snapshot onto authored clips for the peer avatar and the
+   * first-person arms. Read-only with respect to the simulation: a wrong clip
+   * here can only ever look wrong.
+   */
+  private syncRigs(state: MissionState): void {
+    const bravo = state.cabin.players['crew-bravo'];
+    if (this.crewBravoRig && bravo) {
+      const held = this.held(state, 'crew-bravo');
+      this.crewBravoRig.play(crewClips(crewMotion(bravo), crewStance(state, bravo, held)));
+      for (const shot of crewOneShots(this.previousState, state, 'crew-bravo'))
+        this.crewBravoRig.trigger(crewOneShotClip(shot));
+    }
+
+    const alpha = state.cabin.players[localCrewId];
+    if (this.firstPersonArms && alpha) {
+      this.firstPersonArms.play({
+        base: firstPersonClip(state, alpha, this.held(state, localCrewId)),
+      });
+      for (const shot of crewOneShots(this.previousState, state, localCrewId))
+        this.firstPersonArms.trigger(firstPersonOneShotClip(shot));
+    }
+  }
+
   private syncState(state: MissionState, elapsed: number): void {
     const heldKind = this.heldKind(state);
     const pose = this.gestures.pose(
@@ -606,24 +746,30 @@ export class CabinWorld {
         this.reactionStatus.set(passenger.id, passenger.requestStatus);
         this.reactionAt.set(passenger.id, elapsed);
       }
-      const react = passengerPose(
-        passenger,
-        elapsed,
-        elapsed - (this.reactionAt.get(passenger.id) ?? elapsed),
-      );
+      const reactionAge = elapsed - (this.reactionAt.get(passenger.id) ?? elapsed);
+      const react = passengerPose(passenger, elapsed, reactionAge);
       const seat = cabinToWorld(passenger.seatPosition);
       const shake = Math.sin(elapsed * 15 + passenger.requestAt) * passenger.panic * 0.035;
       avatar.position.set(seat.x + shake, seat.y + react.bob, seat.z);
       avatar.rotation.y = passenger.seatPosition.x < 8 ? -0.08 : 0.08;
-      avatar.rotation.x = react.lean;
       avatar.rotation.z = passenger.injury * (passenger.seatPosition.x < 8 ? 0.22 : -0.22);
-      const arms = avatar.children.filter((entry) => entry.name === 'passenger arm');
-      for (const [index, arm] of arms.entries())
-        arm.rotation.x = THREE.MathUtils.lerp(
-          arm.rotation.x,
-          -0.35 - react.armLift * (index === arms.length - 1 ? 1.9 : 0.25),
-          0.18,
-        );
+
+      const rig = this.passengerRig(passenger.id, avatar);
+      if (rig) {
+        // The authored clip owns the body. Only the seat-level offsets above,
+        // which the clips know nothing about, stay procedural.
+        avatar.rotation.x = 0;
+        rig.play({ base: passengerClip(passengerAnimationState(passenger, state, reactionAge)) });
+      } else {
+        avatar.rotation.x = react.lean;
+        const arms = proceduralBody(avatar).filter((entry) => entry.name === 'passenger arm');
+        for (const [index, arm] of arms.entries())
+          arm.rotation.x = THREE.MathUtils.lerp(
+            arm.rotation.x,
+            -0.35 - react.armLift * (index === arms.length - 1 ? 1.9 : 0.25),
+            0.18,
+          );
+      }
       avatar.userData.interaction = passengerInteraction(passenger);
       const beacon = avatar.getObjectByName('request beacon');
       if (beacon instanceof THREE.Mesh && beacon.material instanceof THREE.MeshBasicMaterial) {
@@ -692,14 +838,17 @@ export class CabinWorld {
       this.crewBravo.position.copy(cabinToWorld(bravo.position));
       this.crewBravo.rotation.y = Math.atan2(bravo.facing.x, bravo.facing.y);
       this.crewBravo.rotation.z = bravo.knockdown > 0 ? 1.2 : 0;
-      const speed = Math.hypot(bravo.velocity.x, bravo.velocity.y);
-      const stride = Math.min(speed / 3.2, 1);
-      const swing = Math.sin(elapsed * (6 + stride * 6)) * stride * 0.7;
-      const limbs = this.crewBravo.children.filter(
-        (entry) => entry.name === 'crew leg' || entry.name === 'crew arm',
-      );
-      for (const [index, limb] of limbs.entries())
-        limb.rotation.x = (index % 2 === 0 ? swing : -swing) * (limb.name === 'crew arm' ? 0.8 : 1);
+      if (!this.crewBravoRig) {
+        const speed = Math.hypot(bravo.velocity.x, bravo.velocity.y);
+        const stride = Math.min(speed / 3.2, 1);
+        const swing = Math.sin(elapsed * (6 + stride * 6)) * stride * 0.7;
+        const limbs = proceduralBody(this.crewBravo).filter(
+          (entry) => entry.name === 'crew leg' || entry.name === 'crew arm',
+        );
+        for (const [index, limb] of limbs.entries())
+          limb.rotation.x =
+            (index % 2 === 0 ? swing : -swing) * (limb.name === 'crew arm' ? 0.8 : 1);
+      }
     }
 
     const health = Math.min(state.flight.electrical, state.flight.structure);

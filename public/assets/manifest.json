@@ -19,6 +19,26 @@
       "owner": "Cabin Mayhem",
       "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/build_cabin_scenario.py; covers the flight deck, forward galley, seat rows, rear service area and cargo hold; 12 material-batched meshes, no external textures or third-party assets.",
       "usageReferences": ["src/three/scenario-loader.ts", "src/three/cabin-world.ts"]
+    },
+    {
+      "id": "cabin-mayhem-characters",
+      "type": "production-glb-rig",
+      "sourceFile": "assets-src/blender/cabin-mayhem-characters.blend",
+      "runtimeFile": "public/assets/characters/cabin-mayhem-characters.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/build_character_rig.py; one shared 19-bone humanoid skeleton skinned to a crew and a passenger mesh, with 25 named actions exported as separate glTF animation clips. Rigid one-bone-per-part weighting, no external textures or third-party assets. Bone and clip names are the contract in src/three/animation-contract.ts and docs/rig-contract.md.",
+      "usageReferences": ["src/three/animation-contract.ts", "src/three/animated-rig.ts"]
+    },
+    {
+      "id": "cabin-mayhem-fp-arms",
+      "type": "production-glb-rig",
+      "sourceFile": "assets-src/blender/cabin-mayhem-fp-arms.blend",
+      "runtimeFile": "public/assets/characters/cabin-mayhem-fp-arms.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/build_first_person_arms.py; a camera-space 7-bone arms rig kept separate from the humanoid skeleton because first-person framing needs exaggerated proportions, with 19 named actions exported as separate glTF animation clips. No external textures or third-party assets.",
+      "usageReferences": ["src/three/animation-contract.ts", "src/three/animated-rig.ts"]
     }
   ]
 }

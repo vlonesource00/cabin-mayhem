@@ -7,3 +7,5 @@ test-results/
 *.log
 src-tauri/target/
 src-tauri/gen/
+*.blend1
+__pycache__/

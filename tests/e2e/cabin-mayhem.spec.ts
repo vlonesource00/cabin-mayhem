@@ -27,6 +27,27 @@ test('procedural cabin remains playable when production GLB fails', async ({ pag
   await expect(page.getByTestId('service-mission')).toContainText('CABIN CALL');
 });
 
+test('authored character and first-person rigs load and animate', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Solo shift' }).click();
+
+  const canvas = page.getByTestId('three-canvas');
+  await expect(canvas).toHaveAttribute('data-character-rig', 'glb');
+  await expect(canvas).toHaveAttribute('data-arms-rig', 'glb');
+});
+
+test('cabin keeps its procedural animation when a rig GLB fails', async ({ page }) => {
+  await page.route('**/assets/characters/*.glb', (route) => route.abort());
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Solo shift' }).click();
+
+  const canvas = page.getByTestId('three-canvas');
+  await expect(canvas).toHaveAttribute('data-character-rig', 'fallback');
+  await expect(canvas).toHaveAttribute('data-arms-rig', 'fallback');
+  // The mission still runs: nothing in the animation layer is authoritative.
+  await expect(page.getByTestId('service-mission')).toContainText('CABIN CALL');
+});
+
 test('two isolated browsers join one host-authoritative WebRTC room', async ({ browser }) => {
   test.skip(!process.env.LIVE_MULTIPLAYER, 'Run with LIVE_MULTIPLAYER=1 for PeerJS cloud smoke.');
   const hostContext = await browser.newContext();

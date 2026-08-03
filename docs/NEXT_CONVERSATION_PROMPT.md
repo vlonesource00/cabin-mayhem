@@ -34,12 +34,14 @@ Current game state:
 - Procedural Web Audio cabin sound synthesised at runtime from mission snapshots, muted with `M`. The repository ships no audio files.
 - Snapshot-driven procedural interaction animation for held items, extinguisher use, breaker repair, passenger reactions and crew walking.
 - Expanded Blender scenario covering the static cabin shell, flight deck, galleys and cargo hold, with validated loading and procedural fallback.
+- Two Blender-authored skeletal rigs: a shared 19-bone humanoid (25 clips, crew and passengers) and a 7-bone first-person arms rig (19 clips), played through a Three.js `AnimationMixer` layer that crossfades snapshot-selected clips and layers upper-body actions over locomotion. Each rig falls back independently to the procedural layer, reported through `data-character-rig` and `data-arms-rig`.
 
 Open work:
 - Complete a human manual service-flight pass and a real two-browser host/guest room pass, including takeoff, deliveries, fire, repair, reset and landing debrief.
-- Complete fresh 1366x768 and narrow-viewport visual inspection of the expanded GLB, procedural animation and landing debrief.
+- Complete fresh 1366x768 and narrow-viewport visual inspection of the expanded GLB, the authored character animation and the landing debrief. Judge clip exaggeration and crossfade timing in motion, then retime in `tools/blender/` and re-export.
+- Extend authored animation to world props: cart wheels and wobble, overhead-bin doors, coffee-machine tantrum, breaker sparks, extinguisher hose and loose-item squash. Passenger facial shape keys are also unimplemented.
 - Add priority passenger/prop asset replacement after the current runtime path is stable.
-- Replace synthesised sound and procedural interaction motion with production-recorded audio, voices and authored animation in later bounded slices.
+- Replace synthesised sound with production-recorded audio and voices in a later bounded slice.
 
 Important rules:
 - `HostSession` is authoritative. UI and Three.js may request interaction but never determine success.
@@ -52,12 +54,12 @@ Immediate task:
 1. Verify `novo-main-stable` and read the current Git/docs before selecting a bounded gameplay or asset slice.
 2. Run format, lint, typecheck, data/assets validation, unit, integration, E2E and Vite build.
 3. Manually test solo and two-browser room flows plus desktop/narrow visual layouts, then record exact limitations and update the handoff.
-4. Keep production audio, authored animation and passenger/prop replacement as separate reviewable slices.
+4. Keep production audio, world-prop animation and passenger/prop replacement as separate reviewable slices.
 5. Commit or push only when explicitly authorized.
 
-Current evidence for the complete feature line through `73d2c08`:
-- `git diff --check`, format check, ESLint, TypeScript, data validation and asset validation pass.
-- 56 unit tests pass; 2 integration tests pass; 9 Playwright tests are collected, with 8 passing and the live multiplayer test skipped without `LIVE_MULTIPLAYER`.
+Current evidence for the feature line through `0bf3625` plus the authored-animation slice:
+- `git diff --check`, format check, ESLint, TypeScript, data validation and asset validation pass. Asset validation covers 4 project-owned assets and both rigs (2 rigs, 44 authored clips).
+- 96 unit tests pass; 2 integration tests pass; 11 Playwright tests are collected, with 10 passing and the live multiplayer test skipped without `LIVE_MULTIPLAYER`.
 - Vite production build passes with a non-blocking large-chunk warning.
 - Tauri MSI and NSIS packaging passes; generated installers remain unsigned.
 - GitHub Actions is green for `73d2c08`.

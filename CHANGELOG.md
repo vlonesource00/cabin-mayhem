@@ -9,6 +9,8 @@
 - Known limitation: this GLB replaces the static cabin presentation only. Passenger avatars and interactive props remain procedural; full manual delivery tuning remains open.
 - Added procedural Web Audio cabin sound: engine, wind, rumble, fire and alarm beds plus discrete cues projected from authoritative state deltas, with `M` to mute. No audio files ship with the repository.
 - Added procedural interaction animation: held-item grab/stow/serve/reject gestures, sustained extinguisher and wrench poses, seated passenger waving/celebrating/slumping and a crew walk cycle, all projected from host snapshots.
+- Added Blender-authored skeletal animation: a shared 19-bone humanoid rig with 25 clips (crew locomotion, carry, cart, serve, throw, spray, repair, brace, stumble, celebrate and ten seated passenger states) and a separate 7-bone first-person arms rig with 19 clips, both generated deterministically by `tools/blender/` and contract-checked by `pnpm validate:assets`.
+- Added the Three.js `AnimationMixer` runtime for those rigs: crossfaded clip selection projected from host snapshots, true upper-body action layering by disjoint track masking, delta-triggered one-shots and per-rig degradation back to the procedural layer when a GLB is missing or violates the contract.
 - Added eight seated 3D passengers with drink, meal and medical requests.
 - Added physical service props, host-validated delivery, patience, panic, injury, scoring and mission outcome.
 - Added cabin-service HUD, request beacons, tests and next-conversation handoff prompt.

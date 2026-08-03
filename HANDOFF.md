@@ -13,7 +13,8 @@ The current Slice 2 vertical includes:
 - An icon-first contextual HUD with a compact flight chip, critical status icons, objective card, radio caption and closed-by-default `F1` development drawer.
 - Free two-player PeerJS/WebRTC rooms. The host owns the simulation; the guest sends validated commands and renders ordered snapshots.
 - A landing debrief with score, served/missed totals, fire and repair verdicts, authored passenger reviews and room-preserving replay.
-- A Blender-authored static cabin GLB with runtime validation and automatic procedural fallback. Passenger avatars, service contents, loose gameplay props, emergency effects and interaction proxies remain procedural.
+- A Blender-authored static cabin GLB with runtime validation and automatic procedural fallback. Service contents, loose gameplay props, emergency effects and interaction proxies remain procedural.
+- Blender-authored skeletal animation: a shared 19-bone humanoid rig (25 clips, crew and passengers) and a separate 7-bone first-person arms rig (19 clips), played through a Three.js `AnimationMixer` layer that crossfades clips selected from host snapshots and layers upper-body actions over locomotion. Each rig degrades independently to the procedural animation layer.
 
 ## Last changes
 
@@ -26,13 +27,16 @@ The current Slice 2 vertical includes:
 - Added automatic takeoff progression and the galley-fire response objective.
 - Added snapshot-driven procedural cabin audio with mute control and no shipped audio files.
 - Added snapshot-driven interaction animation for held items, repairs, passengers and crew.
+- Added the two Blender character rigs, their 44 authored clips, the rig contract in `src/three/animation-contract.ts`, GLB skeleton/clip/duration validation in `pnpm validate:assets` and `docs/rig-contract.md`.
+- Added the runtime mixer layer in `src/three/animated-rig.ts` and the pure snapshot-to-clip projection in `src/three/animation-state.ts`, wired into `CabinWorld` with per-rig fallback reported through `data-character-rig` and `data-arms-rig`.
 
 ## Known problems and limits
 
 - GitHub Actions CI is green for `73d2c08`; the CI timeout budget and Playwright failure-artifact upload are included in the stable line.
 - The default Playwright suite does not run cloud multiplayer; the live room test is skipped unless `LIVE_MULTIPLAYER=1`. A manual two-browser host/guest playtest is still required.
 - Full manual passenger aiming and end-to-end delivery tuning remain pending. Host, unit and browser bridge coverage validates the delivery rules, but pointer-lock aiming needs a human pass.
-- The GLB covers the static cabin shell only. Passenger/NPC meshes, service contents, loose props, fire/repair effects and authored animation clips remain open. Cabin audio is implemented as runtime Web Audio synthesis and ships no audio files, and interaction animation is procedurally projected from host snapshots.
+- The scenario GLB covers the static cabin shell only. Service contents, loose props and fire/repair effects remain procedural. Cabin audio is runtime Web Audio synthesis and ships no audio files.
+- The character rigs are authored but not yet visually reviewed in-game at full frame rate. Clip poses are keyframed by script, so exaggeration and timing are the most likely thing to need a second pass. World animation from the pipeline list (cart wheels, bin doors, coffee-machine tantrum, breaker sparks, extinguisher hose, loose-item squash) and passenger facial shape keys are not implemented.
 - Tauri MSI and NSIS packaging was re-proven for `73d2c08`. Windows installers remain unsigned development artifacts.
 - The production JavaScript bundle still emits Vite's non-blocking `>500 kB` chunk warning.
 - Loose-object collision is pairwise and should gain a broadphase before the cabin object count grows substantially.
@@ -41,18 +45,18 @@ The current Slice 2 vertical includes:
 ## Next recommended task
 
 1. Perform a manual solo service flight and a real two-browser host/guest room playtest, including takeoff, item delivery, fire, repair, reset and landing debrief.
-2. Perform fresh 1366x768 and narrow-viewport visual checks of the expanded GLB, procedural interaction animation and debrief.
-3. Continue with replacement passenger/prop assets and authored animation after the current runtime path is stable.
+2. Perform fresh 1366x768 and narrow-viewport visual checks of the expanded GLB, the authored character animation and the debrief. Judge clip exaggeration and crossfade timing in motion, then retime in `tools/blender/` and re-export.
+3. Extend the animation library to world props: cart wheels and wobble, overhead-bin doors, coffee-machine tantrum, breaker sparks and loose-item squash.
 4. Plan production-recorded cabin sound and passenger voices without moving authority into presentation code.
 
 ## Current verification
 
-Local and CI evidence for the complete feature line through `73d2c08`:
+Local and CI evidence for the feature line through `0bf3625` plus the authored-animation slice:
 
-- `git diff --check`, Prettier check, ESLint, TypeScript, authored-data validation and asset validation pass.
-- Unit: 56 tests pass.
+- `git diff --check`, Prettier check, ESLint, TypeScript, authored-data validation and asset validation pass. Asset validation covers 4 project-owned assets and both rigs (2 rigs, 44 authored clips).
+- Unit: 96 tests pass.
 - Integration: 2 tests pass.
-- Playwright: 9 tests collected; 8 pass and 1 intentional live-multiplayer test is skipped without `LIVE_MULTIPLAYER`.
+- Playwright: 11 tests collected; 10 pass and 1 intentional live-multiplayer test is skipped without `LIVE_MULTIPLAYER`. Two of those cover the authored rigs: the loaded-GLB path and the aborted-GLB procedural fallback.
 - Vite production build passes, with the existing large-chunk warning.
 - Prior repair/HUD visual checks passed at 1366x768 and 412x915; the expanded GLB and latest animation pass still need fresh visual inspection.
 - Tauri MSI and NSIS packaging passes; generated installers remain unsigned.
