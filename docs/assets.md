@@ -57,4 +57,14 @@ the mission is unaffected because no clip choice reaches `HostSession`. The
 canvas reports which path is live through `data-character-rig` and
 `data-arms-rig` (`glb` or `fallback`), which is what the end-to-end tests assert.
 
+## Blender passenger cast (source only)
+
+- Source: `assets-src/blender/passengers.blend`
+- Generators: `assets-src/passengers/` (`character_factory.py`, `build_new_and_tpose.py`, `chars/*`)
+- Blender: 5.x
+- Contents: 22 stylized seated passengers plus matching `T_*` T-pose duplicates (project-owned primitives; googly-eye cartoon cast)
+- Runtime: **not shipped yet**. In-game passengers stay procedural boxes until a validated GLB export is added to `public/assets/` and `public/assets/manifest.json`. Do not wire this `.blend` into `CabinWorld` without a procedural fallback path.
+
+Regenerate in a Blender GUI session with the factory scripts (MCP or Scripting workspace). Background regeneration is not yet deterministic like the cabin scenario tool.
+
 Before adding assets, record source, license, owner, import transformation and every use in `public/assets/manifest.json`.
