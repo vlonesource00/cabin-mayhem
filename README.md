@@ -21,7 +21,7 @@ Rooms use the free PeerJS cloud for signaling and a direct peer-to-peer connecti
 
 ## Play online
 
-After GitHub Pages deploys this branch, play at [vlonesource00.github.io/cabin-mayhem](https://vlonesource00.github.io/cabin-mayhem/).
+Pushes to `main` deploy to GitHub Pages. Once a deploy finishes, play at [vlonesource00.github.io/cabin-mayhem](https://vlonesource00.github.io/cabin-mayhem/). Feature branches are not deployed; use `pnpm dev` or the desktop build to test them.
 
 ```powershell
 pnpm test:unit
