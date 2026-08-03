@@ -37,6 +37,7 @@ src-tauri/   optional Rust native shell
 - `CabinWorld`: Three.js/WebGL aircraft, lighting, GLB/procedural visuals, prop synchronization and interaction raycast.
 - `scenario-loader`: validates and loads the authored Blender GLB, then leaves procedural visuals active on failure.
 - `FirstPersonController`: pointer-lock mouse look, camera-relative movement and inertial camera feedback.
+- `interaction-animation`: pure projection of snapshots into held-item hand poses, seated passenger reactions and crew limb motion. Gestures come from authoritative state deltas and never gate a host outcome.
 - `mission-audio`: pure projection of a snapshot into continuous bed levels and discrete cues derived from authoritative state deltas, never from event wording.
 - `CabinAudio`: Web Audio graph that synthesises every bed and cue at runtime. It ships no audio files, reads snapshots only and never writes to the simulation.
 

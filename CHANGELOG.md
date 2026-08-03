@@ -5,8 +5,9 @@
 - Added free two-player PeerJS/WebRTC rooms with strict command validation and host-authoritative snapshots.
 - Added a responsive landing debrief with score, served/missed totals, fire/repair summaries, authored passenger reviews and `Fly another shift` replay.
 - Added a Blender-authored, material-batched cabin GLB with validated runtime loading and automatic procedural fallback.
-- Known limitation: this GLB replaces the static cabin presentation only. Passenger avatars and interactive props remain procedural; interaction-animation polish and full manual delivery tuning remain open.
+- Known limitation: this GLB replaces the static cabin presentation only. Passenger avatars and interactive props remain procedural; full manual delivery tuning remains open.
 - Added procedural Web Audio cabin sound: engine, wind, rumble, fire and alarm beds plus discrete cues projected from authoritative state deltas, with `M` to mute. No audio files ship with the repository.
+- Added procedural interaction animation: held-item grab/stow/serve/reject gestures, sustained extinguisher and wrench poses, seated passenger waving/celebrating/slumping and a crew walk cycle, all projected from host snapshots.
 - Added eight seated 3D passengers with drink, meal and medical requests.
 - Added physical service props, host-validated delivery, patience, panic, injury, scoring and mission outcome.
 - Added cabin-service HUD, request beacons, tests and next-conversation handoff prompt.

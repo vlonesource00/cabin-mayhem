@@ -18,4 +18,4 @@ One walkable first-person 3D aircraft: cockpit, aisle, seats, overhead bins, she
 
 ## Deferred deliberately
 
-No walking passenger navigation, cargo contracts, event director, route selection, economy, progression, recorded/production audio, interaction animation, matchmaking/lobby service or save migration yet. The static cabin shell has a Blender GLB, but passenger avatars, service contents, loose gameplay props and emergency effects remain procedural. Current passenger behavior is deterministic seated service state, not full autonomous AI.
+No walking passenger navigation, cargo contracts, event director, route selection, economy, progression, recorded/production audio, authored animation clips, matchmaking/lobby service or save migration yet. The static cabin shell has a Blender GLB, but passenger avatars, service contents, loose gameplay props and emergency effects remain procedural. Current passenger behavior is deterministic seated service state, not full autonomous AI.

@@ -33,7 +33,7 @@ Current game state:
 Open work:
 - GitHub Actions CI #10 for commit `eacf3ce` is red. The run summary alone does not prove the failing command; inspect `CI / verify`. If it is the GLB readiness assertion timing out, make the loader/test diagnostic deterministic on the runner and rerun CI.
 - Complete a human manual service-flight pass and a real two-browser host/guest room pass, including takeoff, deliveries, fire, repair, reset and landing debrief.
-- Add interaction animation and priority passenger/prop asset replacement after the current runtime path is stable.
+- Add priority passenger/prop asset replacement after the current runtime path is stable.
 - Re-run the Tauri package after closing any old locked `cabin-mayhem.exe` process.
 
 Important rules:

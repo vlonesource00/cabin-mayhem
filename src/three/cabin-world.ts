@@ -1,7 +1,14 @@
 import * as THREE from 'three';
 import { needLabel } from '../sim/service-mission';
-import type { CabinObject, MissionState, ObjectKind, PassengerState } from '../sim/types';
+import type {
+  CabinObject,
+  MissionState,
+  ObjectKind,
+  PassengerRequestStatus,
+  PassengerState,
+} from '../sim/types';
 import { cabinToWorld } from './coordinates';
+import { GesturePlayer, handGestures, passengerPose } from './interaction-animation';
 import { disposeScenario, loadCabinScenario } from './scenario-loader';
 
 const colors = {
@@ -16,6 +23,9 @@ const colors = {
   cargo: 0x987143,
 };
 
+/** The camera always follows this crew slot; the peer is rendered as an avatar. */
+const localCrewId = 'crew-alpha';
+
 export class CabinWorld {
   public readonly canvas: HTMLCanvasElement;
   public readonly camera = new THREE.PerspectiveCamera(72, 1, 0.05, 160);
@@ -29,6 +39,10 @@ export class CabinWorld {
   private readonly dynamicObjects = new Map<string, THREE.Group>();
   private readonly passengerAvatars = new Map<string, THREE.Group>();
   private readonly interactionRoots: THREE.Object3D[] = [];
+  private readonly gestures = new GesturePlayer();
+  private readonly reactionAt = new Map<string, number>();
+  private readonly reactionStatus = new Map<string, PassengerRequestStatus>();
+  private previousState?: MissionState;
   private readonly cabinLights: THREE.PointLight[] = [];
   private readonly crewBravo: THREE.Group;
   private readonly galleyFire: THREE.Group;
@@ -76,6 +90,8 @@ export class CabinWorld {
 
   public render(state: MissionState): void {
     const elapsed = this.elapsed();
+    this.gestures.push(handGestures(this.previousState, state, localCrewId), elapsed);
+    this.previousState = state;
     this.syncState(state, elapsed);
     this.updateInteraction(state);
     this.renderer.render(this.scene, this.camera);
@@ -383,8 +399,10 @@ export class CabinWorld {
     head.position.y = 1.66;
     head.castShadow = true;
     group.add(head);
-    for (const x of [-0.18, 0.18])
+    for (const x of [-0.18, 0.18]) {
       group.add(this.box('crew leg', [0.16, 0.72, 0.18], [x, 0.36, 0], this.material(colors.navy)));
+      group.add(this.box('crew arm', [0.14, 0.6, 0.14], [x * 2.3, 1.06, 0], skin));
+    }
     return group;
   }
 
@@ -538,21 +556,37 @@ export class CabinWorld {
     return group;
   }
 
+  private heldKind(state: MissionState): ObjectKind | undefined {
+    const heldId = state.cabin.players[localCrewId]?.heldObjectId;
+    return heldId ? state.cabin.objects[heldId]?.kind : undefined;
+  }
+
   private syncState(state: MissionState, elapsed: number): void {
+    const heldKind = this.heldKind(state);
+    const pose = this.gestures.pose(
+      state,
+      heldKind === 'extinguisher' || heldKind === 'toolbox',
+      elapsed,
+    );
     for (const asset of this.dynamicObjects.values()) asset.visible = false;
     for (const object of Object.values(state.cabin.objects)) {
       const asset = this.dynamicObjects.get(object.id) ?? this.createObjectAsset(object);
       this.dynamicObjects.set(object.id, asset);
-      if (object.ownerId === 'crew-alpha') {
+      if (object.ownerId === localCrewId) {
+        // The gesture only nudges the presentation offset; the host already
+        // resolved the interaction that produced it.
         const heldOffset =
           object.kind === 'cart'
-            ? new THREE.Vector3(0.68, -1.18, -1.65)
-            : new THREE.Vector3(0.34, -0.42, -0.9);
+            ? new THREE.Vector3(0.68, -1.18 + pose.lift * 0.4, -1.65 + pose.push * 0.5)
+            : new THREE.Vector3(0.34, -0.42 + pose.lift, -0.9 + pose.push);
         const handPosition = heldOffset
           .applyQuaternion(this.camera.quaternion)
           .add(this.camera.position);
         asset.position.lerp(handPosition, 0.62);
-        asset.quaternion.slerp(this.camera.quaternion, 0.38);
+        const swing = new THREE.Quaternion().setFromEuler(
+          new THREE.Euler(pose.pitch, 0, pose.roll, 'XYZ'),
+        );
+        asset.quaternion.slerp(this.camera.quaternion.clone().multiply(swing), 0.38);
       } else {
         const position = cabinToWorld(object.position, object.radius * 0.34);
         asset.position.lerp(position, object.ownerId ? 0.55 : 0.28);
@@ -568,11 +602,28 @@ export class CabinWorld {
       const avatar =
         this.passengerAvatars.get(passenger.id) ?? this.createPassengerAvatar(passenger);
       this.passengerAvatars.set(passenger.id, avatar);
+      if (this.reactionStatus.get(passenger.id) !== passenger.requestStatus) {
+        this.reactionStatus.set(passenger.id, passenger.requestStatus);
+        this.reactionAt.set(passenger.id, elapsed);
+      }
+      const react = passengerPose(
+        passenger,
+        elapsed,
+        elapsed - (this.reactionAt.get(passenger.id) ?? elapsed),
+      );
       const seat = cabinToWorld(passenger.seatPosition);
       const shake = Math.sin(elapsed * 15 + passenger.requestAt) * passenger.panic * 0.035;
-      avatar.position.set(seat.x + shake, seat.y, seat.z);
+      avatar.position.set(seat.x + shake, seat.y + react.bob, seat.z);
       avatar.rotation.y = passenger.seatPosition.x < 8 ? -0.08 : 0.08;
+      avatar.rotation.x = react.lean;
       avatar.rotation.z = passenger.injury * (passenger.seatPosition.x < 8 ? 0.22 : -0.22);
+      const arms = avatar.children.filter((entry) => entry.name === 'passenger arm');
+      for (const [index, arm] of arms.entries())
+        arm.rotation.x = THREE.MathUtils.lerp(
+          arm.rotation.x,
+          -0.35 - react.armLift * (index === arms.length - 1 ? 1.9 : 0.25),
+          0.18,
+        );
       avatar.userData.interaction = passengerInteraction(passenger);
       const beacon = avatar.getObjectByName('request beacon');
       if (beacon instanceof THREE.Mesh && beacon.material instanceof THREE.MeshBasicMaterial) {
@@ -641,6 +692,14 @@ export class CabinWorld {
       this.crewBravo.position.copy(cabinToWorld(bravo.position));
       this.crewBravo.rotation.y = Math.atan2(bravo.facing.x, bravo.facing.y);
       this.crewBravo.rotation.z = bravo.knockdown > 0 ? 1.2 : 0;
+      const speed = Math.hypot(bravo.velocity.x, bravo.velocity.y);
+      const stride = Math.min(speed / 3.2, 1);
+      const swing = Math.sin(elapsed * (6 + stride * 6)) * stride * 0.7;
+      const limbs = this.crewBravo.children.filter(
+        (entry) => entry.name === 'crew leg' || entry.name === 'crew arm',
+      );
+      for (const [index, limb] of limbs.entries())
+        limb.rotation.x = (index % 2 === 0 ? swing : -swing) * (limb.name === 'crew arm' ? 0.8 : 1);
     }
 
     const health = Math.min(state.flight.electrical, state.flight.structure);

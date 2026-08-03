@@ -30,7 +30,7 @@ The current Slice 2 vertical includes:
 - GitHub Actions CI #10 for `eacf3ce` is red. The run summary does not expose the failed command yet; the leading hypothesis is a CI-only timeout while the E2E journey waits for `data-asset-mode="glb"` after loading the dynamic GLTFLoader chunk and 1.24 MB GLB. Inspect the failed `CI / verify` step before changing the test.
 - The default Playwright suite does not run cloud multiplayer; the live room test is skipped unless `LIVE_MULTIPLAYER=1`. A manual two-browser host/guest playtest is still required.
 - Full manual passenger aiming and end-to-end delivery tuning remain pending. Host, unit and browser bridge coverage validates the delivery rules, but pointer-lock aiming needs a human pass.
-- The GLB covers the static cabin shell only. Passenger/NPC meshes, service contents, loose props, fire/repair effects and interaction animation remain open. Cabin audio is implemented as runtime Web Audio synthesis and ships no audio files.
+- The GLB covers the static cabin shell only. Passenger/NPC meshes, service contents, loose props, fire/repair effects and authored animation clips remain open. Cabin audio is implemented as runtime Web Audio synthesis and ships no audio files, and interaction animation is procedurally projected from host snapshots.
 - The latest local `pnpm desktop:build` attempt was blocked because the existing `src-tauri/target/release/cabin-mayhem.exe` was still running/locked. Close the old executable and rerun; the Vite portion completed before Rust packaging stopped.
 - The production JavaScript bundle still emits Vite's non-blocking `>500 kB` chunk warning.
 - Loose-object collision is pairwise and should gain a broadphase before the cabin object count grows substantially.
@@ -41,7 +41,7 @@ The current Slice 2 vertical includes:
 1. Open the CI #10 failed step and make the GLB readiness journey deterministic on GitHub Actions if the timeout hypothesis is confirmed.
 2. Rerun the complete web gates and the Tauri build after closing any locked executable.
 3. Perform a manual solo service flight and a real two-browser host/guest room playtest, including takeoff, item delivery, fire, repair, reset and landing debrief.
-4. Continue with interaction animation and replacement passenger/prop assets after the current runtime path is stable.
+4. Continue with replacement passenger/prop assets after the current runtime path is stable.
 
 ## Current verification
 
