@@ -63,7 +63,13 @@ canvas reports which path is live through `data-character-rig` and
 - Generators: `assets-src/passengers/` (`character_factory.py`, `build_new_and_tpose.py`, `chars/*`)
 - Blender: 5.x
 - Contents: 22 stylized seated passengers plus matching `T_*` T-pose duplicates (project-owned primitives; googly-eye cartoon cast)
-- Runtime: **not shipped yet**. In-game passengers stay procedural boxes until a validated GLB export is added to `public/assets/` and `public/assets/manifest.json`. Do not wire this `.blend` into `CabinWorld` without a procedural fallback path.
+- Runtime: **not shipped yet**. In-game passengers keep using the authored `CM_PASSENGER` rig above until a validated GLB export is added to `public/assets/` and `public/assets/manifest.json`. Do not wire this `.blend` into `CabinWorld` without a procedural fallback path.
+
+The cast is unrigged: 44 root objects (22 seated characters plus a `T_*` T-pose
+duplicate of each), 2257 loose mesh objects, no armature, no shape keys and no
+actions. Shipping it means joining each character into one mesh and skinning the
+T-pose copies to the shared `CM_HUMANOID` skeleton, so the cast inherits the
+authored seated clips instead of needing its own.
 
 Regenerate in a Blender GUI session with the factory scripts (MCP or Scripting workspace). Background regeneration is not yet deterministic like the cabin scenario tool.
 
