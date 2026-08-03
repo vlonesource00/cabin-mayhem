@@ -17,7 +17,7 @@
       "runtimeFile": "public/assets/scenarios/cabin-mayhem-scenario.glb",
       "license": "Project-owned, all rights reserved",
       "owner": "Cabin Mayhem",
-      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/build_cabin_scenario.py; 12 material-batched meshes, no external textures or third-party assets.",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/build_cabin_scenario.py; covers the flight deck, forward galley, seat rows, rear service area and cargo hold; 12 material-batched meshes, no external textures or third-party assets.",
       "usageReferences": ["src/three/scenario-loader.ts", "src/three/cabin-world.ts"]
     }
   ]

@@ -192,26 +192,268 @@ def build():
             cube(f"Overhead bin {x} {row}", (1.25, 0.62, 1.12), (x, 2.48, z), mats["shell"], 0.12)
             cube(f"Bin accent {x} {row}", (0.035, 0.14, 0.78), (x - (0.61 if x > 0 else -0.61), 2.45, z), mats["pink"], 0.02)
 
-    cube("Cockpit bulkhead", (8.0, 2.9, 0.18), (0, 1.45, 0.55), mats["dark"], 0.03)
-    cube("Cockpit opening", (1.62, 2.4, 0.22), (0, 1.2, 0.45), mats["dark"], 0.10)
-    cube("Cargo bulkhead", (8.0, 2.85, 0.16), (0, 1.42, 13.25), mats["dark"], 0.03)
-    cube("Cargo opening", (1.85, 2.38, 0.20), (0, 1.19, 13.16), mats["dark"], 0.08)
+    # ------------------------------------------------------------------
+    # Flight deck. The fuselage continues forward of the cabin floor into a
+    # real nose section: windscreen, glareshield, panel, pedestal, yokes.
+    # Everything here sits forward of the walkable volume, so it stays a
+    # purely visual set dressed behind the bulkhead doorway.
+    # ------------------------------------------------------------------
+    cube("Cockpit floor", (7.4, 0.16, 2.6), (0, -0.08, -4.3), mats["carpet"], 0.02)
+    for x in (-3.62, 3.62):
+        cube(f"Cockpit wall {x}", (0.16, 2.60, 2.6), (x, 1.30, -4.3), mats["shell"], 0.04)
+    cube("Cockpit ceiling", (7.4, 0.14, 2.6), (0, 2.90, -4.3), mats["shell"], 0.05)
+    for x in (-3.85, 3.85):
+        cube(f"Nose fairing {x}", (0.62, 2.60, 0.24), (x, 1.30, -3.02), mats["shell"], 0.05)
+    cube("Nose cap", (7.0, 2.70, 0.30), (0, 1.35, -5.62), mats["shell"], 0.10)
+    cylinder("Radome", 1.35, 0.85, (0, 1.15, -6.05), mats["shell"], 20)
 
-    # Rear galley: chunky silhouettes, readable color groups, and an angry coffee face.
+    cube("Windscreen frame", (6.2, 1.30, 0.24), (0, 2.05, -5.34), mats["dark"], 0.05)
+    for index, x in enumerate((-2.15, -0.72, 0.72, 2.15)):
+        pane = cube(f"Windscreen pane {index}", (1.26, 0.92, 0.06), (x, 2.06, -5.26), mats["glass"], 0.04)
+        pane.rotation_euler[0] = math.radians(-12)
+    for x in (-3.55, 3.55):
+        cube(f"Cockpit side window {x}", (0.08, 0.60, 1.00), (x, 1.95, -4.75), mats["glass"], 0.05)
+
+    glareshield = cube("Glareshield", (5.8, 0.26, 0.62), (0, 1.72, -4.98), mats["dark"], 0.05)
+    glareshield.rotation_euler[0] = math.radians(-16)
+    panel = cube("Instrument panel", (5.8, 1.00, 0.42), (0, 1.16, -4.86), mats["trim"], 0.04)
+    panel.rotation_euler[0] = math.radians(-14)
+    display_keys = ("cyan", "pink", "cyan", "cyan", "yellow", "cyan")
+    for index, x in enumerate((-2.28, -1.52, -0.76, 0.76, 1.52, 2.28)):
+        display = cube(
+            f"Flight display {index}", (0.62, 0.44, 0.05), (x, 1.34, -4.68), mats[display_keys[index]], 0.02
+        )
+        display.rotation_euler[0] = math.radians(-14)
+    for index in range(10):
+        switch = cube(
+            f"Panel switch {index}",
+            (0.32, 0.09, 0.04),
+            (-2.25 + index * 0.5, 0.84, -4.72),
+            mats["yellow"] if index % 3 else mats["cyan"],
+            0.015,
+        )
+        switch.rotation_euler[0] = math.radians(-14)
+
+    cube("Overhead panel", (2.9, 0.28, 1.60), (0, 2.62, -4.55), mats["dark"], 0.05)
+    for index in range(6):
+        cube(
+            f"Overhead switch row {index}",
+            (2.5, 0.05, 0.10),
+            (0, 2.45, -5.15 + index * 0.28),
+            mats["cyan"] if index % 2 == 0 else mats["yellow"],
+            0.02,
+        )
+
+    cube("Centre pedestal", (0.86, 0.66, 1.70), (0, 0.42, -4.10), mats["dark"], 0.05)
+    cube("Pedestal top", (0.94, 0.10, 1.70), (0, 0.78, -4.10), mats["trim"], 0.03)
+    cube("Throttle quadrant", (0.80, 0.16, 0.52), (0, 0.90, -4.55), mats["trim"], 0.04)
+    for index, x in enumerate((-0.17, 0.17)):
+        cylinder(f"Throttle lever {index}", 0.035, 0.34, (x, 1.10, -4.55), mats["metal"], 8, (0.0, 0.0, 0.0))
+        cube(f"Throttle knob {index}", (0.13, 0.11, 0.13), (x, 1.28, -4.55), mats["pink"], 0.03)
+    cube("Radio stack", (0.62, 0.30, 0.46), (0, 0.98, -3.95), mats["trim"], 0.03)
+    cube("Radio readout", (0.48, 0.13, 0.05), (0, 1.02, -3.71), mats["cyan"], 0.02)
+    cube("Flap lever base", (0.30, 0.10, 0.34), (0, 0.86, -3.45), mats["trim"], 0.03)
+    cylinder("Flap lever", 0.03, 0.30, (0, 1.02, -3.45), mats["metal"], 8, (0.0, 0.0, 0.0))
+    cube("Flap knob", (0.12, 0.10, 0.12), (0, 1.18, -3.45), mats["yellow"], 0.03)
+
+    for index, x in enumerate((-1.28, 1.28)):
+        add_seat(x, -3.72, 200 + index, mats)
+        cylinder(f"Yoke column {index}", 0.055, 0.60, (x, 0.92, -4.42), mats["metal"], 10, (0.0, 0.0, 0.0))
+        cube(f"Yoke bar {index}", (0.50, 0.07, 0.09), (x, 1.24, -4.42), mats["dark"], 0.02)
+        for grip in (-0.22, 0.22):
+            cube(f"Yoke grip {index} {grip}", (0.10, 0.16, 0.09), (x + grip, 1.31, -4.42), mats["dark"], 0.03)
+        cube(f"Rudder pedal {index}", (0.44, 0.10, 0.26), (x, 0.24, -4.74), mats["metal"], 0.02)
+
+    for x in (-3.48, 3.48):
+        cube(f"Breaker panel {x}", (0.14, 1.05, 1.00), (x, 1.15, -3.45), mats["dark"], 0.03)
+        for row in range(4):
+            cube(
+                f"Breaker row {x} {row}",
+                (0.05, 0.07, 0.86),
+                (x + (0.09 if x > 0 else -0.09), 0.80 + row * 0.22, -3.45),
+                mats["yellow"],
+                0.015,
+            )
+
+    # Cockpit bulkhead is authored as two panels plus a header so the doorway
+    # is an actual hole the cabin can see the flight deck through.
     for side in (-1, 1):
-        x = side * 3.25
-        cube(f"Galley tower {side}", (1.35, 2.55, 2.8), (x, 1.27, 11.25), mats["dark"], 0.10)
-        cube(f"Galley counter {side}", (1.55, 0.18, 2.8), (x, 1.08, 11.25), mats["metal"], 0.05)
-    cube("Coffee machine", (1.2, 1.18, 0.68), (-3.25, 1.60, 10.88), mats["trim"], 0.10)
-    cube("Coffee screen", (0.62, 0.34, 0.055), (-3.25, 1.83, 10.52), mats["pink"], 0.04)
-    for eye_x in (-3.42, -3.08):
-        cube(f"Coffee eye {eye_x}", (0.11, 0.07, 0.04), (eye_x, 1.84, 10.48), mats["yellow"], 0.02)
-    cube("Coffee mouth", (0.38, 0.055, 0.04), (-3.25, 1.70, 10.48), mats["pink"], 0.02)
-    cube("Fire station frame", (1.28, 1.32, 0.16), (3.22, 1.45, 10.72), mats["yellow"], 0.05)
+        cube(f"Cockpit bulkhead {side}", (3.45, 2.95, 0.18), (side * 2.42, 1.47, -1.45), mats["dark"], 0.03)
+    cube("Cockpit bulkhead header", (1.40, 0.72, 0.18), (0, 2.59, -1.45), mats["dark"], 0.03)
+    cube("Cockpit door frame", (1.52, 2.30, 0.10), (0, 1.15, -1.53), mats["trim"], 0.04)
+    cube("Cockpit door", (0.09, 2.04, 1.02), (-1.18, 1.02, -1.05), mats["shell"], 0.05)
+    cube("Cockpit door keypad", (0.05, 0.24, 0.16), (-1.11, 1.38, -1.05), mats["cyan"], 0.02)
+    cube("Flight deck placard", (1.30, 0.20, 0.05), (0, 2.42, -1.34), mats["cyan"], 0.02)
+    cube("Observer jumpseat back", (0.60, 0.88, 0.12), (1.55, 1.18, -1.32), mats["seat_blue"], 0.04)
+    cube("Observer jumpseat pan", (0.58, 0.14, 0.28), (1.55, 0.72, -1.24), mats["seat_teal"], 0.04)
 
-    for z in (3.0, 7.0, 11.0):
-        cube(f"Aisle light {z}", (0.18, 0.025, 2.2), (0, 2.96, z), mats["cyan"], 0.015)
-    for z in (1.05, 13.0):
+    # ------------------------------------------------------------------
+    # Forward galley. Sized to the simulation's front fixtures so the
+    # cabinets line up with the volume the host already blocks off.
+    # ------------------------------------------------------------------
+    for side in (-1, 1):
+        cx = side * 2.02
+        cube(f"Front galley carcass {side}", (2.72, 1.72, 0.72), (cx, 0.86, -0.75), mats["dark"], 0.06)
+        cube(f"Front galley worktop {side}", (2.86, 0.12, 0.82), (cx, 1.78, -0.75), mats["metal"], 0.04)
+        cube(f"Front galley upper {side}", (2.72, 0.80, 0.60), (cx, 2.42, -0.84), mats["shell"], 0.08)
+        for index in range(3):
+            dx = cx - 0.88 + index * 0.88
+            cube(f"Front galley door {side} {index}", (0.80, 1.28, 0.06), (dx, 0.86, -0.41), mats["shell"], 0.03)
+            cylinder(
+                f"Front galley handle {side} {index}",
+                0.026,
+                0.44,
+                (dx + 0.32, 0.86, -0.37),
+                mats["metal"],
+                8,
+                (0.0, 0.0, 0.0),
+            )
+            cube(f"Front galley latch {side} {index}", (0.10, 0.09, 0.05), (dx - 0.30, 1.40, -0.38), mats["yellow"], 0.02)
+            cube(f"Front galley upper door {side} {index}", (0.80, 0.70, 0.05), (dx, 2.42, -0.53), mats["trim"], 0.03)
+        cube(f"Front galley strip {side}", (2.60, 0.05, 0.06), (cx, 1.92, -0.40), mats["cyan"], 0.02)
+        cube(f"Front galley placard {side}", (0.70, 0.16, 0.05), (cx, 2.04, -0.39), mats["pink"], 0.02)
+
+    cube("Boarding door", (0.10, 2.05, 1.02), (-3.98, 1.03, 0.60), mats["shell"], 0.05)
+    cube("Boarding door frame", (0.08, 2.24, 1.20), (-4.02, 1.12, 0.60), mats["trim"], 0.04)
+    cylinder("Boarding door handle", 0.03, 0.30, (-3.90, 1.10, 0.94), mats["metal"], 8, (0.0, 0.0, 0.0))
+    cube("Door armed sign", (0.05, 0.22, 0.46), (-3.90, 1.96, 0.60), mats["pink"], 0.02)
+    cube("Service door", (0.10, 2.05, 1.02), (3.98, 1.03, 0.60), mats["shell"], 0.05)
+    cube("Service door frame", (0.08, 2.24, 1.20), (4.02, 1.12, 0.60), mats["trim"], 0.04)
+    cube("Service door sign", (0.05, 0.22, 0.46), (3.90, 1.96, 0.60), mats["yellow"], 0.02)
+
+    # ------------------------------------------------------------------
+    # Rear service area: a full galley wall built into the aft bulkhead,
+    # plus cabinet stacks down both side walls. Depths stay under 0.75m so
+    # the props never intrude into the host's walkable volume.
+    # ------------------------------------------------------------------
+    for side in (-1, 1):
+        cube(f"Cargo bulkhead {side}", (3.30, 2.90, 0.16), (side * 2.45, 1.45, 13.32), mats["dark"], 0.03)
+    cube("Cargo bulkhead header", (1.70, 0.60, 0.16), (0, 2.60, 13.32), mats["dark"], 0.03)
+    cube("Cargo doorway frame", (1.86, 2.34, 0.10), (0, 1.17, 13.40), mats["trim"], 0.05)
+
+    for side in (-1, 1):
+        cx = side * 2.25
+        cube(f"Rear galley carcass {side}", (2.60, 2.45, 0.34), (cx, 1.22, 13.24), mats["dark"], 0.05)
+        cube(f"Rear galley worktop {side}", (2.72, 0.12, 0.36), (cx, 1.02, 13.23), mats["metal"], 0.04)
+        for index in range(3):
+            dx = cx - 0.84 + index * 0.84
+            appliance = (side == -1 and index == 0) or (side == 1 and index == 2)
+            if not appliance:
+                cube(f"Rear upper door {side} {index}", (0.76, 0.84, 0.06), (dx, 1.72, 13.04), mats["shell"], 0.03)
+                cylinder(
+                    f"Rear upper handle {side} {index}",
+                    0.026,
+                    0.38,
+                    (dx + 0.30, 1.72, 13.00),
+                    mats["metal"],
+                    8,
+                    (0.0, 0.0, 0.0),
+                )
+            cube(f"Rear lower door {side} {index}", (0.76, 0.72, 0.06), (dx, 0.56, 13.04), mats["shell"], 0.03)
+            cylinder(
+                f"Rear lower handle {side} {index}",
+                0.026,
+                0.34,
+                (dx + 0.30, 0.56, 13.00),
+                mats["metal"],
+                8,
+                (0.0, 0.0, 0.0),
+            )
+            cube(f"Rear latch {side} {index}", (0.10, 0.08, 0.05), (dx - 0.28, 2.18, 13.03), mats["yellow"], 0.02)
+        cube(f"Rear galley strip {side}", (2.50, 0.05, 0.06), (cx, 1.12, 13.02), mats["cyan"], 0.02)
+        cube(f"Rear galley placard {side}", (0.80, 0.18, 0.05), (cx, 2.32, 13.03), mats["pink"], 0.02)
+
+    cube("Oven stack", (0.78, 0.84, 0.30), (-3.09, 1.74, 13.22), mats["trim"], 0.04)
+    for index, oven_y in enumerate((1.52, 1.94)):
+        cube(f"Oven door {index}", (0.62, 0.34, 0.06), (-3.09, oven_y, 13.04), mats["glass"], 0.03)
+        cube(f"Oven handle {index}", (0.56, 0.06, 0.06), (-3.09, oven_y - 0.21, 13.01), mats["metal"], 0.02)
+
+    # The coffee machine is the repair gag prop: it gets an angry little face.
+    cube("Coffee machine", (0.78, 0.86, 0.32), (3.09, 1.74, 13.21), mats["trim"], 0.06)
+    cube("Coffee screen", (0.50, 0.30, 0.05), (3.09, 1.90, 13.03), mats["pink"], 0.03)
+    for eye_x in (2.94, 3.24):
+        cube(f"Coffee eye {eye_x}", (0.10, 0.07, 0.04), (eye_x, 1.94, 13.00), mats["yellow"], 0.02)
+    cube("Coffee mouth", (0.34, 0.05, 0.04), (3.09, 1.81, 13.00), mats["pink"], 0.02)
+    cube("Coffee spout", (0.16, 0.10, 0.10), (3.09, 1.52, 13.01), mats["metal"], 0.03)
+    cube("Coffee pot", (0.24, 0.22, 0.20), (3.09, 1.19, 13.02), mats["dark"], 0.05)
+
+    cube("Crew jumpseat back", (0.60, 0.88, 0.10), (-1.35, 1.56, 13.02), mats["seat_blue"], 0.04)
+    cube("Crew jumpseat pan", (0.58, 0.14, 0.26), (-1.35, 1.08, 12.96), mats["seat_teal"], 0.04)
+    cube("Crew harness", (0.10, 0.70, 0.05), (-1.35, 1.58, 12.96), mats["yellow"], 0.02)
+
+    for side in (-1, 1):
+        x = side * 3.66
+        cube(f"Galley tower {side}", (0.72, 2.50, 3.50), (x, 1.25, 11.15), mats["dark"], 0.06)
+        cube(f"Galley worktop {side}", (0.80, 0.12, 3.50), (x, 1.02, 11.15), mats["metal"], 0.04)
+        for index in range(4):
+            z = 9.75 + index * 0.90
+            cube(f"Galley upper door {side} {index}", (0.06, 0.80, 0.80), (side * 3.31, 1.72, z), mats["shell"], 0.03)
+            cylinder(
+                f"Galley upper handle {side} {index}",
+                0.026,
+                0.36,
+                (side * 3.27, 1.72, z + 0.30),
+                mats["metal"],
+                8,
+                (0.0, 0.0, 0.0),
+            )
+            cube(f"Galley lower door {side} {index}", (0.06, 0.70, 0.80), (side * 3.31, 0.54, z), mats["shell"], 0.03)
+            cube(f"Galley latch {side} {index}", (0.05, 0.08, 0.10), (side * 3.29, 2.14, z), mats["yellow"], 0.02)
+        cube(f"Galley strip {side}", (0.06, 0.05, 3.30), (side * 3.30, 1.12, 11.15), mats["cyan"], 0.02)
+
+    cube("Trolley bay", (0.66, 0.92, 1.00), (-3.62, 0.50, 12.20), mats["trim"], 0.04)
+    cube("Stowed trolley", (0.54, 0.80, 0.86), (-3.58, 0.50, 12.20), mats["metal"], 0.05)
+    cube("Trolley stripe", (0.06, 0.14, 0.82), (-3.30, 0.66, 12.20), mats["cyan"], 0.02)
+    for wheel_z in (11.88, 12.52):
+        cylinder(
+            f"Trolley wheel {wheel_z}",
+            0.07,
+            0.06,
+            (-3.58, 0.08, wheel_z),
+            mats["dark"],
+            8,
+            (math.pi / 2, 0.0, math.pi / 2),
+        )
+
+    cube("Fire station frame", (0.14, 1.20, 1.05), (3.95, 1.50, 8.95), mats["yellow"], 0.04)
+    cylinder("Extinguisher body", 0.13, 0.62, (3.80, 1.42, 8.95), mats["pink"], 12, (0.0, 0.0, 0.0))
+    cube("Extinguisher head", (0.16, 0.14, 0.16), (3.80, 1.80, 8.95), mats["metal"], 0.03)
+    cube("Lavatory door", (0.10, 2.02, 0.92), (-3.98, 1.01, 8.95), mats["shell"], 0.05)
+    cube("Lavatory frame", (0.08, 2.20, 1.10), (-4.02, 1.10, 8.95), mats["trim"], 0.04)
+    cube("Lavatory sign", (0.05, 0.20, 0.42), (-3.90, 1.92, 8.95), mats["cyan"], 0.02)
+    cylinder("Lavatory handle", 0.028, 0.26, (-3.90, 1.05, 9.26), mats["metal"], 8, (0.0, 0.0, 0.0))
+
+    # ------------------------------------------------------------------
+    # Cargo hold aft of the rear bulkhead.
+    # ------------------------------------------------------------------
+    cube("Aft pressure dome", (8.2, 3.05, 0.20), (0, 1.50, 17.45), mats["shell"], 0.06)
+    for side in (-1, 1):
+        x = side * 3.55
+        for shelf_y in (0.52, 1.46, 2.40):
+            cube(f"Cargo shelf {side} {shelf_y}", (0.90, 0.10, 3.30), (x, shelf_y, 15.40), mats["metal"], 0.03)
+        for upright_z in (13.85, 16.95):
+            cube(f"Cargo upright {side} {upright_z}", (0.12, 2.90, 0.12), (x, 1.45, upright_z), mats["trim"], 0.02)
+        cube(f"Cargo rail {side}", (0.10, 0.10, 4.00), (side * 2.40, 2.86, 15.45), mats["trim"], 0.02)
+    crate_specs = (
+        (-3.55, 0.86, 14.35, (0.80, 0.58, 0.90), "trim"),
+        (-3.55, 1.82, 15.60, (0.78, 0.62, 1.10), "yellow"),
+        (-3.55, 2.72, 16.40, (0.76, 0.56, 0.95), "dark"),
+        (3.55, 0.88, 14.60, (0.80, 0.62, 1.00), "dark"),
+        (3.55, 1.84, 16.10, (0.78, 0.64, 1.05), "trim"),
+        (3.55, 2.72, 15.10, (0.76, 0.56, 0.92), "pink"),
+        (0.00, 0.42, 16.90, (1.30, 0.80, 1.20), "trim"),
+        (0.00, 1.32, 16.90, (1.05, 0.68, 0.95), "yellow"),
+    )
+    for index, (cx, cy, cz, size, key) in enumerate(crate_specs):
+        cube(f"Cargo crate {index}", size, (cx, cy, cz), mats[key], 0.05)
+        cube(f"Crate strap {index}", (size[0] * 0.18, size[1] * 0.94, size[2] * 1.02), (cx, cy, cz), mats["dark"], 0.02)
+    cube("Cargo door", (0.12, 1.95, 2.20), (4.01, 1.20, 16.00), mats["trim"], 0.05)
+    cube("Cargo door seal", (0.06, 2.15, 2.40), (4.05, 1.20, 16.00), mats["yellow"], 0.03)
+    cube("Cargo door light", (0.05, 0.18, 0.55), (3.93, 2.10, 16.00), mats["pink"], 0.02)
+
+    for z in (-4.4, 3.0, 7.0, 11.0, 15.4):
+        cube(f"Aisle light {z}", (0.18, 0.025, 2.2), (0, 2.96 if z > 0 else 2.82, z), mats["cyan"], 0.015)
+    for z in (1.05, 12.6):
         cube(f"Exit slash {z}", (1.1, 0.20, 0.05), (0, 2.63, z), mats["pink"], 0.02)
 
     join_by_material(root)
