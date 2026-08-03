@@ -2,15 +2,17 @@
 
 ## In progress
 
-- [ ] Diagnose and fix GitHub Actions CI #10 for the Blender/GLB branch - Martim
 - [ ] Manual full service-flight and two-browser room playtest/tuning - Martim
+- [ ] Fresh desktop and narrow-viewport visual pass for the expanded GLB, procedural animation and debrief - Martim
 - [ ] Replace priority procedural passenger/NPC and gameplay props with licensed production assets - unassigned
 
 ## Backlog
 
 - [ ] Add player/object collision broadphase before more cabin objects.
 - [ ] Add profile/settings migration for Cabin Mayhem controls/accessibility.
-- [ ] Add production sound, passenger voices and interaction-animation polish.
+- [ ] Replace procedural Web Audio with production-recorded cabin sound and passenger voices.
+- [ ] Replace priority procedural interaction motion with authored animation and art polish.
+- [ ] Split the production JavaScript bundle to remove the known non-blocking Vite chunk-size warning.
 - [ ] Add a production relay/TURN and room/lobby experience after the two-player prototype is stable.
 
 ## Done
@@ -35,3 +37,7 @@
 - [x] Free two-player PeerJS/WebRTC rooms with host-only authority, ordered snapshots and disconnect cleanup.
 - [x] Responsive landing debrief with score, passenger reviews, incident verdicts and room-preserving replay.
 - [x] Blender-authored static cabin GLB, tracked `.blend` source, validated loader and procedural fallback.
+- [x] Expanded Blender cabin scenario with flight deck, galleys and cargo hold.
+- [x] Procedural Web Audio cabin sound and `M` mute control.
+- [x] Snapshot-driven held-item, repair, passenger and crew interaction animation.
+- [x] CI-sized Playwright timeout budget and uploaded failure traces.

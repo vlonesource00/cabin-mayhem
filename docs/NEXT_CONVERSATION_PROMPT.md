@@ -11,6 +11,9 @@ C:\\Users\\Martim Costa\\Desktop\\nigger\\Dear Passengers clone
 GitHub repository:
 https://github.com/vlonesource00/cabin-mayhem
 
+Stable project branch:
+novo-main-stable
+
 Cabin Mayhem is an original browser-first first-person airline-disaster game. Vite + TypeScript + Three.js are the game runtime; Tauri v2 + Rust wrap the same web build as a Windows EXE. Do not convert it to another engine or a 2D/top-down game.
 
 Before changing code:
@@ -29,12 +32,14 @@ Current game state:
 - A landing debrief with score, served/missed totals, fire and repair verdicts, authored passenger reviews and room-preserving replay.
 - A Blender-authored static cabin GLB with validated runtime loading and automatic procedural fallback. Passenger avatars, service contents, loose props, emergency effects and interaction proxies remain procedural.
 - Procedural Web Audio cabin sound synthesised at runtime from mission snapshots, muted with `M`. The repository ships no audio files.
+- Snapshot-driven procedural interaction animation for held items, extinguisher use, breaker repair, passenger reactions and crew walking.
+- Expanded Blender scenario covering the static cabin shell, flight deck, galleys and cargo hold, with validated loading and procedural fallback.
 
 Open work:
-- GitHub Actions CI #10 for commit `eacf3ce` is red. The run summary alone does not prove the failing command; inspect `CI / verify`. If it is the GLB readiness assertion timing out, make the loader/test diagnostic deterministic on the runner and rerun CI.
 - Complete a human manual service-flight pass and a real two-browser host/guest room pass, including takeoff, deliveries, fire, repair, reset and landing debrief.
+- Complete fresh 1366x768 and narrow-viewport visual inspection of the expanded GLB, procedural animation and landing debrief.
 - Add priority passenger/prop asset replacement after the current runtime path is stable.
-- Re-run the Tauri package after closing any old locked `cabin-mayhem.exe` process.
+- Replace synthesised sound and procedural interaction motion with production-recorded audio, voices and authored animation in later bounded slices.
 
 Important rules:
 - `HostSession` is authoritative. UI and Three.js may request interaction but never determine success.
@@ -44,16 +49,17 @@ Important rules:
 - Do not add a random event director, cargo economy, route system or production relay unless the user authorizes that slice.
 
 Immediate task:
-1. Inspect the failed GitHub Actions logs for CI #10 and fix only the proven GLB/CI issue.
+1. Verify `novo-main-stable` and read the current Git/docs before selecting a bounded gameplay or asset slice.
 2. Run format, lint, typecheck, data/assets validation, unit, integration, E2E and Vite build.
-3. Run `pnpm desktop:build` after closing the old executable; report if the native toolchain is unavailable.
-4. Manually test solo and two-browser room flows, then record exact limitations and update the handoff.
+3. Manually test solo and two-browser room flows plus desktop/narrow visual layouts, then record exact limitations and update the handoff.
+4. Keep production audio, authored animation and passenger/prop replacement as separate reviewable slices.
 5. Commit or push only when explicitly authorized.
 
-Current local evidence for `eacf3ce`:
+Current evidence for the complete feature line through `73d2c08`:
 - `git diff --check`, format check, ESLint, TypeScript, data validation and asset validation pass.
-- 34 unit tests pass; 2 integration tests pass; 9 Playwright tests are collected, with 8 passing and the live multiplayer test skipped without `LIVE_MULTIPLAYER`.
+- 56 unit tests pass; 2 integration tests pass; 9 Playwright tests are collected, with 8 passing and the live multiplayer test skipped without `LIVE_MULTIPLAYER`.
 - Vite production build passes with a non-blocking large-chunk warning.
-- The latest Tauri build attempt was blocked by a locked existing executable; the web build completed before the native packaging step stopped.
-- Full manual passenger aiming and fresh post-GLB visual inspection remain pending.
+- Tauri MSI and NSIS packaging passes; generated installers remain unsigned.
+- GitHub Actions is green for `73d2c08`.
+- Full manual passenger aiming, real two-browser play and fresh post-expansion GLB/animation visual inspection remain pending.
 ```

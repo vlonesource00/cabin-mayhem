@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Established `novo-main-stable` as the consolidated project base and GitHub Pages deployment branch.
 - Added free two-player PeerJS/WebRTC rooms with strict command validation and host-authoritative snapshots.
 - Added a responsive landing debrief with score, served/missed totals, fire/repair summaries, authored passenger reviews and `Fly another shift` replay.
 - Added a Blender-authored, material-batched cabin GLB with validated runtime loading and automatic procedural fallback.

@@ -2,7 +2,7 @@
 
 ## Current state
 
-Cabin Mayhem is a browser-first Vite/Three.js first-person airline-disaster game with an optional Tauri/Rust Windows wrapper. The current branch is `codex/blender-glb-scenario` at `eacf3ce` (`feat: add Blender cabin scenario`). The branch is pushed to `origin`.
+Cabin Mayhem is a browser-first Vite/Three.js first-person airline-disaster game with an optional Tauri/Rust Windows wrapper. The stable project branch is `novo-main-stable`, based on the complete feature line through `73d2c08` (`feat: add procedural interaction animation`).
 
 The current Slice 2 vertical includes:
 
@@ -24,36 +24,38 @@ The current Slice 2 vertical includes:
 - Added the repair crisis, repair state flow, host validation, captions, sparks, breaker glow and toolbox prompts.
 - Replaced the old dashboard with the compact neon HUD and development drawer.
 - Added automatic takeoff progression and the galley-fire response objective.
+- Added snapshot-driven procedural cabin audio with mute control and no shipped audio files.
+- Added snapshot-driven interaction animation for held items, repairs, passengers and crew.
 
 ## Known problems and limits
 
-- GitHub Actions CI #10 for `eacf3ce` is red. The run summary does not expose the failed command yet; the leading hypothesis is a CI-only timeout while the E2E journey waits for `data-asset-mode="glb"` after loading the dynamic GLTFLoader chunk and 1.24 MB GLB. Inspect the failed `CI / verify` step before changing the test.
+- GitHub Actions CI is green for `73d2c08`; the CI timeout budget and Playwright failure-artifact upload are included in the stable line.
 - The default Playwright suite does not run cloud multiplayer; the live room test is skipped unless `LIVE_MULTIPLAYER=1`. A manual two-browser host/guest playtest is still required.
 - Full manual passenger aiming and end-to-end delivery tuning remain pending. Host, unit and browser bridge coverage validates the delivery rules, but pointer-lock aiming needs a human pass.
 - The GLB covers the static cabin shell only. Passenger/NPC meshes, service contents, loose props, fire/repair effects and authored animation clips remain open. Cabin audio is implemented as runtime Web Audio synthesis and ships no audio files, and interaction animation is procedurally projected from host snapshots.
-- The latest local `pnpm desktop:build` attempt was blocked because the existing `src-tauri/target/release/cabin-mayhem.exe` was still running/locked. Close the old executable and rerun; the Vite portion completed before Rust packaging stopped.
+- Tauri MSI and NSIS packaging was re-proven for `73d2c08`. Windows installers remain unsigned development artifacts.
 - The production JavaScript bundle still emits Vite's non-blocking `>500 kB` chunk warning.
 - Loose-object collision is pairwise and should gain a broadphase before the cabin object count grows substantially.
 - Windows installers are unsigned development artifacts.
 
 ## Next recommended task
 
-1. Open the CI #10 failed step and make the GLB readiness journey deterministic on GitHub Actions if the timeout hypothesis is confirmed.
-2. Rerun the complete web gates and the Tauri build after closing any locked executable.
-3. Perform a manual solo service flight and a real two-browser host/guest room playtest, including takeoff, item delivery, fire, repair, reset and landing debrief.
-4. Continue with replacement passenger/prop assets after the current runtime path is stable.
+1. Perform a manual solo service flight and a real two-browser host/guest room playtest, including takeoff, item delivery, fire, repair, reset and landing debrief.
+2. Perform fresh 1366x768 and narrow-viewport visual checks of the expanded GLB, procedural interaction animation and debrief.
+3. Continue with replacement passenger/prop assets and authored animation after the current runtime path is stable.
+4. Plan production-recorded cabin sound and passenger voices without moving authority into presentation code.
 
 ## Current verification
 
-Local evidence for `eacf3ce`:
+Local and CI evidence for the complete feature line through `73d2c08`:
 
 - `git diff --check`, Prettier check, ESLint, TypeScript, authored-data validation and asset validation pass.
-- Unit: 34 tests pass.
+- Unit: 56 tests pass.
 - Integration: 2 tests pass.
 - Playwright: 9 tests collected; 8 pass and 1 intentional live-multiplayer test is skipped without `LIVE_MULTIPLAYER`.
 - Vite production build passes, with the existing large-chunk warning.
-- Prior repair/HUD visual checks passed at 1366x768 and 412x915; the GLB presentation needs a fresh visual pass after CI is repaired.
-- Tauri packaging is not currently re-proven on this branch because the latest attempt hit the locked executable described above.
+- Prior repair/HUD visual checks passed at 1366x768 and 412x915; the expanded GLB and latest animation pass still need fresh visual inspection.
+- Tauri MSI and NSIS packaging passes; generated installers remain unsigned.
 
 ## Verification commands
 
