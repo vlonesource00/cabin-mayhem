@@ -9,6 +9,7 @@ Slice 2 web/Tauri vertical for Cabin Mayhem. Vite/browser is the intentional pla
 ```text
   src/
   app/       menu, 3D game shell, HUD, debug UI, test bridge
+  audio/     procedural Web Audio beds and cues projected from mission state
   input/     keyboard/gamepad intent collection
   sim/       host authority, flight model, cabin physics, service/fire/repair rules, simulated transport
   network/   optional PeerJS/WebRTC room transport
@@ -36,6 +37,8 @@ src-tauri/   optional Rust native shell
 - `CabinWorld`: Three.js/WebGL aircraft, lighting, GLB/procedural visuals, prop synchronization and interaction raycast.
 - `scenario-loader`: validates and loads the authored Blender GLB, then leaves procedural visuals active on failure.
 - `FirstPersonController`: pointer-lock mouse look, camera-relative movement and inertial camera feedback.
+- `mission-audio`: pure projection of a snapshot into continuous bed levels and discrete cues derived from authoritative state deltas, never from event wording.
+- `CabinAudio`: Web Audio graph that synthesises every bed and cue at runtime. It ships no audio files, reads snapshots only and never writes to the simulation.
 
 ## Data flow
 
@@ -45,7 +48,7 @@ Keyboard/gamepad or remote client
   -> SimulatedTransport or PeerRoom
   -> HostSession validation and fixed-step simulation
   -> flight + cabin + service + emergency MissionState snapshot
-  -> Three.js world + DOM HUD/debug/debrief presentation
+  -> Three.js world + DOM HUD/debug/debrief presentation + procedural audio
 ```
 
 ## Dependencies

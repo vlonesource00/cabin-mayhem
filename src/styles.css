@@ -296,6 +296,16 @@ button {
   box-shadow: 0 0 15px rgba(255, 71, 148, 0.5);
   animation: alertPop 0.65s steps(2) infinite;
 }
+/* The mute chip only exists while audio is off, so silence is readable
+   without adding a permanent control to the HUD. */
+.critical-icon[data-critical='muted'] {
+  display: none;
+  color: #ff7ac6;
+  border-color: #ff54b3;
+}
+.game-shell[data-audio='muted'] .critical-icon[data-critical='muted'] {
+  display: flex;
+}
 .critical-icon[data-critical='held'][data-active='true'] {
   color: #d2ff4d;
   border-color: #c8ff32;

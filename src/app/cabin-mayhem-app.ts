@@ -1,3 +1,4 @@
+import { CabinAudio } from '../audio/cabin-audio';
 import { CabinInputController } from '../input/cabin-input';
 import { normalizeRoomCode, PeerRoom, type RoomRole, type RoomStatus } from '../network/peer-room';
 import { HostSession } from '../sim/host-session';
@@ -8,7 +9,7 @@ import { FirstPersonController } from '../three/first-person-controller';
 import { buildDebrief, type DebriefSystemResult } from './debrief';
 
 type Screen = 'menu' | 'flight';
-type IconName = 'plane' | 'alert' | 'tool' | 'fire' | 'hand' | 'people' | 'dev';
+type IconName = 'plane' | 'alert' | 'tool' | 'fire' | 'hand' | 'people' | 'dev' | 'mute';
 
 interface Objective {
   kind: 'service' | 'fire' | 'repair' | 'complete';
@@ -26,6 +27,7 @@ export class CabinMayhemApp {
   private roomRole: RoomRole = 'solo';
   private world?: CabinWorld;
   private controller?: FirstPersonController;
+  private audio?: CabinAudio;
   private frame?: number;
   private lastFrame = 0;
   private accumulator = 0;
@@ -42,10 +44,27 @@ export class CabinMayhemApp {
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (event.code !== 'F1' || this.screen !== 'flight') return;
-    event.preventDefault();
-    this.setDevOpen(!this.devOpen);
+    if (this.screen !== 'flight') return;
+    if (event.code === 'F1') {
+      event.preventDefault();
+      this.setDevOpen(!this.devOpen);
+      return;
+    }
+    if (event.code === 'KeyM' && this.audio) {
+      event.preventDefault();
+      this.audio.setEnabled(this.audio.muted());
+      this.setMuteIndicator(this.audio.muted());
+    }
   };
+
+  private readonly onStageGesture = (): void => {
+    this.audio?.resume();
+  };
+
+  private setMuteIndicator(muted: boolean): void {
+    const shell = this.root.querySelector<HTMLElement>('.game-shell');
+    if (shell) shell.dataset.audio = muted ? 'muted' : 'on';
+  }
 
   private renderMenu(): void {
     this.stopLoop();
@@ -94,7 +113,7 @@ export class CabinMayhemApp {
     this.devOpen = false;
     this.debriefVisible = false;
     this.root.innerHTML = `
-      <main class="game-shell" data-testid="technical-test-scene" data-debug-open="false" data-room-role="${role}" data-room-phase="idle">
+      <main class="game-shell" data-testid="technical-test-scene" data-debug-open="false" data-audio="on" data-room-role="${role}" data-room-phase="idle">
         <section class="world-stage" data-world-stage></section>
         <header class="flight-chip">
           ${icon('plane')}
@@ -107,6 +126,7 @@ export class CabinMayhemApp {
           <div class="critical-icon" data-critical="fire" data-testid="fire-status">${icon('fire')}<strong data-hud="fire-status">CLEAR</strong></div>
           <div class="critical-icon" data-critical="panic">${icon('people')}<strong data-hud="panic">0</strong></div>
           <div class="critical-icon" data-critical="held">${icon('hand')}<strong data-hud="held">EMPTY</strong></div>
+          <div class="critical-icon" data-critical="muted" data-testid="audio-muted">${icon('mute')}<strong>MUTED</strong></div>
         </aside>
         <div class="crosshair" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
         <section class="interaction-pill">${icon('hand')}<strong data-hud="interaction">CLICK TO CAPTURE MOUSE</strong></section>
@@ -183,6 +203,11 @@ export class CabinMayhemApp {
     if (!mount) throw new Error('3D world mount missing');
     this.world = new CabinWorld(mount);
     this.controller = new FirstPersonController(this.world.canvas);
+    this.audio = new CabinAudio();
+    // start() runs from a click, but a fallback gesture keeps audio recoverable
+    // if the browser blocked the context on the first attempt.
+    this.audio.resume();
+    mount.addEventListener('pointerdown', this.onStageGesture);
     this.input.setActive(true);
     this.bindDebugControls();
     this.room.onStatus((status) => this.updateRoomStatus(status));
@@ -220,6 +245,7 @@ export class CabinMayhemApp {
     if (player)
       this.controller.updateCamera(this.world.camera, player, state.flight, this.world.elapsed());
     this.world.render(state);
+    this.audio?.update(state, this.localPlayerId());
     if (now - this.lastHudUpdate >= 80) {
       this.updateHud(state);
       this.lastHudUpdate = now;
@@ -359,11 +385,16 @@ export class CabinMayhemApp {
   private stopLoop(): void {
     if (this.frame !== undefined) cancelAnimationFrame(this.frame);
     this.frame = undefined;
+    this.root
+      .querySelector<HTMLElement>('[data-world-stage]')
+      ?.removeEventListener('pointerdown', this.onStageGesture);
     this.controller?.destroy();
     this.world?.dispose();
+    this.audio?.dispose();
     this.room?.close();
     this.controller = undefined;
     this.world = undefined;
+    this.audio = undefined;
     this.room = undefined;
     this.input.setActive(false);
   }
@@ -622,6 +653,7 @@ function icon(name: IconName): string {
     people:
       '<path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 1a2.5 2.5 0 1 0 0-5M3 20c0-4 2-6 5-6s5 2 5 6m1-6c3 0 5 2 5 5"/>',
     dev: '<path d="M4 8h16v11H4zM8 8V5h8v3m-8 5h8m-8 3h5"/>',
+    mute: '<path d="M4 9h4l5-4v14l-5-4H4V9Zm13 1 4 4m0-4-4 4"/>',
   };
   return `<svg class="hud-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[name]}</svg>`;
 }

@@ -10,11 +10,11 @@ Moving-aircraft technical proof: greybox cabin, host authority, local simulated 
 
 ## Phase 2 - current vertical
 
-Automatic flight, passenger service, galley fire, coffee-machine repair, free host-authoritative two-player WebRTC rooms, a responsive airline-sitcom landing debrief and a Blender-authored static cabin GLB with procedural fallback are implemented. Next: diagnose the red GLB CI run, complete the full manual service/two-browser playtest, then add audio, interaction animation and priority passenger/prop asset replacements.
+Automatic flight, passenger service, galley fire, coffee-machine repair, free host-authoritative two-player WebRTC rooms, a responsive airline-sitcom landing debrief and a Blender-authored static cabin GLB with procedural fallback and procedural Web Audio cabin sound are implemented. Next: complete the full manual service/two-browser playtest, then add interaction animation and priority passenger/prop asset replacements.
 
 ## Phase 3
 
-Cargo contracts, event director, route/weather, remaining passenger/prop production art, production audio, save/economy/upgrades, onboarding and hardened relay-backed networking.
+Cargo contracts, event director, route/weather, remaining passenger/prop production art, recorded/production audio, save/economy/upgrades, onboarding and hardened relay-backed networking.
 
 ## Phase 4
 
