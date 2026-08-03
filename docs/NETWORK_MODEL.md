@@ -14,6 +14,10 @@ The guest sends only strictly validated, sequenced `PlayerCommand` packets. The 
 
 The room supports exactly two players. Same-city proximity reduces likely direct-path latency but does not bypass NAT. Symmetric NAT or restrictive firewalls may require a configured TURN relay.
 
+## Operational test boundary
+
+Solo and deterministic simulated-transport tests run without an online service. The default Playwright suite covers room setup through the test bridge but skips the cloud multiplayer smoke unless `LIVE_MULTIPLAYER=1`; a manual two-browser test is still required for real signaling, NAT behavior and same-room synchronization. TURN credentials belong in local environment variables and must never be committed.
+
 ## Bandwidth rule
 
 Current two-player rooms send full authoritative snapshots at a bounded 15 Hz because the state is small. Before increasing object/player count, add a public snapshot projection, delta compression and backpressure rather than increasing rate.

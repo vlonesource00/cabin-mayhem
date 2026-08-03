@@ -4,7 +4,7 @@
 
 TypeScript simulation runs at bounded `<= 50 ms` steps. `HostSession` has sole write access to `MissionState`. Presentation takes structured snapshots and cannot alter phase, object, passenger, score or damage state except through submitted intent and explicit host debug actions.
 
-Three.js owns presentation only. `CabinWorld` maps aircraft-local simulation coordinates into WebGL space, creates project-owned procedural meshes and synchronizes visible crew, passenger and prop state from snapshots. `FirstPersonController` converts pointer-lock camera direction into host command intent.
+Three.js owns presentation only. `CabinWorld` maps aircraft-local simulation coordinates into WebGL space, loads the authored static cabin GLB when its contract validates, retains procedural fallback visuals and synchronizes visible crew, passenger and prop state from snapshots. `FirstPersonController` converts pointer-lock camera direction into host command intent. The DOM layer owns the contextual HUD, closed `F1` drawer and landing debrief; none of these layers resolve gameplay outcomes.
 
 The static cabin presentation loads `cabin-mayhem-scenario.glb` through `scenario-loader.ts`. The authored Blender root and minimum mesh contract are validated before activation. Until load succeeds, and whenever fetch/parse validation fails, the procedural cabin remains visible. On success, material-batched GLB visuals replace procedural rendering while invisible procedural interaction proxies and simulation collision fixtures remain authoritative.
 
@@ -12,7 +12,7 @@ The static cabin presentation loads `cabin-mayhem-scenario.glb` through `scenari
 
 ## Passenger service
 
-`service-mission.ts` activates authored requests on the deterministic mission clock. It owns finite cart stock, deterministic item dispensing/returns, patience decay, incident-driven panic/injury, delivery validation and score/outcome. `fire-response.ts` owns the authored galley hotspot and active/suppressed state. `CabinWorld` only raycasts candidate cart/passenger/fire IDs; `HostSession` checks cart selection, stock, target, ownership, active request, held extinguisher, item mapping and distance before mutating state.
+`service-mission.ts` activates authored requests on the deterministic mission clock. It owns finite cart stock, deterministic item dispensing/returns, patience decay, incident-driven panic/injury, delivery validation and score/outcome. `fire-response.ts` owns the authored galley hotspot and active/suppressed state. `repair-response.ts` owns the deterministic coffee-machine fault, toolbox/target/range/hold validation, progress and consequences. `debrief.ts` projects terminal host state into reviews and incident verdicts without mutating it. `CabinWorld` only raycasts candidate cart/passenger/fire/repair IDs; `HostSession` checks cart selection, stock, target, ownership, active request, held tool, item mapping and distance before mutating state.
 
 ## Aircraft reference frame
 
@@ -27,3 +27,5 @@ Crew use stable kinematic movement, crouch/sprint/brace states, static cabin fix
 - `LobbyService`, `Transport`, `SaveStorage`, `Achievements`, `Invitations`, `Voice` and `Analytics` must be interfaces outside `sim/` when production services are added.
 - Static authored definitions belong in `src/data/`; mutable runtime state belongs in `src/sim/`.
 - Rendering/audio/network adapters observe domain state; do not import them into deterministic rules.
+- `scenario-loader.ts` validates the Blender root and minimum mesh contract before swapping the static cabin visuals. A fetch/parse/contract failure is non-fatal and leaves procedural visuals active.
+- `PeerRoom` is an adapter around the deterministic host. PeerJS signaling and WebRTC transport are optional integrations; the simulation remains testable without a network service.

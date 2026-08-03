@@ -8,13 +8,13 @@ Vite/Tauri baseline, TypeScript checks, CI, docs, Canvas bootstrap and local tes
 
 Moving-aircraft technical proof: greybox cabin, host authority, local simulated client, cabin-relative force, grabbing, straps, turbulence, debug display and automated smoke checks.
 
-## Phase 2 — current vertical
+## Phase 2 - current vertical
 
-Automatic flight, passenger service, galley fire, coffee-machine repair, free host-authoritative two-player WebRTC rooms and a responsive airline-sitcom landing debrief are implemented. Next: full manual delivery playtest, production GLB loading with procedural fallback, audio/interaction animation and tuning.
+Automatic flight, passenger service, galley fire, coffee-machine repair, free host-authoritative two-player WebRTC rooms, a responsive airline-sitcom landing debrief and a Blender-authored static cabin GLB with procedural fallback are implemented. Next: diagnose the red GLB CI run, complete the full manual service/two-browser playtest, then add audio, interaction animation and priority passenger/prop asset replacements.
 
 ## Phase 3
 
-Cargo contracts, event director, route/weather, production art/audio, save/economy/upgrades, onboarding and hardened relay-backed networking.
+Cargo contracts, event director, route/weather, remaining passenger/prop production art, production audio, save/economy/upgrades, onboarding and hardened relay-backed networking.
 
 ## Phase 4
 

@@ -2,14 +2,16 @@
 
 ## In progress
 
-- [ ] Manual full service-flight playtest and tuning — Martim
-- [ ] Replace priority procedural props/NPCs with licensed production GLB assets — unassigned
+- [ ] Diagnose and fix GitHub Actions CI #10 for the Blender/GLB branch - Martim
+- [ ] Manual full service-flight and two-browser room playtest/tuning - Martim
+- [ ] Replace priority procedural passenger/NPC and gameplay props with licensed production assets - unassigned
 
 ## Backlog
 
 - [ ] Add player/object collision broadphase before more cabin objects.
 - [ ] Add profile/settings migration for Cabin Mayhem controls/accessibility.
-- [ ] Add production sound, passenger voices and interaction animation polish.
+- [ ] Add production sound, passenger voices and interaction-animation polish.
+- [ ] Add a production relay/TURN and room/lobby experience after the two-player prototype is stable.
 
 ## Done
 
@@ -32,4 +34,4 @@
 - [x] Icon-first contextual HUD; telemetry and Chaos Lab live in a closed-by-default `F1` development drawer.
 - [x] Free two-player PeerJS/WebRTC rooms with host-only authority, ordered snapshots and disconnect cleanup.
 - [x] Responsive landing debrief with score, passenger reviews, incident verdicts and room-preserving replay.
-- [x] Blender-authored production cabin GLB, tracked `.blend` source, validated loader and procedural fallback.
+- [x] Blender-authored static cabin GLB, tracked `.blend` source, validated loader and procedural fallback.

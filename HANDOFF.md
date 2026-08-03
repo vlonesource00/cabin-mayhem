@@ -2,64 +2,63 @@
 
 ## Current state
 
-Cabin Mayhem is a browser-first Vite/Three.js first-person game with a Tauri/Rust Windows wrapper. The flight loop, cabin-service vertical and two bounded emergency objectives are complete on `codex/airline-sitcom-repair`. Host authority owns flight, physics, passenger requests, fire, repair, scoring and mission outcome.
+Cabin Mayhem is a browser-first Vite/Three.js first-person airline-disaster game with an optional Tauri/Rust Windows wrapper. The current branch is `codex/blender-glb-scenario` at `eacf3ce` (`feat: add Blender cabin scenario`). The branch is pushed to `origin`.
 
-The current slice has automatic ground/taxi/takeoff/cruise progression: use `R` to hold takeoff power, then the simulation rotates and climbs. Eight seated passengers request drinks, meals and medical supplies from a finite service cart. A galley fire can be triggered, raises cabin pressure, and must be suppressed by holding the loose extinguisher, aiming at the fire and using `E` within host-validated range. During cruise, after 18 seconds without a fire, the rear-galley coffee-machine breaker faults: carry the loose toolbox, aim at its hotspot and hold `E` for three uninterrupted seconds.
+The current Slice 2 vertical includes:
+
+- Automatic ground, taxi, takeoff, cruise, approach and landing progression. Hold `R` to taxi, rotate and climb.
+- Host-authoritative cabin physics, service-cart stock, passenger requests, delivery validation, patience, panic, injury, score and mission outcome.
+- A galley-fire objective with extinguisher ownership, aim and range validation.
+- A deterministic coffee-machine mutiny during fire-free cruise: carry the toolbox, aim at the rear-galley breaker and hold `E` for three uninterrupted seconds.
+- An icon-first contextual HUD with a compact flight chip, critical status icons, objective card, radio caption and closed-by-default `F1` development drawer.
+- Free two-player PeerJS/WebRTC rooms. The host owns the simulation; the guest sends validated commands and renders ordered snapshots.
+- A landing debrief with score, served/missed totals, fire and repair verdicts, authored passenger reviews and room-preserving replay.
+- A Blender-authored static cabin GLB with runtime validation and automatic procedural fallback. Passenger avatars, service contents, loose gameplay props, emergency effects and interaction proxies remain procedural.
 
 ## Last changes
 
-- Added validated `RepairDefinition` data plus deterministic `RepairState` and `repair-response` flow for the coffee-machine mutiny.
-- Extended `HostSession` with automatic/debug repair activation, held-tool ownership, target/range validation, interruption, pressure/score consequences and a repair snapshot.
-- Added rear-galley breaker glow/sparks/light feedback and toolbox-specific interaction prompts to `CabinWorld`.
-- Replaced permanent dashboard panels with a compact flight chip, critical status icons, a contextual objective card and radio caption; `F1` opens the closed-by-default development drawer.
-- Added repair unit, host, integration and E2E paths; browser visual checks at 1366x768 and 412x915 found and corrected one narrow caption/status overlap.
-- Built current Tauri EXE, MSI and NSIS packages successfully.
-- Fixed the airplane ground stall with authored taxi, takeoff, rotation-assist and cruise transitions.
-- Added validated `src/data/emergencies.ts` and deterministic `src/sim/fire-response.ts` for the one galley-fire objective.
-- Extended `HostSession` with fire trigger, pressure/score consequences, extinguisher/range validation and suppression state.
-- Added a visible animated galley fire, interaction prompt, fire HUD status and event caption priority in `CabinWorld` and the app.
-- Rebuilt the HUD into non-overlapping neon telemetry, mission, status and debug lanes with an indie-game palette.
-- Added focused flight/fire unit tests, integration coverage and Playwright journeys.
-- Added GitHub Pages workflow and public-base support; the deployed site is `https://vlonesource00.github.io/cabin-mayhem/`.
+- Added the Blender source file, deterministic generator, exported cabin GLB, manifest entry, runtime loader and loader tests.
+- Kept procedural interaction and collision proxies authoritative while GLB visuals replace the static cabin shell after validation.
+- Added the passenger-review landing debrief and replay path.
+- Added the free two-player `PeerRoom` transport with strict protocol/role/sequence validation and host-only simulation authority.
+- Added the repair crisis, repair state flow, host validation, captions, sparks, breaker glow and toolbox prompts.
+- Replaced the old dashboard with the compact neon HUD and development drawer.
+- Added automatic takeoff progression and the galley-fire response objective.
 
-- Added validated `src/data/service.ts` definitions for eight passengers and nine service props.
-- Added `src/sim/service-mission.ts` for scheduled needs, patience decay, panic, injury, delivery, score and success/failure.
-- Extended `HostSession` so service delivery is range- and item-validated by the host; accepted items are consumed.
-- Added seated passenger meshes, request beacons and 3D bottle/tray/medkit/extinguisher assets to `CabinWorld`.
-- Added mission timer, score, served count and prioritized live-request HUD.
-- Added unit and E2E coverage for request types, correct/wrong deliveries, incidents and successful landing.
-- Updated README, architecture, design, roadmap and TODO for Slice 2.
-- Added `docs/NEXT_CONVERSATION_PROMPT.md` as a copy-ready continuation prompt.
-- Replaced loose drink/meal/medical staging with deterministic service-cart inventory templates and finite `3/3/2` stock.
-- Added host validation for cart selection, dispensing, returns and `Shift+E` movement.
-- Added cart-stock/selection HUD, contextual world prompts, updated controls and unit/E2E coverage.
-- Verified the cart live in the in-app browser: medical stock changed `2 → 1 → 2`, held medkit appeared, return prompt appeared and layout remained readable.
+## Known problems and limits
 
-## Known problems
-
-- Full end-to-end manual passenger aiming remains pending: in-app pointer-lock automation could exercise cart take/return but could not reliably aim every bottle/meal/medkit delivery. Host/unit tests cover correct/wrong delivery and consumption.
-- Network simulation is local only; there is no WebRTC/WebSocket remote client.
-- Passenger NPCs are seated deterministic service actors, not walking/navmesh AI.
-- Current 3D art is project-owned procedural geometry. Production GLB models, audio and animation polish remain.
-- Object collision is pairwise; add broadphase before significantly increasing loose-object count.
-- The production JS chunk is about 624 kB and still emits Vite's `>500 kB` chunk warning.
-- Windows artifacts are unsigned development builds.
+- GitHub Actions CI #10 for `eacf3ce` is red. The run summary does not expose the failed command yet; the leading hypothesis is a CI-only timeout while the E2E journey waits for `data-asset-mode="glb"` after loading the dynamic GLTFLoader chunk and 1.24 MB GLB. Inspect the failed `CI / verify` step before changing the test.
+- The default Playwright suite does not run cloud multiplayer; the live room test is skipped unless `LIVE_MULTIPLAYER=1`. A manual two-browser host/guest playtest is still required.
+- Full manual passenger aiming and end-to-end delivery tuning remain pending. Host, unit and browser bridge coverage validates the delivery rules, but pointer-lock aiming needs a human pass.
+- The GLB covers the static cabin shell only. Passenger/NPC meshes, service contents, loose props, fire/repair effects, audio and interaction animation remain open.
+- The latest local `pnpm desktop:build` attempt was blocked because the existing `src-tauri/target/release/cabin-mayhem.exe` was still running/locked. Close the old executable and rerun; the Vite portion completed before Rust packaging stopped.
+- The production JavaScript bundle still emits Vite's non-blocking `>500 kB` chunk warning.
+- Loose-object collision is pairwise and should gain a broadphase before the cabin object count grows substantially.
+- Windows installers are unsigned development artifacts.
 
 ## Next recommended task
 
-Add a clear debrief screen after landing, then production GLB loading with procedural fallback. Keep real two-browser transport until the local service/fire/repair loop is stable.
+1. Open the CI #10 failed step and make the GLB readiness journey deterministic on GitHub Actions if the timeout hypothesis is confirmed.
+2. Rerun the complete web gates and the Tauri build after closing any locked executable.
+3. Perform a manual solo service flight and a real two-browser host/guest room playtest, including takeoff, item delivery, fire, repair, reset and landing debrief.
+4. Continue with audio, interaction animation and replacement passenger/prop assets after the current runtime path is stable.
 
 ## Current verification
 
-- Format, ESLint, TypeScript, authored data and asset validation pass.
-- Unit: 24/24; integration: 2/2; Playwright: 5/5.
-- Vite production build passes; 1366x768 and 412x915 live Chromium repair/HUD visual checks pass.
-- Tauri release EXE, MSI and NSIS builds pass.
+Local evidence for `eacf3ce`:
+
+- `git diff --check`, Prettier check, ESLint, TypeScript, authored-data validation and asset validation pass.
+- Unit: 34 tests pass.
+- Integration: 2 tests pass.
+- Playwright: 9 tests collected; 8 pass and 1 intentional live-multiplayer test is skipped without `LIVE_MULTIPLAYER`.
+- Vite production build passes, with the existing large-chunk warning.
+- Prior repair/HUD visual checks passed at 1366x768 and 412x915; the GLB presentation needs a fresh visual pass after CI is repaired.
+- Tauri packaging is not currently re-proven on this branch because the latest attempt hit the locked executable described above.
 
 ## Verification commands
 
 ```powershell
-pnpm format
+pnpm format:check
 pnpm lint
 pnpm typecheck
 pnpm validate:data
@@ -71,6 +70,8 @@ pnpm build
 pnpm desktop:build
 ```
 
+For the optional live room smoke, set `LIVE_MULTIPLAYER=1` and use two browser contexts with a reachable PeerJS/TURN path. Do not commit TURN credentials.
+
 ## Git handoff
 
-Before changing code in a new conversation, run `git status --short --branch` and inspect the current diff. Do not assume this slice was committed or pushed unless Git proves it.
+Before changing code in a new conversation, run `git status --short --branch`, `git log -5 --oneline --decorate` and inspect the actual diff. Preserve the untracked `.codex-remote-attachments/` folder and do not stage it. Do not assume a slice was committed or pushed unless Git proves it.

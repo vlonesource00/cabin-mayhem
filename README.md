@@ -68,6 +68,8 @@ Gamepad: left stick move, shoulder sprint, face buttons interact/crouch/brace/th
 
 Walkable Three.js fuselage with a Blender-authored GLB/procedural fallback, cockpit, aisle, seats, bins, shelves, host-authoritative service-cart stock, loose cargo, straps, two crew, eight seated passenger NPCs, drink/meal/medical requests, galley-fire suppression, one coffee-machine breaker repair crisis, service props, patience, panic, injury, scoring, passenger-review debrief, incidents, subsystem damage, deterministic simulated network conditions and free two-player browser rooms. Economy, routes, progression and production audio remain future work.
 
+The Blender asset currently covers the static cabin shell only; passenger avatars, service contents, loose gameplay props, emergency effects and interaction animation remain procedural or pending. The default E2E suite skips the cloud multiplayer smoke unless `LIVE_MULTIPLAYER=1`, and native Windows artifacts are unsigned development builds.
+
 ## Technologies
 
 TypeScript, Three.js/WebGL, Vite, Zod, Vitest, Playwright, ESLint, Prettier and optional Tauri/Rust desktop wrapper.
