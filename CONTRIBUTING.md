@@ -2,11 +2,11 @@
 
 ## Branches
 
-- `main`: stable, tested builds only.
-- `develop`: integrated work.
+- `novo-main-stable`: the project base. Stable, tested builds only; GitHub Pages deploys from it.
 - `feature/<system>`, `fix/<issue>`, `refactor/<area>`, `test/<area>`, `docs/<topic>`: isolated work.
+- `main`: retained pre-consolidation history only. Do not branch from it or merge into it.
 
-Do not develop substantial work directly on `main` or `develop`.
+Do not develop substantial work directly on `novo-main-stable`.
 
 ## Before a pull request
 
