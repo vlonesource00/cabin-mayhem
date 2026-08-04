@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Pivoted the premise from an airliner to a cruise ship** ([ADR 0001](docs/adr/0001-cruise-ship-pivot.md)). The ship is steered by the crew, moves on a simulated ocean, and is streamed as ~25 discrete compartments across six decks connected by an authored portal graph. Documentation only: no runtime code changed in this entry, and the airliner vertical at `79bb002` is still what runs.
+- Added `docs/PERFORMANCE.md` with hard frame, draw-call, triangle, asset, mixer, texture and bundle budgets, twelve techniques for meeting them, and the rule that content breaking a budget does not merge.
+- Added `docs/SHIP_LAYOUT.md` with the deck tables, compartment purposes and hazards, the portal graph and the streaming residency rule.
+- Rewrote `README.md`, `ARCHITECTURE.md`, `docs/GAME_DESIGN.md`, `docs/TECHNICAL_ARCHITECTURE.md`, `docs/NETWORK_MODEL.md`, `docs/TEST_PLAN.md`, `docs/CONTENT_AUTHORING.md`, `docs/assets.md`, `docs/assumptions.md`, `docs/ROADMAP.md`, `HANDOFF.md`, `TODO.md` and `CONTRIBUTING.md` for the cruise premise.
+- Reconciled the revised project plan: pirate defence now includes real firearms alongside water cannons, stun equipment and turrets; added a `preparation` voyage phase for route, weather, supplies and upgrades; set a one-to-four-player crew target; expanded to six ship upgrade lines plus cosmetic player progression; added fog, ship-failure and guest-incident events and a wider obstacle set; documented the modular Blender kit and `ENV_`/`PROP_`/`INT_`/`SYS_`/`LOD1_` naming standards; recorded a phase-number mapping between the plan and this repo.
+- Recorded open decisions rather than settling them silently: first-person versus third-person camera, Git LFS adoption, the Blender version conflict, and gating for restricted compartments.
 - Established `novo-main-stable` as the consolidated project base and GitHub Pages deployment branch.
 - Added free two-player PeerJS/WebRTC rooms with strict command validation and host-authoritative snapshots.
 - Added a responsive landing debrief with score, served/missed totals, fire/repair summaries, authored passenger reviews and `Fly another shift` replay.

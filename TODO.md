@@ -1,43 +1,65 @@
 # TODO
 
+Local work snapshot. Phases and exit conditions live in
+[docs/ROADMAP.md](docs/ROADMAP.md).
+
 ## In progress
 
-- [ ] Manual full service-flight and two-browser room playtest/tuning - Martim
-- [ ] Fresh desktop and narrow-viewport visual pass for the expanded GLB, procedural animation and debrief - Martim
-- [ ] Replace priority procedural passenger/NPC and gameplay props with licensed production assets - unassigned
+- [ ] Cruise-ship pivot documentation - Martim
+- [ ] Decide first person vs third person and write ADR 0002. Blocks Phase 6, which authors interiors around a camera height - unassigned
+- [ ] Decide Git LFS before Phase 6 starts landing one GLB per compartment - unassigned
+- [ ] Decide one Blender version between both collaborators. `passengers.blend` was written by 502.44 and warns of data loss when opened in 5.1; nothing should be skinned until this is settled - unassigned
+
+## Next (Phase 5)
+
+- [ ] Rename `FlightState`→`VoyageState`, `FlightPhase`→`VoyagePhase`, `flight-model.ts`→`ship-model.ts`, `PilotInput`→`HelmInput` in one mechanical commit.
+- [ ] Ocean: shader-displaced sea plane plus the matching simulation-side wave function.
+- [ ] Ship motion model: heading, rudder, telegraph, momentum, turning radius, derived deck acceleration.
+- [ ] Greybox compartment set (bridge, corridor, public room, engine room) behind the streaming loader.
+- [ ] Helm station with positional input authority.
+- [ ] Collision-course incident end to end: spawn, warning, countdown, host-validated avoidance, consequences either way.
 
 ## Backlog
 
-- [ ] Add player/object collision broadphase before more cabin objects.
-- [ ] Add profile/settings migration for Cabin Mayhem controls/accessibility.
-- [ ] Replace procedural Web Audio with production-recorded cabin sound and passenger voices.
-- [ ] Replace priority procedural interaction motion with authored animation and art polish.
+- [ ] Uniform spatial hash broadphase. The current pairwise loop is O(n²) and blocks the second compartment.
+- [ ] Public snapshot projection, delta compression and backpressure. Prerequisite for crews above two.
 - [ ] Split the production JavaScript bundle to remove the known non-blocking Vite chunk-size warning.
-- [ ] Add a production relay/TURN and room/lobby experience after the two-player prototype is stable.
+- [ ] Join and skin the 22 T-pose characters to the shared `CM_HUMANOID` skeleton so the cast inherits authored clips. Blocked on the Blender version decision.
+- [ ] Replace procedural Web Audio with production-recorded ship sound and guest voices.
+- [ ] Profile/settings migration for controls and accessibility.
+- [ ] Production relay/TURN and a room/lobby experience.
 
 ## Done
 
 - [x] Vite browser runtime and Tauri Windows wrapper.
-- [x] Explicit flight phase state machine.
-- [x] Aircraft-local cabin physics, straps, grabbing and throwing.
+- [x] Explicit phase state machine.
+- [x] Vehicle-local physics, securing, grabbing and throwing.
 - [x] Host authority plus latency/jitter/loss test harness.
-- [x] Greybox technical scene, debug display and automated Phase 1 tests.
-- [x] Three.js first-person aircraft, procedural 3D asset kit and pointer-lock controls.
-- [x] Static cockpit/seat fixture collisions and 3D loose-object synchronization.
+- [x] Greybox technical scene, debug display and automated tests.
+- [x] Three.js first-person world, procedural 3D asset kit and pointer-lock controls.
+- [x] Static fixture collisions and 3D loose-object synchronisation.
 - [x] Reliable backward movement and first-person pickup/place/throw loop.
 - [x] Browser visual pass and Windows `.exe`/MSI/NSIS build.
 - [x] Validated authored passenger and service-item data.
 - [x] Eight 3D passengers with drink, meal and medical requests.
 - [x] Host-validated service delivery, patience, panic, injury, score and mission result.
 - [x] Host-authoritative service-cart inventory, selection, dispensing, returns and stock HUD.
-- [x] Automatic taxi/takeoff climb plus host-authoritative galley-fire suppression.
+- [x] Host-authoritative galley-fire suppression.
 - [x] Colorful responsive indie HUD lanes and GitHub Pages deployment workflow.
-- [x] Deterministic host-authoritative coffee-machine repair crisis with tool/range/hold validation, pressure, scoring and sitcom feedback.
-- [x] Icon-first contextual HUD; telemetry and Chaos Lab live in a closed-by-default `F1` development drawer.
+- [x] Deterministic host-authoritative repair crisis with tool/range/hold validation, pressure and scoring.
+- [x] Icon-first contextual HUD; telemetry and Chaos Lab in a closed-by-default `F1` drawer.
 - [x] Free two-player PeerJS/WebRTC rooms with host-only authority, ordered snapshots and disconnect cleanup.
-- [x] Responsive landing debrief with score, passenger reviews, incident verdicts and room-preserving replay.
-- [x] Blender-authored static cabin GLB, tracked `.blend` source, validated loader and procedural fallback.
-- [x] Expanded Blender cabin scenario with flight deck, galleys and cargo hold.
-- [x] Procedural Web Audio cabin sound and `M` mute control.
+- [x] Responsive debrief with score, reviews, incident verdicts and room-preserving replay.
+- [x] Blender-authored static GLB, tracked `.blend` source, validated loader and procedural fallback.
+- [x] Procedural Web Audio and `M` mute control.
 - [x] Snapshot-driven held-item, repair, passenger and crew interaction animation.
+- [x] Two Blender-authored skeletal rigs, 44 clips, `AnimationMixer` playback and a validated clip contract.
 - [x] CI-sized Playwright timeout budget and uploaded failure traces.
+- [x] Branch consolidation onto `novo-main-stable` with protection enabled.
+
+## Retired with the pivot
+
+Airliner content is superseded by [ADR 0001](docs/adr/0001-cruise-ship-pivot.md)
+and stays in Git history: automatic taxi/takeoff climb, the flight model, the
+landing debrief framing, world-prop animation for the cabin scenario, and the
+manual service-flight playtest that was pending against it.

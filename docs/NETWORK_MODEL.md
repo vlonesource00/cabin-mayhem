@@ -6,7 +6,9 @@ Solo mode uses `SimulatedTransport` to test latency, jitter and loss locally. Tw
 
 ## Authority
 
-Host owns active phase, flight state, subsystem damage, cabin objects, cargo straps, object ownership/reservation, collision result, interaction validation and event log. Clients send `PlayerCommand` intent. A held object has one `ownerId`; host rejects/avoids duplicate ownership.
+Host owns active phase, voyage and ship state, sea state, subsystem damage, deck objects, securing, object ownership/reservation, collision result, obstacle avoidance, hazard resolution, weapon hits, interaction validation and event log. Clients send `PlayerCommand` intent. A held object has one `ownerId`; host rejects/avoids duplicate ownership.
+
+Helm authority is positional: the host accepts `HelmInput` only from a player standing in the bridge helm volume and discards everyone else's. A dodge resolves because the ship's simulated track cleared the obstacle by the authored margin, never because a client reported success.
 
 ## Wire boundary
 
@@ -21,3 +23,10 @@ Solo and deterministic simulated-transport tests run without an online service. 
 ## Bandwidth rule
 
 Current two-player rooms send full authoritative snapshots at a bounded 15 Hz because the state is small. Before increasing object/player count, add a public snapshot projection, delta compression and backpressure rather than increasing rate.
+
+The cruise premise raises the object count by roughly an order of magnitude, so that work is no longer conditional — it is Phase 11's first task and a hard prerequisite for crews larger than two. Two additional rules follow from a ship with many compartments:
+
+- **Relevance filtering.** A client only needs full detail for compartments it can see through the portal graph. Distant decks are simulated by the host at full fidelity but sent as coarse summaries.
+- **Ship-wide state is small; deck contents are not.** Voyage, sea state, hull condition, incident timers and warnings go in every snapshot uncompressed. Per-object deck state is where deltas and relevance apply.
+
+Warnings and countdowns are authoritative snapshot fields, not client-side timers. Both players see the same number because they read the same tick.

@@ -1,0 +1,157 @@
+# Ship Layout
+
+_MS Cabin Mayhem_ — the authored compartment graph. This file is the contract
+between design, the Blender build scripts in `tools/blender/` and the streaming
+system in `src/three/`. Every compartment listed here is one authored GLB, one
+node in the portal graph and one entry in `public/assets/manifest.json`.
+
+## Rules
+
+- **One compartment, one GLB, one budget.** No compartment ships as part of
+  another. Streaming granularity is the compartment.
+- **Compartments connect only through portals** — doors, hatches, stairwells and
+  open deck edges. The portal graph is authored data, not inferred from geometry.
+- **Geometry is presentation.** Collision, interaction volumes and job targets
+  live in validated `src/data/` definitions and host simulation rules, never in
+  the GLB. A missing or corrupt compartment GLB degrades to greybox and the
+  voyage continues.
+- **Nothing on the critical path may live in exactly one compartment** unless
+  losing it is the point. The helm is the deliberate exception.
+
+## Decks
+
+### Deck 0 — Machinery (below the waterline)
+
+| Compartment      | Purpose                                              | Hazards                    |
+| ---------------- | ---------------------------------------------------- | -------------------------- |
+| `engine-room`    | Propulsion. Speed and manoeuvre depend on it.        | Breakdown, fire, flooding  |
+| `generator-room` | Electrical. Feeds lighting and every powered system. | Power failure, fire        |
+| `pump-room`      | Bilge pumps. The flooding counter-measure.           | Flooding, breakdown        |
+| `cold-store`     | Provisions. Source for every restock job.            | Power failure spoils stock |
+| `crew-quarters`  | Crew bunks and mess. Spawn and respite.              | —                          |
+
+Deck 0 is where breaches flood first and where the ship is lost. It is also the
+farthest point from the bridge, which is the whole reason it is down here.
+
+### Deck 1 — Service and lower guest
+
+| Compartment        | Purpose                           | Hazards                      |
+| ------------------ | --------------------------------- | ---------------------------- |
+| `cabin-corridor-a` | Guest cabins, port and starboard. | Housekeeping, guest requests |
+| `main-galley`      | Cooking for every outlet.         | Fire, breakdown              |
+| `medical-bay`      | Injury and illness treatment.     | Overload during incidents    |
+| `laundry`          | Linen turnaround.                 | Fire, backlog                |
+| `waste-bay`        | Refuse and recycling.             | Backlog, smell reputation    |
+
+### Deck 2 — Promenade (the public heart)
+
+| Compartment     | Purpose                                      | Hazards                            |
+| --------------- | -------------------------------------------- | ---------------------------------- |
+| `atrium`        | Reception. Where guest requests surface.     | Crowding, reputation               |
+| `shopping-mall` | Retail outlets. Restock target and revenue.  | Stockouts, looting during boarding |
+| `main-dining`   | Seated service at scheduled sittings.        | Stockouts, wave damage             |
+| `theatre`       | Shows on a schedule.                         | Power failure ruins a show         |
+| `casino`        | Revenue. Very sensitive to lights going out. | Power failure                      |
+| `bar`           | Drinks. Highest-frequency restock.           | Stockouts                          |
+
+### Deck 3 — Pool and leisure
+
+| Compartment | Purpose                   | Hazards                             |
+| ----------- | ------------------------- | ----------------------------------- |
+| `pool-deck` | Pool, loungers, exterior. | Contamination, birds, wave washover |
+| `buffet`    | Self-service food.        | Stockouts, contamination            |
+| `spa-gym`   | Wellness.                 | Breakdown                           |
+| `kids-club` | Supervised chaos.         | Incident multiplier                 |
+
+Deck 3 is exterior and open. It is the first place a rogue wave lands, the place
+birds foul, and a boarding route.
+
+### Deck 4 — Command
+
+| Compartment  | Purpose                                                      | Hazards                 |
+| ------------ | ------------------------------------------------------------ | ----------------------- |
+| `bridge`     | **The helm.** Steering, radar, obstacle warnings, telegraph. | Loss of power blinds it |
+| `chart-room` | Navigation planning, upgrade console between voyages.        | —                       |
+| `radio-room` | Distress, coastguard, pirate chatter.                        | Power failure           |
+
+The bridge is intentionally the single point of steering and intentionally far
+from everything else. Reaching it is a cost.
+
+### Deck 5 — Exterior and defence
+
+| Compartment        | Purpose                                      | Hazards                          |
+| ------------------ | -------------------------------------------- | -------------------------------- |
+| `weather-deck`     | Open top deck, weapon mounts, funnel.        | Boarding, waves, birds           |
+| `lifeboat-station` | Evacuation and the tender for man-overboard. | Boarding                         |
+| `foredeck`         | Anchor, windlass, forward observation.       | Boarding, collision impact point |
+
+## Beyond the initial set
+
+The twenty-five compartments above are the shippable core, not the ceiling. A
+real cruise ship is closer to seventy spaces, and the streaming architecture is
+designed so adding one is data plus a GLB, never an engine change. Named
+candidates, in rough priority order:
+
+- **Navigation and command** — captain's cabin, officers' mess, communications
+  room, emergency control centre
+- **Engineering** — fuel bunker, water treatment, electrical switchboard, waste
+  processing, workshop, ballast control
+- **Guest** — suite deck, additional cabin corridors, library, arcade, cinema,
+  nightclub, observation lounge, chapel, art gallery, more restaurants
+- **Crew** — crew galley, crew bar, laundry annexe, security office, purser's
+  office, storage holds
+- **Safety and exterior** — muster stations, additional lifeboat davits, bow
+  thruster room, helipad, tender bay
+
+Restricted compartments — a reinforced command centre, a smuggler's hold, an
+experimental engine room, a sealed and damaged lower deck — are a separate idea
+with real appeal and no gating rule yet. They stay out of the tables until they
+have one that is more interesting than "buy the upgrade". Recorded as an open
+decision in [`GAME_DESIGN.md`](GAME_DESIGN.md).
+
+Every addition pays the same tolls: one build script, one GLB inside budget, a
+symmetric portal pair, and a reason it is not just another empty room.
+
+## Portal graph
+
+```text
+weather-deck ─── lifeboat-station
+     │                 │
+  stairwell-aft   stairwell-fwd ─── foredeck
+     │                 │
+  bridge ── chart-room ── radio-room        [Deck 4]
+     │                 │
+  pool-deck ── buffet ── spa-gym ── kids-club   [Deck 3]
+     │                 │
+  atrium ── mall ── dining ── theatre ── casino ── bar   [Deck 2]
+     │                 │
+  corridor-a ── galley ── medical ── laundry ── waste   [Deck 1]
+     │                 │
+  engine ── generator ── pump ── cold-store ── crew-quarters   [Deck 0]
+```
+
+Two vertical stairwells, forward and aft, connect every deck. They are the
+throttle on crew movement and the reason position matters.
+
+## Streaming and budget
+
+The player is in exactly one compartment. The renderer keeps resident:
+
+- the current compartment at full detail,
+- every compartment one portal away at full detail,
+- every compartment two portals away at reduced detail,
+- nothing beyond that.
+
+Per-compartment budgets, instancing rules, LOD tiers and the frame budget that
+enforces all of it are in [`PERFORMANCE.md`](PERFORMANCE.md).
+
+## Authoring
+
+Each compartment is generated by a deterministic Blender script under
+`tools/blender/compartments/`, following the pattern already proven by
+`build_cabin_scenario.py`: repeatable from source, no manual GUI steps, exported
+to a tracked GLB and validated by `pnpm validate:assets` before it can ship.
+
+Compartment GLBs must expose a stable root node `CM_<COMPARTMENT>_ROOT` and
+declare their portals as named empties `CM_PORTAL_<TARGET>`, so the streaming
+system can bind the graph without hard-coded coordinates.

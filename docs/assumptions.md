@@ -1,6 +1,12 @@
 # Assumptions
 
-- Web/Vite plus Tauri is product platform. Unity technical direction is translated into web equivalents, not silently mixed in.
-- Phase 1 proved local host/client behavior with deterministic network simulation. The current Slice 2 vertical also has an optional exactly-two-player PeerJS/WebRTC room, but it still depends on external signaling/NAT conditions and is not a production relay service.
-- The static cabin shell is authored in Blender and loaded as a validated GLB with procedural fallback. Passenger avatars, service contents, loose gameplay props, emergency effects and interaction proxies remain intentionally procedural until their own production asset/animation slices.
-- Phase 1 cabin object data is authored and validated separately from mutable simulation state. Save/profile authoring begins in later phases.
+- Web/Vite plus Tauri is the product platform. Unity technical direction is translated into web equivalents, not silently mixed in.
+- The premise is a cruise ship ([ADR 0001](adr/0001-cruise-ship-pivot.md)). The airliner vertical at `79bb002` is the last thing that ran; the ship is designed and documented but not implemented.
+- The hull never translates in world coordinates. The ocean, obstacle field and horizon move relative to a stationary hull, and decks respond to derived acceleration. This assumption is load-bearing for float precision and for reusing the existing physics.
+- Phase 1 proved local host/client behaviour with deterministic network simulation. The optional exactly-two-player PeerJS/WebRTC room still depends on external signaling and NAT conditions and is not a production relay service. Crews larger than two assume snapshot deltas that do not exist yet.
+- Presentation is one authored GLB per compartment, assembled in Blender from a shared modular kit on a fixed grid, streamed against a portal graph, with procedural greybox fallback. Gameplay props, hazard effects and interaction proxies remain procedural until their own asset slices.
+- Authored definitions are validated separately from mutable simulation state. Save and profile authoring begins at Phase 10, when upgrades need to persist.
+- The reference machine for every budget in [PERFORMANCE.md](PERFORMANCE.md) is the primary development desktop: Windows 11, discrete GPU, Chromium-based browser at 1080p. Budgets are not validated on integrated graphics or mobile GPUs, and no claim is made about either.
+- Pirate defence includes real firearms alongside water cannons, stun equipment and turrets, per the revised plan. The assumption is that combat stays shallow — no recoil patterns, attachment trees or reload minigames — so the game reads as physical comedy with one violent incident rather than as a shooter. If combat starts absorbing design attention, that is the signal the assumption broke.
+- The camera is first person and every doc, the `FirstPersonController`, pointer-lock capture, the `data-arms-rig` test seam and the authored `CM_FPARMS_ROOT` arms rig assume it. The revised plan proposes third person. This is unresolved and needs its own ADR before interiors are authored around a camera height.
+- The crew target is one to four players. Everything shipped assumes exactly two. Solo and four-player both need work that does not exist yet: task-pressure scaling for solo, snapshot deltas for four.

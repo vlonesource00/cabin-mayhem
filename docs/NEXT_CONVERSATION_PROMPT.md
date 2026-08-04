@@ -1,6 +1,7 @@
 # Next conversation prompt
 
-Copy everything inside the block below into a new Codex conversation with this repository selected.
+Copy everything inside the block below into a new conversation with this
+repository selected.
 
 ```text
 [$single-executor](C:\\Users\\Martim Costa\\.codex\\skills\\single-executor\\SKILL.md)
@@ -12,56 +13,116 @@ GitHub repository:
 https://github.com/vlonesource00/cabin-mayhem
 
 Stable project branch:
-novo-main-stable
+novo-main-stable (protected: pull request, `verify` green, one approval)
 
-Cabin Mayhem is an original browser-first first-person airline-disaster game. Vite + TypeScript + Three.js are the game runtime; Tauri v2 + Rust wrap the same web build as a Windows EXE. Do not convert it to another engine or a 2D/top-down game.
+Cabin Mayhem is an original cooperative cruise-ship game. Vite + TypeScript +
+Three.js are the game runtime; Tauri v2 + Rust wrap the same web build as a
+Windows EXE. Do not convert it to another engine or a 2D/top-down game.
+
+The premise changed from an airliner to a cruise ship. Read
+docs/adr/0001-cruise-ship-pivot.md first. The documentation describes the ship;
+the code still implements the airliner. That gap is expected, not a bug.
 
 Before changing code:
-1. Run `git status --short --branch`, `git log -5 --oneline --decorate`, then inspect the actual diff. Preserve uncommitted work, especially `.codex-remote-attachments/`.
-2. Read `README.md`, `ARCHITECTURE.md`, `HANDOFF.md`, `TODO.md`, `docs/GAME_DESIGN.md`, `docs/TECHNICAL_ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/TEST_PLAN.md` and `docs/CONTENT_AUTHORING.md`.
-3. Inspect `src/sim/types.ts`, `src/sim/host-session.ts`, `src/sim/fire-response.ts`, `src/sim/repair-response.ts`, `src/sim/service-mission.ts`, `src/data/emergencies.ts`, `src/network/peer-room.ts`, `src/three/cabin-world.ts`, `src/three/scenario-loader.ts`, `src/app/debrief.ts`, `src/app/cabin-mayhem-app.ts` and current tests.
-4. Trust current code, tests, Git and CI logs over stale prose. Keep docs current when implementation changes.
+1. Run `git status --short --branch`, `git log -5 --oneline --decorate`, then
+   inspect the actual diff. Preserve uncommitted work, especially
+   `.codex-remote-attachments/` — never stage it.
+2. Read `README.md`, `ARCHITECTURE.md`, `HANDOFF.md`, `TODO.md`,
+   `docs/adr/0001-cruise-ship-pivot.md`, `docs/GAME_DESIGN.md`,
+   `docs/SHIP_LAYOUT.md`, `docs/PERFORMANCE.md`,
+   `docs/TECHNICAL_ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/TEST_PLAN.md`,
+   `docs/CONTENT_AUTHORING.md` and `docs/assets.md`.
+3. Inspect `src/sim/types.ts`, `src/sim/host-session.ts`,
+   `src/sim/flight-model.ts`, `src/sim/cabin-simulation.ts`,
+   `src/sim/service-mission.ts`, `src/sim/fire-response.ts`,
+   `src/sim/repair-response.ts`, `src/network/peer-room.ts`,
+   `src/three/cabin-world.ts`, `src/three/scenario-loader.ts`,
+   `src/three/animated-rig.ts`, `src/app/cabin-mayhem-app.ts` and the tests.
+4. Trust current code, tests, Git and CI over stale prose. Keep docs current when
+   implementation changes.
 
-Current game state:
-- Walkable pointer-lock Three.js aircraft with deterministic host-authoritative flight and cabin physics.
-- Host-authoritative service-cart pickup/delivery, passenger requests, patience/panic/injury, scoring and mission outcome.
-- A galley-fire objective with extinguisher ownership/aim/range validation.
-- A deterministic coffee-machine mutiny in fire-free cruise: carry the toolbox, aim at the rear-galley breaker and hold `E` for three uninterrupted seconds. Fire has priority.
-- Icon-first neon HUD: compact flight/status chips, one contextual objective, radio caption and a closed-by-default `F1` development drawer. The active gameplay scene has no landing-grid overlay.
-- Free two-player PeerJS/WebRTC rooms with host-only simulation authority, ordered snapshots and disconnect cleanup. The default E2E suite skips the cloud room smoke unless `LIVE_MULTIPLAYER=1`.
-- A landing debrief with score, served/missed totals, fire and repair verdicts, authored passenger reviews and room-preserving replay.
-- A Blender-authored static cabin GLB with validated runtime loading and automatic procedural fallback. Passenger avatars, service contents, loose props, emergency effects and interaction proxies remain procedural.
-- Procedural Web Audio cabin sound synthesised at runtime from mission snapshots, muted with `M`. The repository ships no audio files.
-- Snapshot-driven procedural interaction animation for held items, extinguisher use, breaker repair, passenger reactions and crew walking.
-- Expanded Blender scenario covering the static cabin shell, flight deck, galleys and cargo hold, with validated loading and procedural fallback.
-- Two Blender-authored skeletal rigs: a shared 19-bone humanoid (25 clips, crew and passengers) and a 7-bone first-person arms rig (19 clips), played through a Three.js `AnimationMixer` layer that crossfades snapshot-selected clips and layers upper-body actions over locomotion. Each rig falls back independently to the procedural layer, reported through `data-character-rig` and `data-arms-rig`.
+What runs today (the airliner vertical at 79bb002):
+- Walkable pointer-lock Three.js interior with deterministic host-authoritative
+  vehicle and cabin physics.
+- Host-authoritative service-cart pickup/delivery, passenger requests,
+  patience/panic/injury, scoring and mission outcome.
+- Galley fire with extinguisher ownership/aim/range validation.
+- Breaker repair: carry the toolbox, aim, hold `E` for three uninterrupted
+  seconds.
+- Icon-first neon HUD with a closed-by-default `F1` development drawer.
+- Free two-player PeerJS/WebRTC rooms, host-only authority, ordered snapshots.
+  The default E2E suite skips the cloud smoke unless `LIVE_MULTIPLAYER=1`.
+- Landing debrief with reviews and room-preserving replay.
+- Blender-authored static cabin GLB with validated loading and procedural
+  fallback.
+- Procedural Web Audio; the repository ships no audio files.
+- Two Blender skeletal rigs: a shared 19-bone humanoid (25 clips) and a 7-bone
+  first-person arms rig (19 clips), on a Three.js `AnimationMixer` that
+  crossfades snapshot-selected clips and layers upper-body actions by disjoint
+  track masking. Each rig falls back independently, reported through
+  `data-character-rig` and `data-arms-rig`.
 
-Open work:
-- Complete a human manual service-flight pass and a real two-browser host/guest room pass, including takeoff, deliveries, fire, repair, reset and landing debrief.
-- Complete fresh 1366x768 and narrow-viewport visual inspection of the expanded GLB, the authored character animation and the landing debrief. Judge clip exaggeration and crossfade timing in motion, then retime in `tools/blender/` and re-export.
-- Extend authored animation to world props: cart wheels and wobble, overhead-bin doors, coffee-machine tantrum, breaker sparks, extinguisher hose and loose-item squash. Passenger facial shape keys are also unimplemented.
-- Add priority passenger/prop asset replacement after the current runtime path is stable.
-- Replace synthesised sound with production-recorded audio and voices in a later bounded slice.
+Open decisions to resolve before building interiors:
+- First person or third person. Every doc and the authored `CM_FPARMS_ROOT` arms
+  rig assume first person; the revised plan proposes third person. Write ADR 0002
+  either way before Phase 6 authors rooms around a camera height.
+- Git LFS, before one GLB per compartment starts landing.
+- One Blender version. `passengers.blend` was written by 502.44 and warns of data
+  loss in 5.1; nothing gets skinned until this is settled.
+
+Immediate task — Phase 5 in docs/ROADMAP.md, in this order:
+1. Mechanical rename in one commit: `FlightState`→`VoyageState`,
+   `FlightPhase`→`VoyagePhase`, `flight-model.ts`→`ship-model.ts`,
+   `PilotInput`→`HelmInput`. Tests updated with it, nothing else in that commit.
+2. Ocean: shader-displaced sea plane plus the identical wave function evaluated
+   on the simulation side at hull sample points. Hull pitch, roll and heave
+   derived from it.
+3. Ship motion model: heading, rudder, telegraph, speed, turning radius,
+   momentum. Derived deck acceleration feeds the existing cabin simulation
+   unchanged.
+4. Greybox compartments — bridge, one corridor, one public room, engine room —
+   behind the streaming loader and the portal graph.
+5. Helm station with positional input authority.
+6. The collision-course incident end to end: host spawns the obstacle, every
+   client shows the same warning and countdown, a player must physically reach
+   the bridge, the host validates the avoidance, clearing throws loose objects,
+   missing breaches the hull.
+
+Exit condition: the ship moves on an ocean, you can steer it, and two players can
+dodge one iceberg together.
 
 Important rules:
-- `HostSession` is authoritative. UI and Three.js may request interaction but never determine success.
-- Client raycasts choose a candidate only; host validates ownership, tool, target and range.
-- Keep authored data Zod-validated and fixed-step behavior deterministic.
-- Keep project-owned/generated assets; record every shipped asset in `public/assets/manifest.json`.
-- Do not add a random event director, cargo economy, route system or production relay unless the user authorizes that slice.
+- `HostSession` is authoritative. UI and Three.js may request interaction but
+  never determine success. Animation never decides whether a dodge, repair,
+  delivery, suppression or hit succeeds.
+- The hull never translates in world coordinates. The ocean, obstacle field and
+  horizon move relative to a stationary hull.
+- Helm authority is positional: the host accepts `HelmInput` only from a player
+  standing in the bridge helm volume.
+- Client raycasts choose a candidate only; the host validates ownership, tool,
+  target and range.
+- Keep authored data Zod-validated and fixed-step behaviour deterministic.
+- Keep GLB loading non-authoritative with a usable greybox fallback.
+- Every compartment must meet its budget in docs/PERFORMANCE.md before it merges.
+- Loose-object collision is pairwise O(n²). A uniform spatial-hash broadphase is
+  a prerequisite for the second compartment.
+- Snapshot delta compression is a prerequisite for crews above two.
+- Never commit TURN credentials.
 
-Immediate task:
-1. Verify `novo-main-stable` and read the current Git/docs before selecting a bounded gameplay or asset slice.
-2. Run format, lint, typecheck, data/assets validation, unit, integration, E2E and Vite build.
-3. Manually test solo and two-browser room flows plus desktop/narrow visual layouts, then record exact limitations and update the handoff.
-4. Keep production audio, world-prop animation and passenger/prop replacement as separate reviewable slices.
-5. Commit or push only when explicitly authorized.
+Verification, all of it, every slice:
+git diff --check, pnpm format:check, pnpm lint, pnpm typecheck,
+pnpm validate:data, pnpm validate:assets, pnpm test:unit, pnpm test:integration,
+pnpm test:e2e, pnpm build, pnpm desktop:build (close any running
+cabin-mayhem.exe first). Report the live room smoke separately; it needs
+LIVE_MULTIPLAYER=1.
 
-Current evidence for the feature line through `0bf3625` plus the authored-animation slice:
-- `git diff --check`, format check, ESLint, TypeScript, data validation and asset validation pass. Asset validation covers 4 project-owned assets and both rigs (2 rigs, 44 authored clips).
-- 96 unit tests pass; 2 integration tests pass; 11 Playwright tests are collected, with 10 passing and the live multiplayer test skipped without `LIVE_MULTIPLAYER`.
+Last recorded evidence, for the airliner line through 79bb002:
+- Format, lint, typecheck, data validation and asset validation pass. Asset
+  validation covers 4 project-owned assets and both rigs (2 rigs, 44 clips).
+- 96 unit tests pass; 2 integration tests pass; 11 Playwright tests collected,
+  10 passing, 1 live-multiplayer test skipped without LIVE_MULTIPLAYER.
 - Vite production build passes with a non-blocking large-chunk warning.
-- Tauri MSI and NSIS packaging passes; generated installers remain unsigned.
-- GitHub Actions is green for `73d2c08`.
-- Full manual passenger aiming, real two-browser play and fresh post-expansion GLB/animation visual inspection remain pending.
+- Tauri MSI and NSIS packaging passes; installers unsigned.
+- Manual two-browser room play and in-motion review of the authored clips remain
+  pending.
 ```
