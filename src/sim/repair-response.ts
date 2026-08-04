@@ -44,7 +44,7 @@ export function activateRepair(
       pressurePulse: false,
       message: 'Coffee machine incident already resolved',
     };
-  if (phase !== 'cruise')
+  if (phase !== 'open-sea')
     return {
       repair: current,
       accepted: false,

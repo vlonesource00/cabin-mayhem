@@ -34,15 +34,11 @@ export class CabinInputController {
       repair: keyboard.repair || Boolean(pad.buttons[0]?.pressed),
       throwItem: keyboard.throwItem || this.consumePad(pad.buttons[3]?.pressed),
       helm: {
-        pitch: keyboard.helm.pitch || deadZone(pad.axes[3] ?? 0),
-        roll: keyboard.helm.roll || deadZone(pad.axes[2] ?? 0),
-        yaw:
-          keyboard.helm.yaw ||
-          Number(Boolean(pad.buttons[15]?.pressed)) - Number(Boolean(pad.buttons[14]?.pressed)),
-        throttle:
-          keyboard.helm.throttle ||
+        rudder: keyboard.helm.rudder || deadZone(pad.axes[2] ?? 0),
+        telegraph:
+          keyboard.helm.telegraph ||
           Number(Boolean(pad.buttons[7]?.pressed)) - Number(Boolean(pad.buttons[6]?.pressed)),
-        brake: keyboard.helm.brake || Boolean(pad.buttons[5]?.pressed),
+        emergencyStop: keyboard.helm.emergencyStop || Boolean(pad.buttons[5]?.pressed),
       },
     };
   }
@@ -72,11 +68,11 @@ export class CabinInputController {
           : undefined;
     command.throwItem = this.consume('KeyQ');
     command.helm = {
-      pitch: Number(this.pressed.has('ArrowUp')) - Number(this.pressed.has('ArrowDown')),
-      roll: Number(this.pressed.has('ArrowRight')) - Number(this.pressed.has('ArrowLeft')),
-      yaw: Number(this.pressed.has('KeyL')) - Number(this.pressed.has('KeyJ')),
-      throttle: Number(this.pressed.has('KeyR')) - Number(this.pressed.has('KeyF')),
-      brake: this.pressed.has('KeyB'),
+      rudder: Number(this.pressed.has('ArrowRight')) - Number(this.pressed.has('ArrowLeft')),
+      telegraph:
+        Number(this.pressed.has('KeyR') || this.pressed.has('ArrowUp')) -
+        Number(this.pressed.has('KeyF') || this.pressed.has('ArrowDown')),
+      emergencyStop: this.pressed.has('KeyB'),
     };
     return command;
   }
@@ -123,7 +119,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 function isGameKey(code: string): boolean {
-  return /^(Digit[123]|Key[ACDEFGHIJLQRSW]|Arrow(Up|Down|Left|Right)|Shift(Left|Right)|Control(Left|Right))$/.test(
+  return /^(Digit[123]|Key[ABCDEFGHIJLQRSW]|Arrow(Up|Down|Left|Right)|Shift(Left|Right)|Control(Left|Right))$/.test(
     code,
   );
 }

@@ -73,7 +73,7 @@ describe('host session', () => {
     session.damage('electrical');
     session.spawnObject();
     const state = session.snapshot();
-    expect(state.voyage.phase).toBe('taxi');
+    expect(state.voyage.phase).toBe('preparation');
     expect(state.voyage.electrical).toBeLessThan(1);
     expect(Object.keys(state.cabin.objects)).toContain('case-spawn-1');
     expect(state.events.length).toBeGreaterThanOrEqual(3);

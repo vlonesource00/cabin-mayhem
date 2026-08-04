@@ -83,7 +83,7 @@ describe('cabin service mission', () => {
         passenger.servicePosition,
       ).service;
     }
-    const voyage = { ...createVoyageState(), phase: 'landed' as const };
+    const voyage = { ...createVoyageState(), phase: 'docked' as const };
     expect(stepServiceMission(service, voyage, 1 / 60).outcome).toBe('success');
   });
 });

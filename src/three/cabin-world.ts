@@ -354,7 +354,8 @@ export class CabinWorld {
 
     const panel = this.box('voyage deck', [6.8, 1.05, 1.05], [0, 1.05, -2.25], instrument);
     panel.rotation.x = -0.18;
-    panel.userData.interaction = 'Cockpit controls — R/F throttle, arrows pitch/roll, J/L yaw';
+    panel.userData.interaction =
+      'Bridge helm — left/right arrows wind the wheel, R/F work the telegraph, B crash stop';
     this.interactionRoots.push(panel);
     this.cabin.add(panel);
 

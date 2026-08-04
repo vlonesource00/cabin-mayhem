@@ -98,7 +98,7 @@ export class HostSession {
     this.resolveRepair(dt);
     const previousOutcome = this.state.service.outcome;
     this.state.service = stepServiceMission(this.state.service, this.state.voyage, dt);
-    if (this.state.fire.status === 'active' && this.state.voyage.phase === 'landed')
+    if (this.state.fire.status === 'active' && this.state.voyage.phase === 'docked')
       this.state.service = {
         ...this.state.service,
         outcome: 'failed',
@@ -274,7 +274,7 @@ export class HostSession {
     if (
       this.state.repair.status === 'dormant' &&
       this.state.service.outcome === 'active' &&
-      this.state.voyage.phase === 'cruise' &&
+      this.state.voyage.phase === 'open-sea' &&
       this.state.voyage.phaseElapsed >= galleyRepairDefinition.triggerAfterCruiseSeconds &&
       this.state.fire.status !== 'active'
     )

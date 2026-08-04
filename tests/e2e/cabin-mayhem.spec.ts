@@ -83,7 +83,7 @@ test('two isolated browsers join one host-authoritative WebRTC room', async ({ b
   await host.evaluate(() => window.__CABIN_MAYHEM_TEST__?.advancePhase());
   await expect
     .poll(() => guest.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.voyage.phase))
-    .toBe('taxi');
+    .toBe('preparation');
   await expect
     .poll(() => guest.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.tick))
     .toBeGreaterThan(5);
@@ -115,9 +115,9 @@ test('test bridge drives host turbulence and deterministic voyage phases', async
   await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
   await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.trigger('turbulence'));
 
-  await expect(page.locator('[data-hud="caption"]')).toContainText('Turbulence');
+  await expect(page.locator('[data-hud="caption"]')).toContainText('Heavy weather');
   await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.advancePhase());
-  await expect(page.locator('[data-hud="phase"]')).toHaveText('TAXI');
+  await expect(page.locator('[data-hud="phase"]')).toHaveText('PREPARATION');
 });
 
 test('fire is exposed through the compact critical icon', async ({ page }) => {
@@ -152,7 +152,7 @@ test('failed landing shows reviews, score and incident results', async ({ page }
     window.__CABIN_MAYHEM_TEST__?.trigger('fire');
     window.__CABIN_MAYHEM_TEST__?.completeShift('failed');
   });
-  await expect(page.locator('[data-hud="phase"]')).toHaveText('LANDED');
+  await expect(page.locator('[data-hud="phase"]')).toHaveText('DOCKED');
   const debrief = page.getByTestId('landing-debrief');
   await expect(debrief).toBeVisible();
   await expect(debrief.locator('[data-debrief="outcome-label"]')).toHaveText('SHIFT LOST');
@@ -178,7 +178,7 @@ test('successful landing can fly another shift', async ({ page }) => {
 
   await debrief.getByRole('button', { name: 'FLY ANOTHER SHIFT' }).click();
   await expect(debrief).toBeHidden();
-  await expect(page.locator('[data-hud="phase"]')).toHaveText('GROUND');
+  await expect(page.locator('[data-hud="phase"]')).toHaveText('MOORED');
   await expect
     .poll(() => page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.service.outcome))
     .toBe('active');

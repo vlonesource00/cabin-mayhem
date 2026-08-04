@@ -13,7 +13,7 @@ describe('Phase 1 technical path', () => {
     for (let tick = 0; tick < 360; tick += 1) session.step(1 / 60);
     for (let phase = 0; phase < 5; phase += 1) session.advancePhase();
     const state = session.snapshot();
-    expect(state.voyage.phase).toBe('landed');
+    expect(state.voyage.phase).toBe('docked');
     expect(state.cabin.lastImpulse).toBeGreaterThanOrEqual(0);
     expect(state.events.map((event) => event.type)).toContain('physics');
     expect(state.events.map((event) => event.type)).toContain('system');

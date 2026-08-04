@@ -117,7 +117,7 @@ export class CabinMayhemApp {
         <section class="world-stage" data-world-stage></section>
         <header class="flight-chip">
           ${icon('plane')}
-          <div><p class="flight-chip__eyebrow">FLIGHT 07 / CABIN MAYHEM</p><strong data-hud="phase">GROUND</strong></div>
+          <div><p class="flight-chip__eyebrow">FLIGHT 07 / CABIN MAYHEM</p><strong data-hud="phase">MOORED</strong></div>
         </header>
         <button class="dev-toggle" data-action="debug-toggle" type="button" aria-expanded="false">
           ${icon('dev')}<span>F1</span>
@@ -176,7 +176,7 @@ export class CabinMayhemApp {
         </section>
         <aside class="dev-drawer" aria-label="Development controls" aria-hidden="true">
           <p class="dev-drawer__title">CHAOS LAB / F1</p>
-          <div class="dev-readout"><span>Telemetry</span><span data-hud="speed">0 kt</span><span>Altitude</span><span data-hud="altitude">0 ft</span><span>Stock</span><span data-hud="cart-stock">D 3 / M 3 / MED 2</span><span>Objects</span><span data-hud="objects">0</span></div>
+          <div class="dev-readout"><span>Telemetry</span><span data-hud="speed">0 kt</span><span>Heading</span><span data-hud="heading">000</span><span>Stock</span><span data-hud="cart-stock">D 3 / M 3 / MED 2</span><span>Objects</span><span data-hud="objects">0</span></div>
           <div class="dev-drawer__buttons">
             <button data-action="turbulence">Turbulence</button>
             <button data-action="drop">Air pocket</button>
@@ -271,8 +271,8 @@ export class CabinMayhemApp {
     const objective = objectiveFor(state);
     const caption = captionFor(state);
     this.text('[data-hud="phase"]', state.voyage.phase.toUpperCase());
-    this.text('[data-hud="speed"]', `${Math.round(state.voyage.airspeed)} kt`);
-    this.text('[data-hud="altitude"]', `${Math.round(state.voyage.altitude)} ft`);
+    this.text('[data-hud="speed"]', `${Math.round(state.voyage.speed)} kt`);
+    this.text('[data-hud="heading"]', headingLabel(state.voyage.heading));
     this.text('[data-hud="objects"]', String(Object.keys(state.cabin.objects).length));
     this.text('[data-hud="interaction"]', this.world?.prompt() ?? 'SCAN CABIN');
     this.text('[data-hud="held"]', held?.toUpperCase() ?? 'EMPTY');
@@ -315,7 +315,7 @@ export class CabinMayhemApp {
     if (progress) progress.style.width = `${Math.round((objective.progress ?? 0) * 100)}%`;
     this.text(
       '[data-hud="screen-reader-status"]',
-      `${state.voyage.phase} flight, ${Math.round(state.voyage.airspeed)} knots, ${Math.round(state.voyage.altitude)} feet. ${objective.title}. ${caption}`,
+      `${state.voyage.phase}, ${Math.round(state.voyage.speed)} knots, heading ${headingLabel(state.voyage.heading)}. ${objective.title}. ${caption}`,
     );
     this.updateDebrief(state);
   }
@@ -641,6 +641,12 @@ function captionFor(state: MissionState): string {
       ? 'SHIFT COMPLETE. TAKE A BOW.'
       : 'SHIFT LOST. PASSENGERS ARE WRITING REVIEWS.';
   return state.voyage.warning ?? state.events[0]?.message ?? 'HOST READY. LOCAL CLIENT CONNECTED.';
+}
+
+/** Compass heading as the three-digit form a bridge readout uses: 007, 082, 359. */
+function headingLabel(heading: number): string {
+  const degrees = Math.round(((heading % 360) + 360) % 360) % 360;
+  return String(degrees).padStart(3, '0');
 }
 
 function icon(name: IconName): string {

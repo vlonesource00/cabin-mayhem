@@ -1,5 +1,5 @@
 export type VoyagePhase =
-  'ground' | 'taxi' | 'takeoff' | 'cruise' | 'approach' | 'landed' | 'crashed';
+  'moored' | 'preparation' | 'departure' | 'open-sea' | 'approach' | 'docked' | 'foundered';
 
 export type ServiceNeed = 'drink' | 'meal' | 'medical';
 export type FireStatus = 'dormant' | 'active' | 'suppressed';
@@ -21,12 +21,21 @@ export interface Vec2 {
   y: number;
 }
 
+/**
+ * Helm controls, as rate commands rather than positions.
+ *
+ * A ship's wheel and engine telegraph hold where they are put; the crew moves
+ * them and lets go. `rudder` and `telegraph` therefore say which way the crew is
+ * turning the control this frame, and the resulting *positions* live in
+ * `VoyageState`.
+ */
 export interface HelmInput {
-  pitch: number;
-  roll: number;
-  yaw: number;
-  throttle: number;
-  brake: boolean;
+  /** -1 winds the wheel to port, +1 to starboard. */
+  rudder: number;
+  /** -1 pulls the telegraph astern, +1 pushes it ahead. */
+  telegraph: number;
+  /** Crash stop. Slams the telegraph to zero and adds astern thrust. */
+  emergencyStop: boolean;
 }
 
 export interface PlayerCommand {
@@ -141,14 +150,20 @@ export interface VoyageState {
   phase: VoyagePhase;
   phaseElapsed: number;
   clock: number;
-  airspeed: number;
-  altitude: number;
-  verticalSpeed: number;
+  /** Speed through the water in knots. Negative is sternway. */
+  speed: number;
+  /** Compass heading in degrees, 0..360. */
   heading: number;
+  /** Wheel position, -1 hard to port .. +1 hard to starboard. */
+  rudder: number;
+  /** Telegraph position, -1 full astern .. +1 full ahead. */
+  telegraph: number;
+  /** Rate of turn in degrees per second. */
+  rateOfTurn: number;
+  /** Trim in degrees, bow up positive. Surge, not swell. */
   pitch: number;
+  /** Heel in degrees from steering. A ship heels away from the turn. */
   roll: number;
-  yawRate: number;
-  throttle: number;
   turbulence: number;
   airPocket: number;
   turnImpulse: number;
@@ -161,7 +176,7 @@ export interface VoyageState {
   sea: SeaState;
   /**
    * Hull attitude derived from `sea`. Distinct from `pitch`/`roll`, which are
-   * still the commanded attitude the helm asks for.
+   * the steering attitude: trim from surge and heel from the turn.
    */
   hull: HullMotion;
   warning?: string;
@@ -233,5 +248,5 @@ export const emptyCommand = (): PlayerCommand => ({
   interact: false,
   repair: false,
   throwItem: false,
-  helm: { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: false },
+  helm: { rudder: 0, telegraph: 0, emergencyStop: false },
 });

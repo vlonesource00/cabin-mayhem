@@ -25,8 +25,15 @@ Windows EXE. Do not convert it to another engine or a 2D/top-down game.
 
 The premise changed from an airliner to a cruise ship. Read
 docs/adr/0001-cruise-ship-pivot.md first. The documentation describes the whole
-ship; the code has the renamed vocabulary and the ocean, and every gameplay
-system underneath is still the airliner. That gap is expected, not a bug.
+ship. The code has the renamed vocabulary, the ocean and a real ship motion
+model; every gameplay system and all of the interior geometry underneath are
+still the airliner. That gap is expected, not a bug.
+
+Read this before you look at the game or judge a screenshot: the three slices
+done so far replaced the simulation, not the geometry. The ship genuinely sails,
+but the compartment the player stands in is still the airliner cabin, because
+replacing it is the very next slice. Do not spend time testing gameplay inside
+the fuselage — build the greybox compartments instead.
 
 Before changing code:
 1. Run `git status --short --branch`, `git log -5 --oneline --decorate`, then
@@ -79,29 +86,41 @@ Open decisions to resolve before building interiors:
 Done in Phase 5:
 1. The mechanical rename. `VoyageState`, `VoyagePhase`, `HelmInput`,
    `src/sim/ship-model.ts`, `MissionState.voyage`, `PlayerCommand.helm` and the
-   `voyage` event type are the current names. Phase *values* are still the
-   airliner set (`ground`/`taxi`/`takeoff`/`cruise`/`approach`/`landed`/
-   `crashed`); they change with the ship motion model, not before.
+   `voyage` event type are the current names.
 2. The ocean. `src/sim/ocean.ts` holds one directional-sine wave table that is
    the single source of truth: the simulation evaluates it in TypeScript at four
    hull sample points to fit `HullMotion` (pitch, roll, heave), and
    `oceanWaveGlsl()` generates the vertex-shader copy used by
    `src/three/ocean-surface.ts`, so the two cannot be edited apart. `SeaState`
    (`drift`, `swell`) and `HullMotion` are new `VoyageState` fields. The hull
-   holds the world origin; headway is recorded as `sea.drift`. `cabinAcceleration`
-   is untouched — coupling the deck to the swell belongs to the motion model.
+   holds the world origin; headway is recorded as `sea.drift`.
+3. The ship motion model. `src/sim/ship-model.ts` is a rate-command helm:
+   `HelmInput` carries `rudder`/`telegraph` deltas plus `emergencyStop`, and the
+   wheel and telegraph positions live in `VoyageState` and hold where the crew
+   left them. Speed is in knots with an asymmetric response (`0.09/s` building
+   way, `0.032/s` shedding it, `0.30/s` crash stop), so there are no brakes at
+   sea. Turning radius is emergent from steerage way: a dead ship cannot steer,
+   sternway reverses the rudder, and the hull heels outward, opposite an
+   aircraft. `cabinAcceleration` sums centripetal force, the g-sine component of
+   trim, heel and both hull angles, and the second difference of heave;
+   `src/sim/cabin-simulation.ts` is untouched. Phase values are now `moored`,
+   `preparation`, `departure`, `open-sea`, `approach`, `docked`, with
+   `foundered` as the failure terminal. Controls: arrows left/right wind the
+   wheel, `R`/`F` work the telegraph, `B` crash stops.
 
 Immediate task — Phase 5 in docs/ROADMAP.md, in this order:
-1. Ship motion model: heading, rudder, telegraph, speed, turning radius,
-   momentum. This replaces the `airspeed * 0.5` placeholder unit conversion in
-   `updateVoyage` with real knots, couples hull motion into the deck through
-   `cabinAcceleration` (the cabin simulation itself stays unchanged), and swaps
-   the airliner phase values for `moored` → `preparation` → `departure` →
-   `open-sea` → `approach` → `docked` / `foundered`.
-2. Greybox compartments — bridge, one corridor, one public room, engine room —
-   behind the streaming loader and the portal graph.
-3. Helm station with positional input authority.
-4. The collision-course incident end to end: host spawns the obstacle, every
+1. **Greybox compartments: bridge, one corridor, one public room, engine room,
+   behind the streaming loader and the portal graph. Start here.** This is the
+   slice that retires the airliner cabin, and it is the largest remaining thing
+   that still reads as the old game. Author against docs/SHIP_LAYOUT.md and the
+   eye height fixed by docs/adr/0002-first-person-camera.md, keep GLB loading
+   non-authoritative with a usable greybox fallback, and hold each compartment to
+   its docs/PERFORMANCE.md budget. The uniform spatial-hash broadphase is a
+   prerequisite for the second compartment, not an optimisation.
+2. Helm station with positional input authority: the host accepts `HelmInput`
+   only from a player standing in the bridge helm volume. It needs a bridge to
+   stand in, which is why it follows the greybox.
+3. The collision-course incident end to end: host spawns the obstacle, every
    client shows the same warning and countdown, a player must physically reach
    the bridge, the host validates the avoidance, clearing throws loose objects,
    missing breaches the hull.
@@ -134,14 +153,19 @@ pnpm test:e2e, pnpm build, pnpm desktop:build (close any running
 cabin-mayhem.exe first). Report the live room smoke separately; it needs
 LIVE_MULTIPLAYER=1.
 
-Last recorded evidence, for the ocean slice on new-idea-vlone:
-- Format, lint, typecheck, data validation and asset validation pass. Asset
-  validation covers 4 project-owned assets and both rigs (2 rigs, 44 clips).
-- 115 unit tests pass, 19 of them new for the ocean; 2 integration tests pass;
-  11 Playwright tests collected, 10 passing, 1 live-multiplayer test skipped
-  without LIVE_MULTIPLAYER.
+Last recorded evidence, for the ship motion slice on new-idea-vlone:
+- git diff --check, format, lint, typecheck, data validation and asset validation
+  pass. Asset validation covers 4 project-owned assets and both rigs (2 rigs, 44
+  clips).
+- 118 unit tests pass across 15 files, 6 of them rewritten for ship handling; 2
+  integration tests pass; 11 Playwright tests collected, 10 passing, 1
+  live-multiplayer test skipped without LIVE_MULTIPLAYER.
 - Vite production build passes with a non-blocking large-chunk warning.
 - Tauri MSI and NSIS packaging passes; installers unsigned.
-- Manual two-browser room play and in-motion review of the authored clips remain
-  pending.
+- Manual: driving the test bridge to open-sea gives 19 knots on heading 082 with
+  the wheel and telegraph holding position, so the motion model runs live in the
+  browser, not only under Vitest.
+- Still pending: nobody has seen the sea through a window on screen (the camera
+  starts facing down the aisle and the windows are to the side), manual
+  two-browser room play, and in-motion review of the authored clips.
 ```

@@ -287,8 +287,8 @@ function terminalOutcome(
   served: number,
   missed: number,
 ): ServiceMissionState['outcome'] {
-  if (voyage.phase === 'crashed') return 'failed';
-  if (voyage.phase === 'landed') return served >= 3 && missed <= 3 ? 'success' : 'failed';
+  if (voyage.phase === 'foundered') return 'failed';
+  if (voyage.phase === 'docked') return served >= 3 && missed <= 3 ? 'success' : 'failed';
   if (elapsed >= duration) return served >= 5 && missed <= 2 ? 'success' : 'failed';
   return 'active';
 }

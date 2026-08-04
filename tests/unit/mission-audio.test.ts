@@ -8,25 +8,25 @@ const kinds = (state: MissionState, next: MissionState): string[] =>
   missionCues(state, next, 'crew-alpha').map((cue) => cue.kind);
 
 describe('mission audio projection', () => {
-  it('keeps the ground bed quiet and lifts the engine on takeoff', () => {
+  it('keeps the moored bed quiet and lifts the engine on departure', () => {
     const session = new HostSession();
-    const ground = missionMix(session.snapshot());
-    expect(ground.engine).toBeLessThan(0.2);
-    expect(ground.alarm).toBe(0);
+    const moored = missionMix(session.snapshot());
+    expect(moored.engine).toBeLessThan(0.2);
+    expect(moored.alarm).toBe(0);
 
     const state = clone(session.snapshot());
-    state.voyage.phase = 'takeoff';
-    state.voyage.throttle = 1;
-    state.voyage.airspeed = 320;
-    const climb = missionMix(state);
-    expect(climb.engine).toBeGreaterThan(ground.engine);
-    expect(climb.wind).toBeCloseTo(1, 5);
+    state.voyage.phase = 'departure';
+    state.voyage.telegraph = 1;
+    state.voyage.speed = 24;
+    const under = missionMix(state);
+    expect(under.engine).toBeGreaterThan(moored.engine);
+    expect(under.wind).toBeCloseTo(1, 5);
   });
 
   it('clamps every bed to 0..1 under extreme voyage values', () => {
     const state = clone(new HostSession().snapshot());
-    state.voyage.airspeed = 4000;
-    state.voyage.throttle = 12;
+    state.voyage.speed = 4000;
+    state.voyage.telegraph = 12;
     state.voyage.turbulence = 9;
     state.voyage.airPocket = -7;
     state.fire.status = 'active';
@@ -54,7 +54,7 @@ describe('mission audio projection', () => {
   it('derives cues from authoritative deltas rather than event text', () => {
     const previous = new HostSession().snapshot();
     const next = clone(previous);
-    next.voyage.phase = 'takeoff';
+    next.voyage.phase = 'departure';
     next.fire.status = 'active';
     next.repair.status = 'active';
     next.service.served += 2;

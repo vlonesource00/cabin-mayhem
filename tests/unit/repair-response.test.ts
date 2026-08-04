@@ -20,10 +20,10 @@ const toolbox: CabinObject = {
 
 describe('repair response', () => {
   it('only activates during a fire-free cruise', () => {
-    expect(activateRepair(createRepairState(), 'ground', 'dormant').accepted).toBe(false);
-    expect(activateRepair(createRepairState(), 'cruise', 'active').accepted).toBe(false);
+    expect(activateRepair(createRepairState(), 'moored', 'dormant').accepted).toBe(false);
+    expect(activateRepair(createRepairState(), 'open-sea', 'active').accepted).toBe(false);
 
-    const active = activateRepair(createRepairState(), 'cruise', 'dormant');
+    const active = activateRepair(createRepairState(), 'open-sea', 'dormant');
     expect(active.accepted).toBe(true);
     expect(active.repair.status).toBe('active');
     expect(active.repair.pressure).toBeGreaterThan(0);
@@ -31,7 +31,7 @@ describe('repair response', () => {
   });
 
   it('rejects the wrong tool, owner, target, and range', () => {
-    const active = activateRepair(createRepairState(), 'cruise', 'dormant').repair;
+    const active = activateRepair(createRepairState(), 'open-sea', 'dormant').repair;
     const attempt = {
       holding: true,
       targetId: active.id,
@@ -59,7 +59,7 @@ describe('repair response', () => {
   });
 
   it('holds uninterrupted for three seconds, pauses pressure while repairing, and completes', () => {
-    let repair = activateRepair(createRepairState(), 'cruise', 'dormant').repair;
+    let repair = activateRepair(createRepairState(), 'open-sea', 'dormant').repair;
     const valid = {
       holding: true,
       targetId: repair.id,
@@ -82,7 +82,7 @@ describe('repair response', () => {
   });
 
   it('resets an interrupted repair and escalates pressure on a five-second cadence', () => {
-    const active = activateRepair(createRepairState(), 'cruise', 'dormant').repair;
+    const active = activateRepair(createRepairState(), 'open-sea', 'dormant').repair;
     const fireInterrupt = stepRepair(
       { ...active, status: 'repairing', progress: 0.6 },
       { holding: true, fireStatus: 'active' },

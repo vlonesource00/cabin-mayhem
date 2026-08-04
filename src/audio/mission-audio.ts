@@ -34,13 +34,13 @@ export interface AudioMix {
 const unit = (value: number): number => clamp(value, 0, 1);
 
 const phaseEngine: Record<MissionState['voyage']['phase'], number> = {
-  ground: 0.12,
-  taxi: 0.3,
-  takeoff: 0.85,
-  cruise: 0.55,
+  moored: 0.12,
+  preparation: 0.3,
+  departure: 0.85,
+  'open-sea': 0.55,
   approach: 0.45,
-  landed: 0.18,
-  crashed: 0,
+  docked: 0.18,
+  foundered: 0,
 };
 
 /**
@@ -51,9 +51,9 @@ export function missionMix(state: MissionState): AudioMix {
   const { voyage, fire, repair } = state;
   const engineFloor = phaseEngine[voyage.phase];
   const engine = unit(
-    engineFloor * 0.55 + unit(voyage.throttle) * 0.45 * (engineFloor > 0 ? 1 : 0),
+    engineFloor * 0.55 + unit(Math.abs(voyage.telegraph)) * 0.45 * (engineFloor > 0 ? 1 : 0),
   );
-  const wind = unit(voyage.airspeed / 320) * (voyage.phase === 'crashed' ? 0 : 1);
+  const wind = unit(Math.abs(voyage.speed) / 22) * (voyage.phase === 'foundered' ? 0 : 1);
   const rumble = unit(voyage.turbulence * 0.8 + Math.abs(voyage.airPocket) * 0.5);
   const fireLevel = fire.status === 'active' ? unit(fire.intensity) : 0;
   const alarm = fire.status === 'active' || repair.status === 'active' ? 1 : 0;

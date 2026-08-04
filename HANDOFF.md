@@ -8,12 +8,22 @@ Tauri/Rust Windows wrapper. The stable project branch is `novo-main-stable`.
 **The premise changed.** The game is now a cruise ship, not an airliner. See
 [ADR 0001](docs/adr/0001-cruise-ship-pivot.md) for what is kept, what is renamed
 and what is retired. The documentation is rewritten for the ship. Implementation
-has started on `new-idea-vlone`: the vocabulary is renamed and the ocean is in,
-but every gameplay system below is still the airliner vertical.
+has started on `new-idea-vlone`: the vocabulary is renamed, the ocean is in and
+the ship handles like a ship, but every gameplay system below is still the
+airliner vertical.
+
+**Read this before looking at a screenshot.** The three slices done so far
+replaced the simulation, not the geometry. The ship sails, but the compartment
+the player stands in is still the airliner cabin, because replacing it is the
+next slice (greybox compartments). That is expected, not a regression.
 
 What actually runs today, on top of the ocean:
 
-- Automatic ground, taxi, takeoff, cruise, approach and landing progression.
+- Moored → preparation → departure → open-sea → approach → docked progression,
+  driven by the telegraph rather than by a debug phase skip.
+- A rate-command helm: the wheel and telegraph hold position, speed is in knots
+  with a long deceleration tail, turning radius is emergent from steerage way,
+  the hull heels outward in a turn and the swell is felt through the deck.
 - Host-authoritative cabin physics, service-cart stock, passenger requests,
   delivery validation, patience, panic, injury, score and mission outcome.
 - A galley-fire objective with extinguisher ownership, aim and range validation.
@@ -33,7 +43,26 @@ generalisation, and the rest is new.
 
 ## Last changes
 
-Phase 5 step 2 added the ocean, on branch `new-idea-vlone`. `src/sim/ocean.ts`
+Phase 5 step 3 gave the ship real handling, on branch `new-idea-vlone`.
+`src/sim/ship-model.ts` is now a rate-command helm: `HelmInput` carries
+`rudder`/`telegraph` deltas plus `emergencyStop`, and the wheel and telegraph
+positions live in `VoyageState` and hold where the crew left them. Speed is in
+knots and responds asymmetrically — `0.09/s` building way, `0.032/s` shedding it,
+`0.30/s` on a crash stop — so there are no brakes at sea. Turning radius is
+emergent: rudder authority scales with steerage way, so a dead ship cannot steer
+and sternway reverses the rudder, and the hull heels _outward_, opposite an
+aircraft. `cabinAcceleration` now sums centripetal force with the `g·sin`
+component of steering trim, heel and both sea-driven hull angles, plus the second
+difference of heave, so loose props inherit the sea without any change to
+`src/sim/cabin-simulation.ts`. The airliner phase values are gone: `moored` →
+`preparation` → `departure` → `open-sea` → `approach` → `docked`, with
+`foundered` as the failure terminal.
+
+Controls: left/right arrows wind the wheel, `R`/`F` (or up/down arrows) work the
+telegraph, `B` is the crash stop. The HUD's altitude field became a three-digit
+bridge heading, and the camera couples hull pitch and roll.
+
+Before that, Phase 5 step 2 added the ocean. `src/sim/ocean.ts`
 holds one directional-sine wave table that is the single source of truth for the
 water: the simulation evaluates it in TypeScript at four hull sample points to
 fit pitch, roll and heave, and `oceanWaveGlsl()` generates the vertex-shader
@@ -112,32 +141,38 @@ Before that, documentation only. No runtime code changed.
 
 ## Next recommended task
 
-1. The ship motion model: heading, rudder, telegraph, momentum and turning
-   radius, replacing the `airspeed * 0.5` placeholder in `updateVoyage` with real
-   knots. This is where hull pitch/roll/heave finally couple into the deck
-   through `cabinAcceleration`, and where the airliner phase values become
-   `moored` → `preparation` → `departure` → `open-sea` → `approach` → `docked`.
-2. Then the helm station with positional input authority.
-3. Then greybox compartments behind the streaming loader and the portal graph.
-4. Then the collision-course incident end to end — the slice that proves the
+1. **Greybox compartments — bridge, one corridor, one public room, engine room —
+   behind the streaming loader and the portal graph.** This is the slice that
+   retires the airliner cabin. It is deliberately first now: the simulation is
+   already a ship, so the interior is the single largest remaining thing that
+   still reads as the old game.
+2. Then the helm station with positional input authority — the host accepts
+   `HelmInput` only from a player standing in the bridge helm volume. It needs a
+   bridge to stand in, which is why it follows the greybox.
+3. Then the collision-course incident end to end — the slice that proves the
    whole design.
 
 ## Current verification
 
-Run against the ocean slice on `new-idea-vlone`:
+Run against the ship motion slice on `new-idea-vlone`:
 
 - `git diff --check`, Prettier check, ESLint, TypeScript, authored-data
   validation and asset validation pass. Asset validation covers 4 project-owned
   assets and both rigs (2 rigs, 44 authored clips).
-- Unit: 115 tests pass, 19 of them new for the ocean. Integration: 2 tests pass.
+- Unit: 118 tests pass across 15 files, 6 of them rewritten for ship handling.
+  Integration: 2 tests pass.
 - Playwright: 11 collected; 10 pass, 1 live-multiplayer test skipped without
   `LIVE_MULTIPLAYER`.
 - Vite production build passes with the existing large-chunk warning.
 - Tauri MSI and NSIS packaging passes; installers unsigned.
-- Manual: dev server, no console errors, so the injected GLSL compiled. Driving
-  the test bridge 600 fixed steps gives live non-zero hull motion on a calm sea
-  (`pitch -0.0079`, `roll 0.0136`, `heave 0.180`) with `drift` still zero,
-  correct for a ship at `airspeed: 0`.
+- Manual: dev server, no console errors. Driving the test bridge to `open-sea`
+  gives `speed 19` knots on `heading 082` with the wheel and telegraph holding
+  position, which is the motion model running live in the browser rather than
+  only under Vitest.
+- Not yet done: nobody has looked at the sea through a window on screen. The
+  camera starts facing down the cabin aisle and the windows are to the side, so
+  the obvious screenshot shows interior. Verify this while doing the greybox
+  slice, where the geometry changes anyway.
 
 ## Verification commands
 

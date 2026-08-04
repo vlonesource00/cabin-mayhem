@@ -11,8 +11,10 @@ Local work snapshot. Phases and exit conditions live in
 
 ## Next (Phase 5)
 
-- [ ] Ship motion model: heading, rudder, telegraph, momentum, turning radius, derived deck acceleration.
+- [x] Ship motion model: heading, rudder, telegraph, momentum, turning radius, derived deck acceleration.
 - [ ] Greybox compartment set (bridge, corridor, public room, engine room) behind the streaming loader.
+      **This is the next slice, and it is the one that removes the airliner cabin.** Until it lands, the
+      simulation is a ship but the geometry the player stands in is still the fuselage.
 - [ ] Helm station with positional input authority.
 - [ ] Collision-course incident end to end: spawn, warning, countdown, host-validated avoidance, consequences either way.
 

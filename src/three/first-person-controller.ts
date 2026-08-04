@@ -98,8 +98,11 @@ export class FirstPersonController {
     );
     camera.rotation.order = 'YXZ';
     camera.rotation.y = this.yaw;
-    camera.rotation.x = this.pitch + THREE.MathUtils.degToRad(voyage.pitch) * 0.018;
-    camera.rotation.z = THREE.MathUtils.degToRad(-voyage.roll) * 0.012 + shakeX * 0.6;
+    // Steering trim/heel are degrees; the sea's contribution is already radians.
+    camera.rotation.x =
+      this.pitch + THREE.MathUtils.degToRad(voyage.pitch) * 0.018 + voyage.hull.pitch * 0.35;
+    camera.rotation.z =
+      THREE.MathUtils.degToRad(-voyage.roll) * 0.012 - voyage.hull.roll * 0.35 + shakeX * 0.6;
   }
 
   public isLocked(): boolean {

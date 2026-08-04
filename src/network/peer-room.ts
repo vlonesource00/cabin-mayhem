@@ -27,11 +27,9 @@ const commandSchema = z
     throwItem: z.boolean(),
     helm: z
       .object({
-        pitch: unit,
-        roll: unit,
-        yaw: unit,
-        throttle: finite.min(0).max(1),
-        brake: z.boolean(),
+        rudder: unit,
+        telegraph: unit,
+        emergencyStop: z.boolean(),
       })
       .strict(),
   })
