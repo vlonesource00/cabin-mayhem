@@ -1,9 +1,9 @@
 import { clamp, finite } from './math';
-import type { DamageSystem, FlightPhase, FlightState, PilotInput } from './types';
+import type { DamageSystem, VoyagePhase, VoyageState, HelmInput } from './types';
 
-const phaseOrder: FlightPhase[] = ['ground', 'taxi', 'takeoff', 'cruise', 'approach', 'landed'];
+const phaseOrder: VoyagePhase[] = ['ground', 'taxi', 'takeoff', 'cruise', 'approach', 'landed'];
 
-export function createFlightState(): FlightState {
+export function createVoyageState(): VoyageState {
   return {
     phase: 'ground',
     phaseElapsed: 0,
@@ -27,11 +27,11 @@ export function createFlightState(): FlightState {
   };
 }
 
-export function updateFlight(
-  current: FlightState,
-  input: PilotInput,
+export function updateVoyage(
+  current: VoyageState,
+  input: HelmInput,
   deltaSeconds: number,
-): FlightState {
+): VoyageState {
   const dt = clamp(finite(deltaSeconds), 0, 0.05);
   const phase = current.phase;
   const throttle = clamp(current.throttle + clamp(input.throttle, -1, 1) * dt * 0.42, 0, 1);
@@ -51,7 +51,7 @@ export function updateFlight(
     0,
     260,
   );
-  const nextPhase = autoFlightPhase(phase, throttle, airspeed, current.altitude);
+  const nextPhase = autoVoyagePhase(phase, throttle, airspeed, current.altitude);
   const rotationAssist = nextPhase === 'takeoff' && airspeed >= 96 && throttle >= 0.58 ? 8.5 : 0;
   const roll = clamp(
     current.roll + clamp(input.roll, -1, 1) * dt * 30 - current.roll * dt * 0.65,
@@ -100,31 +100,31 @@ export function updateFlight(
   };
 }
 
-function autoFlightPhase(
-  phase: FlightPhase,
+function autoVoyagePhase(
+  phase: VoyagePhase,
   throttle: number,
   airspeed: number,
   altitude: number,
-): FlightPhase {
+): VoyagePhase {
   if (phase === 'ground' && throttle >= 0.1 && airspeed >= 4) return 'taxi';
   if (phase === 'taxi' && throttle >= 0.62 && airspeed >= 64) return 'takeoff';
   if (phase === 'takeoff' && altitude >= 900) return 'cruise';
   return phase;
 }
 
-function phaseMessage(phase: FlightPhase): string {
+function phaseMessage(phase: VoyagePhase): string {
   if (phase === 'taxi') return 'Taxi rolling - hold R for takeoff power';
   if (phase === 'takeoff') return 'V1 - rotate assist engaged';
   if (phase === 'cruise') return 'Cruise altitude captured';
   return `Phase: ${phase}`;
 }
 
-export function advanceFlightPhase(current: FlightState): FlightState {
+export function advanceVoyagePhase(current: VoyageState): VoyageState {
   if (current.phase === 'crashed' || current.phase === 'landed') return current;
   const index = phaseOrder.indexOf(current.phase);
   const next = phaseOrder[index + 1];
   if (!next) return current;
-  const presets: Record<FlightPhase, Pick<FlightState, 'airspeed' | 'altitude' | 'throttle'>> = {
+  const presets: Record<VoyagePhase, Pick<VoyageState, 'airspeed' | 'altitude' | 'throttle'>> = {
     ground: { airspeed: 0, altitude: 0, throttle: 0 },
     taxi: { airspeed: 18, altitude: 0, throttle: 0.22 },
     takeoff: { airspeed: 142, altitude: 700, throttle: 0.82 },
@@ -136,16 +136,16 @@ export function advanceFlightPhase(current: FlightState): FlightState {
   return { ...current, ...presets[next], phase: next, phaseElapsed: 0, warning: undefined };
 }
 
-export function triggerTurbulence(current: FlightState, severity: number): FlightState {
+export function triggerTurbulence(current: VoyageState, severity: number): VoyageState {
   const turbulence = clamp(severity, 0.1, 1);
   return { ...current, turbulence, warning: `Turbulence ${Math.round(turbulence * 100)}%` };
 }
 
-export function triggerAirPocket(current: FlightState): FlightState {
+export function triggerAirPocket(current: VoyageState): VoyageState {
   return { ...current, airPocket: 1, warning: 'Air pocket: brace now' };
 }
 
-export function triggerSharpTurn(current: FlightState): FlightState {
+export function triggerSharpTurn(current: VoyageState): VoyageState {
   return {
     ...current,
     turnImpulse: 1,
@@ -154,7 +154,7 @@ export function triggerSharpTurn(current: FlightState): FlightState {
   };
 }
 
-export function triggerCollision(current: FlightState): FlightState {
+export function triggerCollision(current: VoyageState): VoyageState {
   return {
     ...current,
     collisionImpulse: 1,
@@ -163,7 +163,7 @@ export function triggerCollision(current: FlightState): FlightState {
   };
 }
 
-export function damageSystem(current: FlightState, system: DamageSystem): FlightState {
+export function damageSystem(current: VoyageState, system: DamageSystem): VoyageState {
   const damage = 0.24;
   if (system === 'electrical')
     return {

@@ -6,15 +6,15 @@ import {
   stepCabin,
 } from './cabin-simulation';
 import {
-  advanceFlightPhase,
-  createFlightState,
+  advanceVoyagePhase,
+  createVoyageState,
   damageSystem,
   triggerAirPocket,
   triggerCollision,
   triggerSharpTurn,
   triggerTurbulence,
-  updateFlight,
-} from './flight-model';
+  updateVoyage,
+} from './ship-model';
 import { activateFire, createFireState, stepFire, suppressFire } from './fire-response';
 import { galleyRepairDefinition } from '../data/emergencies';
 import { clamp, distance, normalized, scale } from './math';
@@ -45,7 +45,7 @@ const defaultNetwork: NetworkSettings = {
   packetLoss: 0.02,
 };
 
-/** Host owns phase, flight, physics, object reservation, and damage. Client commands are intent only. */
+/** Host owns phase, voyage, physics, object reservation, and damage. Client commands are intent only. */
 export class HostSession {
   private state: MissionState;
   private readonly transport: SimulatedTransport;
@@ -58,7 +58,7 @@ export class HostSession {
       seed,
       tick: 0,
       hostId: 'crew-alpha',
-      flight: createFlightState(),
+      voyage: createVoyageState(),
       cabin: createCabinState(),
       service: createServiceMission(),
       fire: createFireState(),
@@ -76,29 +76,29 @@ export class HostSession {
   public submitCommand(clientId: string, command: PlayerCommand): void {
     if (!this.state.cabin.players[clientId]) return;
     if (clientId === this.state.hostId) this.commands[clientId] = structuredClone(command);
-    else this.transport.send(this.state.flight.clock * 1000, clientId, command);
+    else this.transport.send(this.state.voyage.clock * 1000, clientId, command);
   }
 
   public step(deltaSeconds: number): void {
     const dt = clamp(deltaSeconds, 0, 0.05);
     if (dt <= 0) return;
-    const now = this.state.flight.clock * 1000;
+    const now = this.state.voyage.clock * 1000;
     for (const packet of this.transport.receive(now))
       this.commands[packet.clientId] = packet.command;
 
     const hostCommand = this.commands[this.state.hostId] ?? emptyCommand();
-    const previousPhase = this.state.flight.phase;
-    this.state.flight = updateFlight(this.state.flight, hostCommand.pilot, dt);
-    if (this.state.flight.phase !== previousPhase)
-      this.log('flight', `Flight: ${previousPhase} / ${this.state.flight.phase}`);
+    const previousPhase = this.state.voyage.phase;
+    this.state.voyage = updateVoyage(this.state.voyage, hostCommand.helm, dt);
+    if (this.state.voyage.phase !== previousPhase)
+      this.log('voyage', `Voyage: ${previousPhase} / ${this.state.voyage.phase}`);
     this.resolveInteractions();
-    this.state.cabin = stepCabin(this.state.cabin, this.state.flight, this.commands, dt);
+    this.state.cabin = stepCabin(this.state.cabin, this.state.voyage, this.commands, dt);
     this.state.fire = stepFire(this.state.fire, dt);
     this.triggerAutomaticRepair();
     this.resolveRepair(dt);
     const previousOutcome = this.state.service.outcome;
-    this.state.service = stepServiceMission(this.state.service, this.state.flight, dt);
-    if (this.state.fire.status === 'active' && this.state.flight.phase === 'landed')
+    this.state.service = stepServiceMission(this.state.service, this.state.voyage, dt);
+    if (this.state.fire.status === 'active' && this.state.voyage.phase === 'landed')
       this.state.service = {
         ...this.state.service,
         outcome: 'failed',
@@ -120,10 +120,10 @@ export class HostSession {
   }
 
   public advancePhase(): void {
-    const previous = this.state.flight.phase;
-    this.state.flight = advanceFlightPhase(this.state.flight);
-    if (previous !== this.state.flight.phase)
-      this.log('flight', `Phase: ${previous} / ${this.state.flight.phase}`);
+    const previous = this.state.voyage.phase;
+    this.state.voyage = advanceVoyagePhase(this.state.voyage);
+    if (previous !== this.state.voyage.phase)
+      this.log('voyage', `Phase: ${previous} / ${this.state.voyage.phase}`);
   }
 
   public trigger(
@@ -141,24 +141,24 @@ export class HostSession {
     if (kind === 'repair') {
       const activation = activateRepair(
         this.state.repair,
-        this.state.flight.phase,
+        this.state.voyage.phase,
         this.state.fire.status,
       );
       this.state.repair = activation.repair;
       this.log('emergency', activation.message);
       return;
     }
-    if (kind === 'turbulence') this.state.flight = triggerTurbulence(this.state.flight, severity);
-    else if (kind === 'air-pocket') this.state.flight = triggerAirPocket(this.state.flight);
-    else if (kind === 'sharp-turn') this.state.flight = triggerSharpTurn(this.state.flight);
-    else this.state.flight = triggerCollision(this.state.flight);
+    if (kind === 'turbulence') this.state.voyage = triggerTurbulence(this.state.voyage, severity);
+    else if (kind === 'air-pocket') this.state.voyage = triggerAirPocket(this.state.voyage);
+    else if (kind === 'sharp-turn') this.state.voyage = triggerSharpTurn(this.state.voyage);
+    else this.state.voyage = triggerCollision(this.state.voyage);
     this.state.service = applyCabinIncident(this.state.service, kind, severity);
-    this.log('physics', this.state.flight.warning ?? kind);
+    this.log('physics', this.state.voyage.warning ?? kind);
   }
 
   public damage(system: DamageSystem): void {
-    this.state.flight = damageSystem(this.state.flight, system);
-    this.log('system', this.state.flight.warning ?? `${system} damaged`);
+    this.state.voyage = damageSystem(this.state.voyage, system);
+    this.log('system', this.state.voyage.warning ?? `${system} damaged`);
   }
 
   public spawnObject(): void {
@@ -274,8 +274,8 @@ export class HostSession {
     if (
       this.state.repair.status === 'dormant' &&
       this.state.service.outcome === 'active' &&
-      this.state.flight.phase === 'cruise' &&
-      this.state.flight.phaseElapsed >= galleyRepairDefinition.triggerAfterCruiseSeconds &&
+      this.state.voyage.phase === 'cruise' &&
+      this.state.voyage.phaseElapsed >= galleyRepairDefinition.triggerAfterCruiseSeconds &&
       this.state.fire.status !== 'active'
     )
       this.trigger('repair');
@@ -438,7 +438,7 @@ export class HostSession {
   private log(type: MissionEvent['type'], message: string): void {
     this.eventId += 1;
     this.state.events = [
-      { id: this.eventId, at: this.state.flight.clock, type, message },
+      { id: this.eventId, at: this.state.voyage.clock, type, message },
       ...this.state.events,
     ].slice(0, 12);
   }

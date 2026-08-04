@@ -1,4 +1,4 @@
-export type FlightPhase =
+export type VoyagePhase =
   'ground' | 'taxi' | 'takeoff' | 'cruise' | 'approach' | 'landed' | 'crashed';
 
 export type ServiceNeed = 'drink' | 'meal' | 'medical';
@@ -21,7 +21,7 @@ export interface Vec2 {
   y: number;
 }
 
-export interface PilotInput {
+export interface HelmInput {
   pitch: number;
   roll: number;
   yaw: number;
@@ -40,7 +40,7 @@ export interface PlayerCommand {
   interactionTargetId?: string | null;
   selectServiceNeed?: ServiceNeed;
   throwItem: boolean;
-  pilot: PilotInput;
+  helm: HelmInput;
 }
 
 export interface PlayerState {
@@ -119,8 +119,8 @@ export interface CabinState {
   lastImpulse: number;
 }
 
-export interface FlightState {
-  phase: FlightPhase;
+export interface VoyageState {
+  phase: VoyagePhase;
   phaseElapsed: number;
   clock: number;
   airspeed: number;
@@ -181,7 +181,7 @@ export interface NetworkMetrics {
 export interface MissionEvent {
   id: number;
   at: number;
-  type: 'system' | 'physics' | 'network' | 'interaction' | 'flight' | 'service' | 'emergency';
+  type: 'system' | 'physics' | 'network' | 'interaction' | 'voyage' | 'service' | 'emergency';
   message: string;
 }
 
@@ -189,7 +189,7 @@ export interface MissionState {
   seed: number;
   tick: number;
   hostId: string;
-  flight: FlightState;
+  voyage: VoyageState;
   cabin: CabinState;
   service: ServiceMissionState;
   fire: FireState;
@@ -208,5 +208,5 @@ export const emptyCommand = (): PlayerCommand => ({
   interact: false,
   repair: false,
   throwItem: false,
-  pilot: { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: false },
+  helm: { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: false },
 });

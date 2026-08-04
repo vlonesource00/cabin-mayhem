@@ -144,8 +144,8 @@ export function passengerAnimationState(
   if (passenger.panic > panicAbove) return 'panic';
   if (fresh && passenger.requestStatus === 'served')
     return passenger.satisfaction > 0.7 ? 'celebrate' : 'receive';
-  if (state.flight.turbulence > braceAbove) return 'brace';
-  if (state.flight.turbulence > turbulenceAbove) return 'turbulence';
+  if (state.voyage.turbulence > braceAbove) return 'brace';
+  if (state.voyage.turbulence > turbulenceAbove) return 'turbulence';
   if (passenger.requestStatus === 'active') {
     if (passenger.patience < franticBelow) return 'frantic';
     if (passenger.patience < impatientBelow) return 'impatient';

@@ -4,7 +4,7 @@ import { add, clamp, distance, length, normalized, scale } from './math';
 import type {
   CabinObject,
   CabinState,
-  FlightState,
+  VoyageState,
   PlayerCommand,
   PlayerState,
   Vec2,
@@ -58,7 +58,7 @@ function objectFromDefinition(
 
 export function stepCabin(
   current: CabinState,
-  flight: FlightState,
+  voyage: VoyageState,
   commands: Record<string, PlayerCommand>,
   deltaSeconds: number,
 ): CabinState {
@@ -66,7 +66,7 @@ export function stepCabin(
   const players = Object.fromEntries(
     Object.entries(current.players).map(([id, player]) => [
       id,
-      stepPlayer(player, commands[id], flight, current, dt),
+      stepPlayer(player, commands[id], voyage, current, dt),
     ]),
   ) as CabinState['players'];
   const objects = Object.fromEntries(
@@ -92,10 +92,10 @@ export function stepCabin(
       continue;
     }
 
-    const turbulence = turbulenceVector(flight, object.id);
+    const turbulence = turbulenceVector(voyage, object.id);
     const inertiaScale = 1 / Math.max(1, Math.sqrt(object.mass) * 0.3);
-    object.velocity.x += (flight.cabinAcceleration.x * inertiaScale + turbulence.x) * dt;
-    object.velocity.y += (flight.cabinAcceleration.y * inertiaScale + turbulence.y) * dt;
+    object.velocity.x += (voyage.cabinAcceleration.x * inertiaScale + turbulence.x) * dt;
+    object.velocity.y += (voyage.cabinAcceleration.y * inertiaScale + turbulence.y) * dt;
     const damping = Math.exp(-object.friction * 7 * dt);
     object.velocity.x *= damping;
     object.velocity.y *= damping;
@@ -237,7 +237,7 @@ function object(
 function stepPlayer(
   player: PlayerState,
   command: PlayerCommand | undefined,
-  flight: FlightState,
+  voyage: VoyageState,
   cabin: CabinState,
   dt: number,
 ): PlayerState {
@@ -254,7 +254,7 @@ function stepPlayer(
   const speed = input.crouch ? 2.1 : input.sprint ? 5.4 : 3.55;
   const targetVelocity = scale(direction, speed);
   const braceFactor = input.brace ? 0.08 : 0.34;
-  const inertia = scale(flight.cabinAcceleration, braceFactor);
+  const inertia = scale(voyage.cabinAcceleration, braceFactor);
   const velocity = {
     x:
       player.velocity.x +
@@ -265,7 +265,7 @@ function stepPlayer(
       (targetVelocity.y - player.velocity.y) * Math.min(1, dt * 12) +
       inertia.y * dt,
   };
-  const force = length(flight.cabinAcceleration);
+  const force = length(voyage.cabinAcceleration);
   const knockdown = input.brace
     ? Math.max(0, player.knockdown - dt * 2)
     : Math.max(0, player.knockdown - dt);
@@ -353,10 +353,10 @@ function pushToNearestEdge(position: Vec2, fixture: CabinFixture): Vec2 {
   return edges[0]?.position ?? position;
 }
 
-function turbulenceVector(flight: FlightState, objectId: string): Vec2 {
+function turbulenceVector(voyage: VoyageState, objectId: string): Vec2 {
   const hash = [...objectId].reduce((value, char) => value + char.charCodeAt(0), 0);
-  const oscillation = Math.sin(flight.clock * 6.8 + hash) * flight.turbulence;
-  const secondary = Math.cos(flight.clock * 9.2 + hash * 0.3) * flight.turbulence;
+  const oscillation = Math.sin(voyage.clock * 6.8 + hash) * voyage.turbulence;
+  const secondary = Math.cos(voyage.clock * 9.2 + hash * 0.3) * voyage.turbulence;
   return { x: oscillation * 3.1, y: secondary * 2.6 };
 }
 

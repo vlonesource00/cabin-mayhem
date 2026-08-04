@@ -32,7 +32,14 @@ generalisation, and the rest is new.
 
 ## Last changes
 
-Documentation only. No runtime code changed.
+Phase 5 opened with the mechanical rename. `FlightState`→`VoyageState`,
+`FlightPhase`→`VoyagePhase`, `src/sim/flight-model.ts`→`src/sim/ship-model.ts`,
+`PilotInput`→`HelmInput`, `MissionState.flight`→`voyage`,
+`PlayerCommand.pilot`→`helm` and the `flight` event type→`voyage`. Behaviour is
+unchanged: phase values are still the airliner set and every check reproduces the
+`79bb002` baseline exactly.
+
+Before that, documentation only. No runtime code changed.
 
 - Added [ADR 0001](docs/adr/0001-cruise-ship-pivot.md) recording the pivot.
 - Added [docs/PERFORMANCE.md](docs/PERFORMANCE.md): hard budgets and the twelve
@@ -85,12 +92,11 @@ Documentation only. No runtime code changed.
 
 ## Next recommended task
 
-1. Start Phase 5 with the mechanical rename commit: `FlightState`→`VoyageState`,
-   `FlightPhase`→`VoyagePhase`, `flight-model.ts`→`ship-model.ts`,
-   `PilotInput`→`HelmInput`. Nothing else in that commit.
-2. Then the ocean: shader-displaced sea plane plus the identical wave function on
-   the simulation side, with hull pitch/roll/heave derived from it.
-3. Then the ship motion model and the helm station.
+1. The ocean: shader-displaced sea plane plus the identical wave function on the
+   simulation side, with hull pitch/roll/heave derived from it.
+2. Then the ship motion model and the helm station. Derived deck acceleration
+   feeds the existing cabin simulation unchanged through `cabinAcceleration`.
+3. Then greybox compartments behind the streaming loader and the portal graph.
 4. Then the collision-course incident end to end — the slice that proves the
    whole design.
 

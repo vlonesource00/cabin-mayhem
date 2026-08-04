@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createFlightState } from '../../src/sim/flight-model';
+import { createVoyageState } from '../../src/sim/ship-model';
 import {
   applyCabinIncident,
   createServiceMission,
@@ -83,8 +83,8 @@ describe('cabin service mission', () => {
         passenger.servicePosition,
       ).service;
     }
-    const flight = { ...createFlightState(), phase: 'landed' as const };
-    expect(stepServiceMission(service, flight, 1 / 60).outcome).toBe('success');
+    const voyage = { ...createVoyageState(), phase: 'landed' as const };
+    expect(stepServiceMission(service, voyage, 1 / 60).outcome).toBe('success');
   });
 });
 

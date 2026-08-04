@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { createCabinState, stepCabin } from '../../src/sim/cabin-simulation';
-import { createFlightState } from '../../src/sim/flight-model';
+import { createVoyageState } from '../../src/sim/ship-model';
 import { emptyCommand } from '../../src/sim/types';
 
 describe('cabin simulation', () => {
   it('keeps secured crate on anchor while loose case receives aircraft force', () => {
     const cabin = createCabinState();
-    const flight = {
-      ...createFlightState(),
+    const voyage = {
+      ...createVoyageState(),
       cabinAcceleration: { x: 8, y: 4 },
       turbulence: 0.65,
       clock: 2,
@@ -18,7 +18,7 @@ describe('cabin simulation', () => {
     for (let tick = 0; tick < 120; tick += 1) {
       next = stepCabin(
         next,
-        { ...flight, clock: tick / 60 },
+        { ...voyage, clock: tick / 60 },
         { 'crew-alpha': emptyCommand(), 'crew-bravo': emptyCommand() },
         1 / 60,
       );
@@ -30,10 +30,10 @@ describe('cabin simulation', () => {
 
   it('keeps kinematic crew inside aircraft bounds during extreme impulse', () => {
     const cabin = createCabinState();
-    const flight = { ...createFlightState(), cabinAcceleration: { x: 22, y: -18 } };
+    const voyage = { ...createVoyageState(), cabinAcceleration: { x: 22, y: -18 } };
     const next = stepCabin(
       cabin,
-      flight,
+      voyage,
       { 'crew-alpha': emptyCommand(), 'crew-bravo': emptyCommand() },
       0.05,
     );

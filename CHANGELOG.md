@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Renamed the vehicle vocabulary for the ship.** `FlightState`→`VoyageState`, `FlightPhase`→`VoyagePhase`, `src/sim/flight-model.ts`→`src/sim/ship-model.ts`, `PilotInput`→`HelmInput`, `MissionState.flight`→`voyage`, `PlayerCommand.pilot`→`helm`, and the `flight` mission-event type→`voyage`. Mechanical only: phase values, physics and user-visible copy are untouched, and every check reproduces the previous baseline.
 - **Pivoted the premise from an airliner to a cruise ship** ([ADR 0001](docs/adr/0001-cruise-ship-pivot.md)). The ship is steered by the crew, moves on a simulated ocean, and is streamed as ~25 discrete compartments across six decks connected by an authored portal graph. Documentation only: no runtime code changed in this entry, and the airliner vertical at `79bb002` is still what runs.
 - Added `docs/PERFORMANCE.md` with hard frame, draw-call, triangle, asset, mixer, texture and bundle budgets, twelve techniques for meeting them, and the rule that content breaking a budget does not merge.
 - Added `docs/SHIP_LAYOUT.md` with the deck tables, compartment purposes and hazards, the portal graph and the streaming residency rule.

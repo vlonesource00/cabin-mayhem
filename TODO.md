@@ -11,7 +11,6 @@ Local work snapshot. Phases and exit conditions live in
 
 ## Next (Phase 5)
 
-- [ ] Rename `FlightState`→`VoyageState`, `FlightPhase`→`VoyagePhase`, `flight-model.ts`→`ship-model.ts`, `PilotInput`→`HelmInput` in one mechanical commit.
 - [ ] Ocean: shader-displaced sea plane plus the matching simulation-side wave function.
 - [ ] Ship motion model: heading, rudder, telegraph, momentum, turning radius, derived deck acceleration.
 - [ ] Greybox compartment set (bridge, corridor, public room, engine room) behind the streaming loader.
@@ -56,6 +55,7 @@ Local work snapshot. Phases and exit conditions live in
 - [x] CI-sized Playwright timeout budget and uploaded failure traces.
 - [x] Branch consolidation onto `novo-main-stable` with protection enabled.
 - [x] Camera settled as first person in [ADR 0002](docs/adr/0002-first-person-camera.md). Phase 6 unblocked.
+- [x] Mechanical voyage rename: `VoyageState`, `VoyagePhase`, `HelmInput`, `src/sim/ship-model.ts`, `MissionState.voyage`, `PlayerCommand.helm`, `voyage` event type.
 
 ## Retired with the pivot
 

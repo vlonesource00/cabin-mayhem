@@ -33,16 +33,16 @@ export class CabinInputController {
       interact: keyboard.interact || this.consumePad(pad.buttons[0]?.pressed),
       repair: keyboard.repair || Boolean(pad.buttons[0]?.pressed),
       throwItem: keyboard.throwItem || this.consumePad(pad.buttons[3]?.pressed),
-      pilot: {
-        pitch: keyboard.pilot.pitch || deadZone(pad.axes[3] ?? 0),
-        roll: keyboard.pilot.roll || deadZone(pad.axes[2] ?? 0),
+      helm: {
+        pitch: keyboard.helm.pitch || deadZone(pad.axes[3] ?? 0),
+        roll: keyboard.helm.roll || deadZone(pad.axes[2] ?? 0),
         yaw:
-          keyboard.pilot.yaw ||
+          keyboard.helm.yaw ||
           Number(Boolean(pad.buttons[15]?.pressed)) - Number(Boolean(pad.buttons[14]?.pressed)),
         throttle:
-          keyboard.pilot.throttle ||
+          keyboard.helm.throttle ||
           Number(Boolean(pad.buttons[7]?.pressed)) - Number(Boolean(pad.buttons[6]?.pressed)),
-        brake: keyboard.pilot.brake || Boolean(pad.buttons[5]?.pressed),
+        brake: keyboard.helm.brake || Boolean(pad.buttons[5]?.pressed),
       },
     };
   }
@@ -71,7 +71,7 @@ export class CabinInputController {
           ? 'medical'
           : undefined;
     command.throwItem = this.consume('KeyQ');
-    command.pilot = {
+    command.helm = {
       pitch: Number(this.pressed.has('ArrowUp')) - Number(this.pressed.has('ArrowDown')),
       roll: Number(this.pressed.has('ArrowRight')) - Number(this.pressed.has('ArrowLeft')),
       yaw: Number(this.pressed.has('KeyL')) - Number(this.pressed.has('KeyJ')),

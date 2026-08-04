@@ -33,7 +33,7 @@ Before changing code:
    `docs/TECHNICAL_ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/TEST_PLAN.md`,
    `docs/CONTENT_AUTHORING.md` and `docs/assets.md`.
 3. Inspect `src/sim/types.ts`, `src/sim/host-session.ts`,
-   `src/sim/flight-model.ts`, `src/sim/cabin-simulation.ts`,
+   `src/sim/ship-model.ts`, `src/sim/cabin-simulation.ts`,
    `src/sim/service-mission.ts`, `src/sim/fire-response.ts`,
    `src/sim/repair-response.ts`, `src/network/peer-room.ts`,
    `src/three/cabin-world.ts`, `src/three/scenario-loader.ts`,
@@ -71,20 +71,23 @@ Open decisions to resolve before building interiors:
 - One Blender version. `passengers.blend` was written by 502.44 and warns of data
   loss in 5.1; nothing gets skinned until this is settled.
 
+Done in Phase 5: the mechanical rename. `VoyageState`, `VoyagePhase`,
+`HelmInput`, `src/sim/ship-model.ts`, `MissionState.voyage`, `PlayerCommand.helm`
+and the `voyage` event type are the current names. Phase *values* are still the
+airliner set (`ground`/`taxi`/`takeoff`/`cruise`/`approach`/`landed`/`crashed`);
+they change with the ship motion model, not before.
+
 Immediate task — Phase 5 in docs/ROADMAP.md, in this order:
-1. Mechanical rename in one commit: `FlightState`→`VoyageState`,
-   `FlightPhase`→`VoyagePhase`, `flight-model.ts`→`ship-model.ts`,
-   `PilotInput`→`HelmInput`. Tests updated with it, nothing else in that commit.
-2. Ocean: shader-displaced sea plane plus the identical wave function evaluated
+1. Ocean: shader-displaced sea plane plus the identical wave function evaluated
    on the simulation side at hull sample points. Hull pitch, roll and heave
    derived from it.
-3. Ship motion model: heading, rudder, telegraph, speed, turning radius,
+2. Ship motion model: heading, rudder, telegraph, speed, turning radius,
    momentum. Derived deck acceleration feeds the existing cabin simulation
-   unchanged.
-4. Greybox compartments — bridge, one corridor, one public room, engine room —
+   unchanged through `cabinAcceleration`.
+3. Greybox compartments — bridge, one corridor, one public room, engine room —
    behind the streaming loader and the portal graph.
-5. Helm station with positional input authority.
-6. The collision-course incident end to end: host spawns the obstacle, every
+4. Helm station with positional input authority.
+5. The collision-course incident end to end: host spawns the obstacle, every
    client shows the same warning and countdown, a player must physically reach
    the bridge, the host validates the avoidance, clearing throws loose objects,
    missing breaches the hull.

@@ -33,7 +33,7 @@ export interface AudioMix {
 
 const unit = (value: number): number => clamp(value, 0, 1);
 
-const phaseEngine: Record<MissionState['flight']['phase'], number> = {
+const phaseEngine: Record<MissionState['voyage']['phase'], number> = {
   ground: 0.12,
   taxi: 0.3,
   takeoff: 0.85,
@@ -48,13 +48,13 @@ const phaseEngine: Record<MissionState['flight']['phase'], number> = {
  * only host snapshots derives exactly the same mix as the host.
  */
 export function missionMix(state: MissionState): AudioMix {
-  const { flight, fire, repair } = state;
-  const engineFloor = phaseEngine[flight.phase];
+  const { voyage, fire, repair } = state;
+  const engineFloor = phaseEngine[voyage.phase];
   const engine = unit(
-    engineFloor * 0.55 + unit(flight.throttle) * 0.45 * (engineFloor > 0 ? 1 : 0),
+    engineFloor * 0.55 + unit(voyage.throttle) * 0.45 * (engineFloor > 0 ? 1 : 0),
   );
-  const wind = unit(flight.airspeed / 320) * (flight.phase === 'crashed' ? 0 : 1);
-  const rumble = unit(flight.turbulence * 0.8 + Math.abs(flight.airPocket) * 0.5);
+  const wind = unit(voyage.airspeed / 320) * (voyage.phase === 'crashed' ? 0 : 1);
+  const rumble = unit(voyage.turbulence * 0.8 + Math.abs(voyage.airPocket) * 0.5);
   const fireLevel = fire.status === 'active' ? unit(fire.intensity) : 0;
   const alarm = fire.status === 'active' || repair.status === 'active' ? 1 : 0;
   return { engine, wind, rumble, fire: fireLevel, alarm };
@@ -73,7 +73,7 @@ export function missionCues(
   if (!previous) return [];
   const cues: AudioCue[] = [];
 
-  if (previous.flight.phase !== next.flight.phase) cues.push({ kind: 'phase', intensity: 1 });
+  if (previous.voyage.phase !== next.voyage.phase) cues.push({ kind: 'phase', intensity: 1 });
 
   if (previous.fire.status !== 'active' && next.fire.status === 'active')
     cues.push({ kind: 'fire-start', intensity: 1 });
@@ -93,8 +93,8 @@ export function missionCues(
   if (next.cabin.collisionCount > previous.cabin.collisionCount)
     cues.push({ kind: 'impact', intensity: unit(next.cabin.lastImpulse / 6) });
 
-  if (Math.abs(next.flight.airPocket) > 0.35 && Math.abs(previous.flight.airPocket) <= 0.35)
-    cues.push({ kind: 'air-pocket', intensity: unit(Math.abs(next.flight.airPocket)) });
+  if (Math.abs(next.voyage.airPocket) > 0.35 && Math.abs(previous.voyage.airPocket) <= 0.35)
+    cues.push({ kind: 'air-pocket', intensity: unit(Math.abs(next.voyage.airPocket)) });
 
   const before = previous.cabin.players[localPlayerId]?.heldObjectId;
   const after = next.cabin.players[localPlayerId]?.heldObjectId;

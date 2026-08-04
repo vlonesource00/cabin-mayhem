@@ -1,6 +1,6 @@
 import { galleyRepairDefinition } from '../data/emergencies';
 import { clamp, distance } from './math';
-import type { CabinObject, FireStatus, FlightPhase, RepairState, Vec2 } from './types';
+import type { CabinObject, FireStatus, VoyagePhase, RepairState, Vec2 } from './types';
 
 export interface RepairActionResult {
   repair: RepairState;
@@ -33,7 +33,7 @@ export function createRepairState(): RepairState {
 
 export function activateRepair(
   current: RepairState,
-  phase: FlightPhase,
+  phase: VoyagePhase,
   fireStatus: FireStatus,
 ): RepairActionResult {
   if (current.status !== 'dormant')

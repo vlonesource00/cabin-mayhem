@@ -82,7 +82,7 @@ test('two isolated browsers join one host-authoritative WebRTC room', async ({ b
 
   await host.evaluate(() => window.__CABIN_MAYHEM_TEST__?.advancePhase());
   await expect
-    .poll(() => guest.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.flight.phase))
+    .poll(() => guest.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.voyage.phase))
     .toBe('taxi');
   await expect
     .poll(() => guest.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.tick))
@@ -110,7 +110,7 @@ test('two isolated browsers join one host-authoritative WebRTC room', async ({ b
   await guestContext.close();
 });
 
-test('test bridge drives host turbulence and deterministic flight phases', async ({ page }) => {
+test('test bridge drives host turbulence and deterministic voyage phases', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
   await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.trigger('turbulence'));

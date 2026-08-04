@@ -2,7 +2,7 @@ import { serviceSliceDefinition, type PassengerDefinition } from '../data/servic
 import { clamp, distance } from './math';
 import type {
   CabinObject,
-  FlightState,
+  VoyageState,
   PassengerState,
   ServiceMissionState,
   ServiceNeed,
@@ -112,7 +112,7 @@ export function restockServiceCartItem(
 
 export function stepServiceMission(
   current: ServiceMissionState,
-  flight: FlightState,
+  voyage: VoyageState,
   deltaSeconds: number,
 ): ServiceMissionState {
   if (current.outcome !== 'active') return current;
@@ -140,7 +140,7 @@ export function stepServiceMission(
     }),
   ) as ServiceMissionState['passengers'];
 
-  const terminal = terminalOutcome(flight, elapsed, current.duration, current.served, missed);
+  const terminal = terminalOutcome(voyage, elapsed, current.duration, current.served, missed);
   return { ...current, elapsed, score, missed, passengers, outcome: terminal };
 }
 
@@ -281,14 +281,14 @@ function initialCartStock(): Record<ServiceNeed, number> {
 }
 
 function terminalOutcome(
-  flight: FlightState,
+  voyage: VoyageState,
   elapsed: number,
   duration: number,
   served: number,
   missed: number,
 ): ServiceMissionState['outcome'] {
-  if (flight.phase === 'crashed') return 'failed';
-  if (flight.phase === 'landed') return served >= 3 && missed <= 3 ? 'success' : 'failed';
+  if (voyage.phase === 'crashed') return 'failed';
+  if (voyage.phase === 'landed') return served >= 3 && missed <= 3 ? 'success' : 'failed';
   if (elapsed >= duration) return served >= 5 && missed <= 2 ? 'success' : 'failed';
   return 'active';
 }

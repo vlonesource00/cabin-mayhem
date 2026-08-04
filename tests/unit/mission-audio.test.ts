@@ -15,20 +15,20 @@ describe('mission audio projection', () => {
     expect(ground.alarm).toBe(0);
 
     const state = clone(session.snapshot());
-    state.flight.phase = 'takeoff';
-    state.flight.throttle = 1;
-    state.flight.airspeed = 320;
+    state.voyage.phase = 'takeoff';
+    state.voyage.throttle = 1;
+    state.voyage.airspeed = 320;
     const climb = missionMix(state);
     expect(climb.engine).toBeGreaterThan(ground.engine);
     expect(climb.wind).toBeCloseTo(1, 5);
   });
 
-  it('clamps every bed to 0..1 under extreme flight values', () => {
+  it('clamps every bed to 0..1 under extreme voyage values', () => {
     const state = clone(new HostSession().snapshot());
-    state.flight.airspeed = 4000;
-    state.flight.throttle = 12;
-    state.flight.turbulence = 9;
-    state.flight.airPocket = -7;
+    state.voyage.airspeed = 4000;
+    state.voyage.throttle = 12;
+    state.voyage.turbulence = 9;
+    state.voyage.airPocket = -7;
     state.fire.status = 'active';
     state.fire.intensity = 5;
     const mix = missionMix(state);
@@ -54,7 +54,7 @@ describe('mission audio projection', () => {
   it('derives cues from authoritative deltas rather than event text', () => {
     const previous = new HostSession().snapshot();
     const next = clone(previous);
-    next.flight.phase = 'takeoff';
+    next.voyage.phase = 'takeoff';
     next.fire.status = 'active';
     next.repair.status = 'active';
     next.service.served += 2;
@@ -123,7 +123,7 @@ describe('mission audio projection', () => {
   it('treats an air pocket as a rising edge, not a level', () => {
     const previous = new HostSession().snapshot();
     const dropping = clone(previous);
-    dropping.flight.airPocket = -0.8;
+    dropping.voyage.airPocket = -0.8;
     expect(kinds(previous, dropping)).toEqual(['air-pocket']);
     expect(kinds(dropping, dropping)).toEqual([]);
   });

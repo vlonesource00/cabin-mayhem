@@ -25,7 +25,7 @@ const commandSchema = z
     interactionTargetId: z.string().max(128).nullable().optional(),
     selectServiceNeed: z.enum(['drink', 'meal', 'medical']).optional(),
     throwItem: z.boolean(),
-    pilot: z
+    helm: z
       .object({
         pitch: unit,
         roll: unit,
@@ -473,7 +473,7 @@ function isMissionState(value: unknown): value is MissionState {
   return (
     Number.isInteger(state.tick) &&
     typeof state.hostId === 'string' &&
-    typeof state.flight === 'object' &&
+    typeof state.voyage === 'object' &&
     typeof state.cabin === 'object' &&
     typeof state.service === 'object' &&
     typeof state.fire === 'object' &&

@@ -342,7 +342,7 @@ export class CabinWorld {
     );
     this.cabin.add(doorway);
 
-    const panel = this.box('flight deck', [6.8, 1.05, 1.05], [0, 1.05, -2.25], instrument);
+    const panel = this.box('voyage deck', [6.8, 1.05, 1.05], [0, 1.05, -2.25], instrument);
     panel.rotation.x = -0.18;
     panel.userData.interaction = 'Cockpit controls — R/F throttle, arrows pitch/roll, J/L yaw';
     this.interactionRoots.push(panel);
@@ -851,7 +851,7 @@ export class CabinWorld {
       }
     }
 
-    const health = Math.min(state.flight.electrical, state.flight.structure);
+    const health = Math.min(state.voyage.electrical, state.voyage.structure);
     const breakerFault = state.repair.status === 'active';
     for (const [index, light] of this.cabinLights.entries()) {
       const flicker =

@@ -8,7 +8,7 @@ import { CabinWorld } from '../three/cabin-world';
 import { FirstPersonController } from '../three/first-person-controller';
 import { buildDebrief, type DebriefSystemResult } from './debrief';
 
-type Screen = 'menu' | 'flight';
+type Screen = 'menu' | 'voyage';
 type IconName = 'plane' | 'alert' | 'tool' | 'fire' | 'hand' | 'people' | 'dev' | 'mute';
 
 interface Objective {
@@ -44,7 +44,7 @@ export class CabinMayhemApp {
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (this.screen !== 'flight') return;
+    if (this.screen !== 'voyage') return;
     if (event.code === 'F1') {
       event.preventDefault();
       this.setDevOpen(!this.devOpen);
@@ -105,7 +105,7 @@ export class CabinMayhemApp {
 
   private start(role: RoomRole = 'solo', roomCode = ''): void {
     this.stopLoop();
-    this.screen = 'flight';
+    this.screen = 'voyage';
     this.roomRole = role;
     this.session = new HostSession();
     if (role !== 'solo') this.session.setNetwork({ enabled: false });
@@ -219,7 +219,7 @@ export class CabinMayhemApp {
   }
 
   private readonly loop = (now: number): void => {
-    if (!this.session || !this.world || !this.controller || this.screen !== 'flight') return;
+    if (!this.session || !this.world || !this.controller || this.screen !== 'voyage') return;
     const frameDelta = Math.min(0.05, Math.max(0, (now - this.lastFrame) / 1000));
     this.lastFrame = now;
     this.accumulator += frameDelta;
@@ -243,7 +243,7 @@ export class CabinMayhemApp {
     if (this.roomRole === 'host') this.room?.sendSnapshot(state, now);
     const player = state.cabin.players[this.localPlayerId()];
     if (player)
-      this.controller.updateCamera(this.world.camera, player, state.flight, this.world.elapsed());
+      this.controller.updateCamera(this.world.camera, player, state.voyage, this.world.elapsed());
     this.world.render(state);
     this.audio?.update(state, this.localPlayerId());
     if (now - this.lastHudUpdate >= 80) {
@@ -270,9 +270,9 @@ export class CabinMayhemApp {
     ).length;
     const objective = objectiveFor(state);
     const caption = captionFor(state);
-    this.text('[data-hud="phase"]', state.flight.phase.toUpperCase());
-    this.text('[data-hud="speed"]', `${Math.round(state.flight.airspeed)} kt`);
-    this.text('[data-hud="altitude"]', `${Math.round(state.flight.altitude)} ft`);
+    this.text('[data-hud="phase"]', state.voyage.phase.toUpperCase());
+    this.text('[data-hud="speed"]', `${Math.round(state.voyage.airspeed)} kt`);
+    this.text('[data-hud="altitude"]', `${Math.round(state.voyage.altitude)} ft`);
     this.text('[data-hud="objects"]', String(Object.keys(state.cabin.objects).length));
     this.text('[data-hud="interaction"]', this.world?.prompt() ?? 'SCAN CABIN');
     this.text('[data-hud="held"]', held?.toUpperCase() ?? 'EMPTY');
@@ -315,7 +315,7 @@ export class CabinMayhemApp {
     if (progress) progress.style.width = `${Math.round((objective.progress ?? 0) * 100)}%`;
     this.text(
       '[data-hud="screen-reader-status"]',
-      `${state.flight.phase} flight, ${Math.round(state.flight.airspeed)} knots, ${Math.round(state.flight.altitude)} feet. ${objective.title}. ${caption}`,
+      `${state.voyage.phase} flight, ${Math.round(state.voyage.airspeed)} knots, ${Math.round(state.voyage.altitude)} feet. ${objective.title}. ${caption}`,
     );
     this.updateDebrief(state);
   }
@@ -640,7 +640,7 @@ function captionFor(state: MissionState): string {
     return state.service.outcome === 'success'
       ? 'SHIFT COMPLETE. TAKE A BOW.'
       : 'SHIFT LOST. PASSENGERS ARE WRITING REVIEWS.';
-  return state.flight.warning ?? state.events[0]?.message ?? 'HOST READY. LOCAL CLIENT CONNECTED.';
+  return state.voyage.warning ?? state.events[0]?.message ?? 'HOST READY. LOCAL CLIENT CONNECTED.';
 }
 
 function icon(name: IconName): string {

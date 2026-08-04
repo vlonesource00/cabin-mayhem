@@ -266,19 +266,19 @@ describe('crewOneShots', () => {
 describe('passengerAnimationState', () => {
   const calm = (): MissionState => {
     const state = base();
-    state.flight.turbulence = 0;
+    state.voyage.turbulence = 0;
     return state;
   };
 
   it('ranks injury above everything', () => {
     const state = calm();
-    state.flight.turbulence = 1;
+    state.voyage.turbulence = 1;
     expect(passengerAnimationState(passenger({ injury: 0.9, panic: 1 }), state, 0)).toBe('slump');
   });
 
   it('ranks panic above turbulence and requests', () => {
     const state = calm();
-    state.flight.turbulence = 1;
+    state.voyage.turbulence = 1;
     expect(
       passengerAnimationState(passenger({ panic: 0.9, requestStatus: 'active' }), state, 99),
     ).toBe('panic');
@@ -299,9 +299,9 @@ describe('passengerAnimationState', () => {
 
   it('separates bracing turbulence from mild turbulence', () => {
     const state = calm();
-    state.flight.turbulence = 0.5;
+    state.voyage.turbulence = 0.5;
     expect(passengerAnimationState(passenger(), state, 99)).toBe('brace');
-    state.flight.turbulence = 0.25;
+    state.voyage.turbulence = 0.25;
     expect(passengerAnimationState(passenger(), state, 99)).toBe('turbulence');
   });
 

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { FlightState, PlayerCommand, PlayerState, Vec2 } from '../sim/types';
+import type { VoyageState, PlayerCommand, PlayerState, Vec2 } from '../sim/types';
 import { cabinToWorld } from './coordinates';
 
 export function cameraRelativeMovement(move: Vec2, yaw: number): { move: Vec2; look: Vec2 } {
@@ -81,15 +81,15 @@ export class FirstPersonController {
   public updateCamera(
     camera: THREE.PerspectiveCamera,
     player: PlayerState,
-    flight: FlightState,
+    voyage: VoyageState,
     elapsed: number,
   ): void {
     const position = cabinToWorld(player.position);
     const speed = Math.hypot(player.velocity.x, player.velocity.y);
     const bob = speed > 0.2 ? Math.sin(elapsed * (player.crouched ? 7 : 10)) * 0.025 : 0;
-    const turbulence = flight.turbulence * 0.025;
+    const turbulence = voyage.turbulence * 0.025;
     const shakeX = Math.sin(elapsed * 28) * turbulence;
-    const shakeY = Math.cos(elapsed * 23) * turbulence + flight.airPocket * -0.035;
+    const shakeY = Math.cos(elapsed * 23) * turbulence + voyage.airPocket * -0.035;
 
     camera.position.set(
       position.x + shakeX,
@@ -98,8 +98,8 @@ export class FirstPersonController {
     );
     camera.rotation.order = 'YXZ';
     camera.rotation.y = this.yaw;
-    camera.rotation.x = this.pitch + THREE.MathUtils.degToRad(flight.pitch) * 0.018;
-    camera.rotation.z = THREE.MathUtils.degToRad(-flight.roll) * 0.012 + shakeX * 0.6;
+    camera.rotation.x = this.pitch + THREE.MathUtils.degToRad(voyage.pitch) * 0.018;
+    camera.rotation.z = THREE.MathUtils.degToRad(-voyage.roll) * 0.012 + shakeX * 0.6;
   }
 
   public isLocked(): boolean {
