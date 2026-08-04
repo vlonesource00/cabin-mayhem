@@ -17,8 +17,19 @@ Local work snapshot. Phases and exit conditions live in
 - [x] Widen the ship. `CABIN_SCALE = 1` in `src/three/coordinates.ts` now maps a 24 x 46 metre
       playfield onto a 24 m x 46 m atrium, 12.8 m tall, and every compartment, station, prop and
       teleport target was restaged onto it. The fuselage footprint is gone.
+- [ ] Compartment traversal. `cabin-world.ts` calls `setCurrent(defaultCompartmentId)` once at
+      startup and nothing calls it again; the simulation has no notion of which room a player is
+      in, so all four authored rooms are unreachable and the player is locked in the atrium. Needs
+      `compartmentId` on `PlayerState`, positional portal entry validated by `HostSession`, the
+      player remapped into the destination room's local frame, and the streamer driven from the
+      snapshot. Everything below is unverifiable until this lands.
 - [ ] Author `stairwell-fwd` and `stairwell-aft`. The `atrium` <-> `bridge` and
       `cabin-corridor-a` <-> `engine-room` portals are stand-ins that skip several decks.
+- [ ] Exterior and open decks — the largest gap. Every compartment authored so far is a sealed
+      interior box: no hull exterior or superstructure, no promenade, pool deck or sun deck, no
+      balconies, no railings, funnels, lifeboats or davits, and no glazing you can see the sea
+      through. All GLB. Exterior rooms see the ocean, the sky and the rest of the ship at once, so
+      state their budgets and LOD tiers in `docs/PERFORMANCE.md` before authoring them.
 - [ ] Helm station with positional input authority.
 - [ ] Collision-course incident end to end: spawn, warning, countdown, host-validated avoidance, consequences either way.
 

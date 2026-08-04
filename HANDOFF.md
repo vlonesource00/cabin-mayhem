@@ -152,12 +152,22 @@ Before that, documentation only. No runtime code changed.
 
 - The cruise premise is mostly designed, not built. Phase 5 in
   [docs/ROADMAP.md](docs/ROADMAP.md) is the implementation slice in progress.
+- **You cannot change compartments.** `src/three/cabin-world.ts` calls
+  `setCurrent(defaultCompartmentId)` once at startup and nothing calls it again.
+  There is no portal trigger volume, no input binding, and the simulation has no
+  notion of which room a player occupies. The streamer, the portal graph and the
+  four authored rooms are real and unreachable — the player is locked in the
+  atrium, and the bridge and engine room have never been walked into.
+- **There is no exterior.** Every authored compartment is a sealed interior box.
+  No hull exterior, no promenade or sun deck, no pool, no balcony, no railings,
+  funnels or lifeboats, and no window you can stand at and see the sea through.
+  The ocean renders and the hull heels correctly, but from inside a room with no
+  view. This is the largest gap against the "Scale and density" requirement in
+  [docs/SHIP_LAYOUT.md](docs/SHIP_LAYOUT.md) and the reason the game still does
+  not read as a cruise ship.
 - **The ship is wide but not yet tall.** The atrium is now 24 m x 46 m x 12.8 m
-  at `CABIN_SCALE = 1`, so the fuselage footprint is gone. What still falls short
-  of the "big, tall and massive" requirement in
-  [docs/SHIP_LAYOUT.md](docs/SHIP_LAYOUT.md) is vertical and lateral reach: only
-  four compartments exist across three of the twelve declared decks, and the two
-  stairwells that would make the deck count felt are not authored.
+  at `CABIN_SCALE = 1`, so the fuselage footprint is gone. Only four compartments
+  exist across three of the twelve declared decks.
 - **Two portals are stand-ins.** `atrium` <-> `bridge` and `cabin-corridor-a` <->
   `engine-room` should each pass through a stairwell across several decks. The
   stairwells are not authored, so the streamer links the rooms directly, which
@@ -182,15 +192,25 @@ Before that, documentation only. No runtime code changed.
 
 ## Next recommended task
 
-1. **Author `stairwell-fwd` and `stairwell-aft`.** They retire the two stand-in
-   portals, and they are what makes the deck count something the crew feels
-   rather than a number in a table.
-2. **The uniform spatial-hash broadphase.** Loose-object collision is pairwise
+1. **Compartment traversal.** Put the occupied compartment in authoritative
+   state, detect portal entry positionally in `HostSession`, remap the player
+   into the destination room's local frame, and drive the streamer from the
+   snapshot instead of from startup. Nothing else here is verifiable until you
+   can walk out of the atrium.
+2. **The stairwells, `stairwell-fwd` and `stairwell-aft`.** They retire the two
+   stand-in portals and are the first rooms a player would reach unaided.
+3. **The exterior and the open decks.** Hull exterior and superstructure,
+   walkable promenade, pool deck and sun deck, balconies, real glazing so the
+   sea is visible from inside, and exterior dressing — funnels, lifeboats,
+   davits, deck furniture. All GLB. Exterior compartments see the ocean, the sky
+   and the rest of the ship at once, so their budgets and LOD tiers belong in
+   [docs/PERFORMANCE.md](docs/PERFORMANCE.md) before they are authored.
+4. **The uniform spatial-hash broadphase.** Loose-object collision is pairwise
    and O(n²); this is a prerequisite for the second populated compartment, not
    an optimisation.
-3. Then the helm station with positional input authority — the host accepts
+5. Then the helm station with positional input authority — the host accepts
    `HelmInput` only from a player standing in the bridge helm volume.
-4. Then the collision-course incident end to end — the slice that proves the
+6. Then the collision-course incident end to end — the slice that proves the
    whole design.
 
 ## Current verification

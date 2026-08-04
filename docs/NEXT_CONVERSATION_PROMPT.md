@@ -34,6 +34,26 @@ overhead-bin geometry and src/three/scenario-loader.ts is deleted. The room is n
 longer aircraft-sized either: the playfield and the atrium are both 24 m abeam by
 46 m fore-and-aft, 12.8 m tall, at one metre per sim unit.
 
+Two things are missing that the documentation has been implying are present, and
+they are the whole of the immediate task. Read them before believing any other
+claim in this prompt:
+
+- **You cannot change compartments.** `src/three/cabin-world.ts` calls
+  `this.compartments.setCurrent(defaultCompartmentId)` once at startup and
+  nothing calls it again. There is no portal trigger volume, no input binding,
+  and `grep -rn "compartment" src/sim/` returns a single comment — the
+  simulation has no concept of which room a player occupies. The streamer, the
+  portal graph and the four authored rooms are all real and all unreachable. The
+  player is hard-locked in the atrium; the bridge and engine room have never
+  been walked into.
+- **There is no exterior and no cruise-ship exterior life.** Every authored
+  compartment is a sealed interior box. No hull exterior, no open promenade or
+  sun deck, no pool, no balcony, no railings, no funnels, no lifeboats, and no
+  window you can actually stand at and see the sea through. The ocean renders
+  and the hull heels correctly, but from inside a room with no view. "Cruise
+  ship" so far means the vocabulary, the physics and the portal graph — not the
+  place.
+
 Before changing code:
 1. Run `git status --short --branch`, `git log -5 --oneline --decorate`, then
    inspect the actual diff. Preserve uncommitted work, especially
@@ -92,33 +112,59 @@ Settled: the camera is first person (docs/adr/0002-first-person-camera.md). No
 third-person camera and no selectable one.
 
 Open decisions:
-- Git LFS. Four compartment GLBs totalling ~2.4 MB are landing as tracked binary.
-  Decide before the fifth room.
+- Git LFS. Four compartment GLBs totalling ~3.4 MB are landing as tracked binary,
+  and the exterior work will multiply that. Decide before the fifth room.
 - One Blender version. `passengers.blend` was written by 502.44 and warns of data
   loss in 5.1; nothing gets skinned until this is settled.
 - Gating for restricted compartments.
 
-Immediate task — Phase 5 in docs/ROADMAP.md, in this order:
-1. **Author `stairwell-fwd` and `stairwell-aft`.** The atrium <-> bridge and
-   cabin-corridor-a <-> engine-room portals are stand-ins that skip several decks.
-   Authoring the two stairwells retires them, corrects the portal distances in
-   `src/data/ship-layout.ts`, and is what makes the twelve declared decks
-   something the crew feels rather than a number in a table. Hold each room to its
-   docs/PERFORMANCE.md budget. The requirement to meet is the "Scale and density"
-   section of docs/SHIP_LAYOUT.md: tall, massive, dense with objects and life
-   inside and out, all in GLB.
-2. **The uniform spatial-hash broadphase.** Loose-object collision is pairwise and
-   O(n²); this is a prerequisite for the second populated compartment, not an
-   optimisation.
-3. Helm station with positional input authority: the host accepts `HelmInput`
-   only from a player standing in the bridge helm volume.
-4. The collision-course incident end to end: host spawns the obstacle, every
+Immediate task — make it an actual cruise ship you can walk around, in this
+order. Do not start at step 3; steps 1 and 2 are what make the rest visible.
+
+1. **Compartment traversal.** Put the occupied compartment in authoritative
+   state: a `compartmentId` per player on `PlayerState`, owned by `HostSession`
+   like every other fact. Author a walkable connector volume per portal, have
+   the host detect entry positionally and reassign the player, and drive
+   `CompartmentStreamer.setCurrent` from the snapshot rather than from startup.
+   The player's sim-space position must be remapped into the destination room's
+   local frame on transition — today `src/three/coordinates.ts` assumes one room
+   at a fixed `COMPARTMENT_ORIGIN_Z`, and that assumption has to go. Nothing else
+   on this list is verifiable until you can walk out of the atrium.
+2. **Author the stairwells: `stairwell-fwd` and `stairwell-aft`.** They retire
+   the two stand-in portals, correct the distances in `src/data/ship-layout.ts`,
+   and are what makes the declared deck count something the crew feels. With
+   step 1 done these are the first rooms a player reaches on their own.
+3. **The exterior and the open decks — the largest gap and the reason the game
+   does not look like a cruise.** Everything authored so far is a sealed
+   interior. Author, all in GLB, held to docs/PERFORMANCE.md:
+   - a hull exterior and superstructure, seen from the open decks and readable
+     as a ship from outside;
+   - walkable open deck compartments: a promenade running the ship's length, a
+     pool deck with pools, loungers, bar and railings, and a sun deck;
+   - balconies on the cabin decks, and cabin interiors that open onto them;
+   - real windows and glazing — the atrium, corridors, restaurants and the
+     bridge all need to see the sea, which means the ocean must be visible from
+     inside a compartment and the interior fog and far plane retuned for it;
+   - exterior dressing: funnels, lifeboats, davits, masts, deck furniture,
+     signage, rigging and lighting.
+   Exterior compartments are a different streaming case from interior ones: they
+   see the ocean, the sky and the rest of the ship at once, so their budgets and
+   LOD tiers need stating in docs/PERFORMANCE.md before they are authored, not
+   after.
+4. **The uniform spatial-hash broadphase.** Loose-object collision is pairwise
+   and O(n²); this is a prerequisite for the second populated compartment, not
+   an optimisation.
+5. Helm station with positional input authority: the host accepts `HelmInput`
+   only from a player standing in the bridge helm volume. Step 1 is what makes
+   "standing in the bridge" possible at all.
+6. The collision-course incident end to end: host spawns the obstacle, every
    client shows the same warning and countdown, a player must physically reach
    the bridge, the host validates the avoidance, clearing throws loose objects,
    missing breaches the hull.
 
-Exit condition: the ship moves on an ocean, you can steer it, and two players can
-dodge one iceberg together.
+Exit condition: you can walk from the atrium out onto an open deck, see the ship
+and the sea around you, climb to the bridge, steer, and dodge one iceberg with a
+second player.
 
 Also outstanding:
 - Snapshot delta compression. Crews above two players are blocked on it.
@@ -160,7 +206,7 @@ Last recorded evidence, for the compartment-streaming slice on new-idea-vlone:
 - Tauri MSI and NSIS packaging passes; installers unsigned.
 - Manual: a browser screenshot of a solo shift shows the atrium with its feature
   column, spiral stair and balconies, `assetMode: 'glb'`, and no seat rows.
-- Still pending: nobody has seen the sea through a window on screen, no manual
-  two-browser room playtest against this slice, and no in-motion review of the
-  authored clips.
+- Still pending: nobody has seen the sea through a window on screen, nobody has
+  ever left the atrium, no manual two-browser room playtest against this slice,
+  and no in-motion review of the authored clips.
 ```
