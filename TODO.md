@@ -6,7 +6,6 @@ Local work snapshot. Phases and exit conditions live in
 ## In progress
 
 - [ ] Cruise-ship pivot documentation - Martim
-- [ ] Decide first person vs third person and write ADR 0002. Blocks Phase 6, which authors interiors around a camera height - unassigned
 - [ ] Decide Git LFS before Phase 6 starts landing one GLB per compartment - unassigned
 - [ ] Decide one Blender version between both collaborators. `passengers.blend` was written by 502.44 and warns of data loss when opened in 5.1; nothing should be skinned until this is settled - unassigned
 
@@ -56,6 +55,7 @@ Local work snapshot. Phases and exit conditions live in
 - [x] Two Blender-authored skeletal rigs, 44 clips, `AnimationMixer` playback and a validated clip contract.
 - [x] CI-sized Playwright timeout budget and uploaded failure traces.
 - [x] Branch consolidation onto `novo-main-stable` with protection enabled.
+- [x] Camera settled as first person in [ADR 0002](docs/adr/0002-first-person-camera.md). Phase 6 unblocked.
 
 ## Retired with the pivot
 

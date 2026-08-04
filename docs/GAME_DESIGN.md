@@ -184,14 +184,15 @@ what the current room code supports, and four needs snapshot delta compression
 first — see Phase 11 in [`ROADMAP.md`](ROADMAP.md). Drop-in and drop-out joining
 comes with that same slice.
 
+## Camera
+
+First person, settled in [ADR 0002](adr/0002-first-person-camera.md). The
+authored `CM_FPARMS_ROOT` arms rig, pointer-lock capture and camera-forward
+interaction raycasting all stay. You see crewmates when they are in front of you,
+on the shared humanoid rig; you never see yourself.
+
 ## Open decisions
 
-- **Camera.** Everything built so far is first person, against an authored
-  seven-bone arms rig with nineteen clips (`CM_FPARMS_ROOT`). A third-person
-  camera is a real option for a co-op game where you want to see your crewmates,
-  but it retires that rig, changes interaction raycasting and makes the local
-  player a full skinned character in every LOD budget. It needs its own ADR
-  before Phase 6 authors interiors around a camera height.
 - **Hidden compartments.** Restricted areas — a reinforced command centre, a
   smuggler's hold, a sealed lower deck — are an attractive progression hook but
   need a gating rule that is not just "buy the upgrade". Not scoped yet.

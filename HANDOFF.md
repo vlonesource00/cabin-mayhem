@@ -50,14 +50,14 @@ Documentation only. No runtime code changed.
   naming standards, and a mapping table between the plan's phase numbers and this
   repo's.
 
+## Settled decisions
+
+- **Camera: first person.** [ADR 0002](docs/adr/0002-first-person-camera.md).
+  `CM_FPARMS_ROOT`, pointer lock and camera-forward raycasting all stay. No
+  third-person camera, and no selectable one. Phase 6 is unblocked.
+
 ## Open decisions
 
-- **First person or third person.** Everything built and every doc assumes first
-  person, against an authored `CM_FPARMS_ROOT` arms rig with 19 clips and the
-  `data-arms-rig` test seam. The revised plan proposes third person. Switching is
-  not a doc edit: it retires that rig, changes interaction raycasting and makes
-  the local player a full skinned character in every LOD budget. **Decide before
-  Phase 6 authors interiors around a camera height.** It deserves its own ADR.
 - **Git LFS.** Not enabled. Decide before Phase 6 starts producing one GLB per
   compartment.
 - **Blender version.** `passengers.blend` was written by 502.44 and warns of data
@@ -85,14 +85,13 @@ Documentation only. No runtime code changed.
 
 ## Next recommended task
 
-1. Resolve the camera decision and write ADR 0002 either way.
-2. Start Phase 5 with the mechanical rename commit: `FlightState`→`VoyageState`,
+1. Start Phase 5 with the mechanical rename commit: `FlightState`→`VoyageState`,
    `FlightPhase`→`VoyagePhase`, `flight-model.ts`→`ship-model.ts`,
    `PilotInput`→`HelmInput`. Nothing else in that commit.
-3. Then the ocean: shader-displaced sea plane plus the identical wave function on
+2. Then the ocean: shader-displaced sea plane plus the identical wave function on
    the simulation side, with hull pitch/roll/heave derived from it.
-4. Then the ship motion model and the helm station.
-5. Then the collision-course incident end to end — the slice that proves the
+3. Then the ship motion model and the helm station.
+4. Then the collision-course incident end to end — the slice that proves the
    whole design.
 
 ## Current verification

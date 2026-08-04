@@ -62,10 +62,11 @@ What runs today (the airliner vertical at 79bb002):
   track masking. Each rig falls back independently, reported through
   `data-character-rig` and `data-arms-rig`.
 
+Settled: the camera is first person (docs/adr/0002-first-person-camera.md). No
+third-person camera and no selectable one. `CM_FPARMS_ROOT`, pointer lock and
+camera-forward interaction raycasting all stay.
+
 Open decisions to resolve before building interiors:
-- First person or third person. Every doc and the authored `CM_FPARMS_ROOT` arms
-  rig assume first person; the revised plan proposes third person. Write ADR 0002
-  either way before Phase 6 authors rooms around a camera height.
 - Git LFS, before one GLB per compartment starts landing.
 - One Blender version. `passengers.blend` was written by 502.44 and warns of data
   loss in 5.1; nothing gets skinned until this is settled.
