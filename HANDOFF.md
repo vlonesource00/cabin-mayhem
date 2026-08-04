@@ -7,10 +7,11 @@ Tauri/Rust Windows wrapper. The stable project branch is `novo-main-stable`.
 
 **The premise changed.** The game is now a cruise ship, not an airliner. See
 [ADR 0001](docs/adr/0001-cruise-ship-pivot.md) for what is kept, what is renamed
-and what is retired. The documentation is rewritten for the ship; **none of the
-cruise premise is implemented yet.**
+and what is retired. The documentation is rewritten for the ship. Implementation
+has started on `new-idea-vlone`: the vocabulary is renamed and the ocean is in,
+but every gameplay system below is still the airliner vertical.
 
-What actually runs today is the airliner vertical at `79bb002`:
+What actually runs today, on top of the ocean:
 
 - Automatic ground, taxi, takeoff, cruise, approach and landing progression.
 - Host-authoritative cabin physics, service-cart stock, passenger requests,
@@ -32,7 +33,23 @@ generalisation, and the rest is new.
 
 ## Last changes
 
-Phase 5 opened with the mechanical rename. `FlightState`→`VoyageState`,
+Phase 5 step 2 added the ocean, on branch `new-idea-vlone`. `src/sim/ocean.ts`
+holds one directional-sine wave table that is the single source of truth for the
+water: the simulation evaluates it in TypeScript at four hull sample points to
+fit pitch, roll and heave, and `oceanWaveGlsl()` generates the vertex-shader
+version of the same function for `src/three/ocean-surface.ts`, so the two cannot
+be edited apart. The hull holds the world origin — headway is stored as
+`sea.drift`, the water sliding beneath it, and hull attitude is applied by
+counter-rotating the ocean group about `hullCentreZ`. `SeaState` and `HullMotion`
+are new fields on `VoyageState`; the commanded `pitch`/`roll` and
+`cabinAcceleration` are deliberately untouched, so coupling the deck to the swell
+is the motion model's job next.
+
+Visible interior change: the cabin now has a horizon through the windows, so fog
+thinned from `0.018` to `0.0042`, the background moved from near-black to sea
+blue and the camera far plane went from 160 m to 2400 m.
+
+Before that, Phase 5 opened with the mechanical rename. `FlightState`→`VoyageState`,
 `FlightPhase`→`VoyagePhase`, `src/sim/flight-model.ts`→`src/sim/ship-model.ts`,
 `PilotInput`→`HelmInput`, `MissionState.flight`→`voyage`,
 `PlayerCommand.pilot`→`helm` and the `flight` event type→`voyage`. Behaviour is
@@ -73,8 +90,11 @@ Before that, documentation only. No runtime code changed.
 
 ## Known problems and limits
 
-- The cruise premise is designed, not built. Phase 5 in
-  [docs/ROADMAP.md](docs/ROADMAP.md) is the first implementation slice.
+- The cruise premise is mostly designed, not built. Phase 5 in
+  [docs/ROADMAP.md](docs/ROADMAP.md) is the implementation slice in progress.
+- The 1400 m sea plane is 156×156 segments with `frustumCulled = false`, and its
+  GPU cost has not been measured against the
+  [docs/PERFORMANCE.md](docs/PERFORMANCE.md) budgets on a low-end target.
 - Loose-object collision is pairwise and O(n²). A uniform spatial-hash broadphase
   is a prerequisite for the second compartment, not an optimisation.
 - Snapshot delta compression does not exist. Crews above two are blocked on it.
@@ -92,28 +112,32 @@ Before that, documentation only. No runtime code changed.
 
 ## Next recommended task
 
-1. The ocean: shader-displaced sea plane plus the identical wave function on the
-   simulation side, with hull pitch/roll/heave derived from it.
-2. Then the ship motion model and the helm station. Derived deck acceleration
-   feeds the existing cabin simulation unchanged through `cabinAcceleration`.
+1. The ship motion model: heading, rudder, telegraph, momentum and turning
+   radius, replacing the `airspeed * 0.5` placeholder in `updateVoyage` with real
+   knots. This is where hull pitch/roll/heave finally couple into the deck
+   through `cabinAcceleration`, and where the airliner phase values become
+   `moored` → `preparation` → `departure` → `open-sea` → `approach` → `docked`.
+2. Then the helm station with positional input authority.
 3. Then greybox compartments behind the streaming loader and the portal graph.
 4. Then the collision-course incident end to end — the slice that proves the
    whole design.
 
 ## Current verification
 
-The last runtime evidence is for the airliner line through `79bb002`:
+Run against the ocean slice on `new-idea-vlone`:
 
 - `git diff --check`, Prettier check, ESLint, TypeScript, authored-data
   validation and asset validation pass. Asset validation covers 4 project-owned
   assets and both rigs (2 rigs, 44 authored clips).
-- Unit: 96 tests pass. Integration: 2 tests pass.
+- Unit: 115 tests pass, 19 of them new for the ocean. Integration: 2 tests pass.
 - Playwright: 11 collected; 10 pass, 1 live-multiplayer test skipped without
   `LIVE_MULTIPLAYER`.
 - Vite production build passes with the existing large-chunk warning.
 - Tauri MSI and NSIS packaging passes; installers unsigned.
-
-The pivot changed documentation only, so these results still stand.
+- Manual: dev server, no console errors, so the injected GLSL compiled. Driving
+  the test bridge 600 fixed steps gives live non-zero hull motion on a calm sea
+  (`pitch -0.0079`, `roll 0.0136`, `heave 0.180`) with `drift` still zero,
+  correct for a ship at `airspeed: 0`.
 
 ## Verification commands
 

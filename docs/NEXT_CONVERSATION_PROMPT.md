@@ -15,13 +15,18 @@ https://github.com/vlonesource00/cabin-mayhem
 Stable project branch:
 novo-main-stable (protected: pull request, `verify` green, one approval)
 
+Working branch:
+new-idea-vlone — all cruise implementation lands here. Do not merge into
+novo-main-stable without being told to.
+
 Cabin Mayhem is an original cooperative cruise-ship game. Vite + TypeScript +
 Three.js are the game runtime; Tauri v2 + Rust wrap the same web build as a
 Windows EXE. Do not convert it to another engine or a 2D/top-down game.
 
 The premise changed from an airliner to a cruise ship. Read
-docs/adr/0001-cruise-ship-pivot.md first. The documentation describes the ship;
-the code still implements the airliner. That gap is expected, not a bug.
+docs/adr/0001-cruise-ship-pivot.md first. The documentation describes the whole
+ship; the code has the renamed vocabulary and the ocean, and every gameplay
+system underneath is still the airliner. That gap is expected, not a bug.
 
 Before changing code:
 1. Run `git status --short --branch`, `git log -5 --oneline --decorate`, then
@@ -71,23 +76,32 @@ Open decisions to resolve before building interiors:
 - One Blender version. `passengers.blend` was written by 502.44 and warns of data
   loss in 5.1; nothing gets skinned until this is settled.
 
-Done in Phase 5: the mechanical rename. `VoyageState`, `VoyagePhase`,
-`HelmInput`, `src/sim/ship-model.ts`, `MissionState.voyage`, `PlayerCommand.helm`
-and the `voyage` event type are the current names. Phase *values* are still the
-airliner set (`ground`/`taxi`/`takeoff`/`cruise`/`approach`/`landed`/`crashed`);
-they change with the ship motion model, not before.
+Done in Phase 5:
+1. The mechanical rename. `VoyageState`, `VoyagePhase`, `HelmInput`,
+   `src/sim/ship-model.ts`, `MissionState.voyage`, `PlayerCommand.helm` and the
+   `voyage` event type are the current names. Phase *values* are still the
+   airliner set (`ground`/`taxi`/`takeoff`/`cruise`/`approach`/`landed`/
+   `crashed`); they change with the ship motion model, not before.
+2. The ocean. `src/sim/ocean.ts` holds one directional-sine wave table that is
+   the single source of truth: the simulation evaluates it in TypeScript at four
+   hull sample points to fit `HullMotion` (pitch, roll, heave), and
+   `oceanWaveGlsl()` generates the vertex-shader copy used by
+   `src/three/ocean-surface.ts`, so the two cannot be edited apart. `SeaState`
+   (`drift`, `swell`) and `HullMotion` are new `VoyageState` fields. The hull
+   holds the world origin; headway is recorded as `sea.drift`. `cabinAcceleration`
+   is untouched — coupling the deck to the swell belongs to the motion model.
 
 Immediate task — Phase 5 in docs/ROADMAP.md, in this order:
-1. Ocean: shader-displaced sea plane plus the identical wave function evaluated
-   on the simulation side at hull sample points. Hull pitch, roll and heave
-   derived from it.
-2. Ship motion model: heading, rudder, telegraph, speed, turning radius,
-   momentum. Derived deck acceleration feeds the existing cabin simulation
-   unchanged through `cabinAcceleration`.
-3. Greybox compartments — bridge, one corridor, one public room, engine room —
+1. Ship motion model: heading, rudder, telegraph, speed, turning radius,
+   momentum. This replaces the `airspeed * 0.5` placeholder unit conversion in
+   `updateVoyage` with real knots, couples hull motion into the deck through
+   `cabinAcceleration` (the cabin simulation itself stays unchanged), and swaps
+   the airliner phase values for `moored` → `preparation` → `departure` →
+   `open-sea` → `approach` → `docked` / `foundered`.
+2. Greybox compartments — bridge, one corridor, one public room, engine room —
    behind the streaming loader and the portal graph.
-4. Helm station with positional input authority.
-5. The collision-course incident end to end: host spawns the obstacle, every
+3. Helm station with positional input authority.
+4. The collision-course incident end to end: host spawns the obstacle, every
    client shows the same warning and countdown, a player must physically reach
    the bridge, the host validates the avoidance, clearing throws loose objects,
    missing breaches the hull.
@@ -120,11 +134,12 @@ pnpm test:e2e, pnpm build, pnpm desktop:build (close any running
 cabin-mayhem.exe first). Report the live room smoke separately; it needs
 LIVE_MULTIPLAYER=1.
 
-Last recorded evidence, for the airliner line through 79bb002:
+Last recorded evidence, for the ocean slice on new-idea-vlone:
 - Format, lint, typecheck, data validation and asset validation pass. Asset
   validation covers 4 project-owned assets and both rigs (2 rigs, 44 clips).
-- 96 unit tests pass; 2 integration tests pass; 11 Playwright tests collected,
-  10 passing, 1 live-multiplayer test skipped without LIVE_MULTIPLAYER.
+- 115 unit tests pass, 19 of them new for the ocean; 2 integration tests pass;
+  11 Playwright tests collected, 10 passing, 1 live-multiplayer test skipped
+  without LIVE_MULTIPLAYER.
 - Vite production build passes with a non-blocking large-chunk warning.
 - Tauri MSI and NSIS packaging passes; installers unsigned.
 - Manual two-browser room play and in-motion review of the authored clips remain

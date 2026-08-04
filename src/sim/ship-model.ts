@@ -1,4 +1,5 @@
 import { clamp, finite } from './math';
+import { advanceSea, createHullMotion, createSeaState, sampleHullMotion } from './ocean';
 import type { DamageSystem, VoyagePhase, VoyageState, HelmInput } from './types';
 
 const phaseOrder: VoyagePhase[] = ['ground', 'taxi', 'takeoff', 'cruise', 'approach', 'landed'];
@@ -24,6 +25,8 @@ export function createVoyageState(): VoyageState {
     hydraulics: 1,
     structure: 1,
     cabinAcceleration: { x: 0, y: 0 },
+    sea: createSeaState(),
+    hull: createHullMotion(),
   };
 }
 
@@ -77,12 +80,18 @@ export function updateVoyage(
   const lateral = -(roll / 35) * (1.8 + airspeed * 0.008) + turnImpulse * 8;
   const longitudinal = (targetSpeed - airspeed) * 0.028 + collisionImpulse * 14;
   const vertical = airPocket * 10 + turbulence * 4.4;
+  const clock = current.clock + dt;
+  // The hull holds the origin, so headway is recorded as the water sliding
+  // beneath it. The 0.5 is a placeholder unit conversion: `airspeed` is still
+  // the airliner scale and the ship motion model owns real knots next.
+  const sea = advanceSea(current.sea, heading, airspeed * 0.5, dt);
+  const hull = sampleHullMotion(sea, heading, clock);
 
   return {
     ...current,
     phase: nextPhase,
     phaseElapsed: nextPhase === phase ? current.phaseElapsed + dt : 0,
-    clock: current.clock + dt,
+    clock,
     airspeed,
     altitude,
     verticalSpeed,
@@ -95,6 +104,8 @@ export function updateVoyage(
     airPocket,
     turnImpulse,
     collisionImpulse,
+    sea,
+    hull,
     warning: nextPhase === phase ? current.warning : phaseMessage(nextPhase),
     cabinAcceleration: { x: finite(lateral), y: finite(longitudinal + vertical) },
   };

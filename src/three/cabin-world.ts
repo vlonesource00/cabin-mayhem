@@ -22,6 +22,7 @@ import {
 } from './animation-state';
 import { cabinToWorld } from './coordinates';
 import { GesturePlayer, handGestures, passengerPose } from './interaction-animation';
+import { OceanSurface } from './ocean-surface';
 import { disposeScenario, loadCabinScenario } from './scenario-loader';
 
 const colors = {
@@ -56,7 +57,8 @@ const hideProceduralCharacter = (avatar: THREE.Object3D): void => {
 
 export class CabinWorld {
   public readonly canvas: HTMLCanvasElement;
-  public readonly camera = new THREE.PerspectiveCamera(72, 1, 0.05, 160);
+  // The far plane has to clear the sea plane now, not just the cabin.
+  public readonly camera = new THREE.PerspectiveCamera(72, 1, 0.05, 2400);
 
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
@@ -68,6 +70,7 @@ export class CabinWorld {
   private readonly passengerAvatars = new Map<string, THREE.Group>();
   private readonly interactionRoots: THREE.Object3D[] = [];
   private readonly gestures = new GesturePlayer();
+  private readonly ocean = new OceanSurface();
   private readonly reactionAt = new Map<string, number>();
   private readonly reactionStatus = new Map<string, PassengerRequestStatus>();
   private previousState?: MissionState;
@@ -100,8 +103,10 @@ export class CabinWorld {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
-    this.scene.background = new THREE.Color(0x07111d);
-    this.scene.fog = new THREE.FogExp2(0x0b1624, 0.018);
+    this.scene.background = new THREE.Color(0x16394f);
+    // Thinner than the airliner's interior-only haze: at 0.018 the sea faded
+    // out a few metres past the windows and there was no horizon at all.
+    this.scene.fog = new THREE.FogExp2(0x16394f, 0.0042);
     this.mount.append(this.canvas);
     this.canvas.dataset.assetMode = 'loading';
 
@@ -118,6 +123,7 @@ export class CabinWorld {
     this.crewBravo = this.createCrewAvatar(0x38bdf8);
     this.cabin.add(this.crewBravo);
     this.scene.add(this.cabin);
+    this.scene.add(this.ocean.group);
     this.scene.add(this.camera);
     this.loadProductionScenario();
     this.loadAuthoredRigs();
@@ -135,6 +141,9 @@ export class CabinWorld {
     this.syncRigs(state);
     this.previousState = state;
     this.syncState(state, elapsed);
+    // Driven by the authoritative voyage clock, not the render clock, so every
+    // client fitted to the same snapshot sees the same wave under the hull.
+    this.ocean.sync(state.voyage.sea, state.voyage.hull, state.voyage.clock);
     this.updateRigs(delta);
     this.updateInteraction(state);
     this.renderer.render(this.scene, this.camera);
@@ -159,6 +168,7 @@ export class CabinWorld {
     this.firstPersonArms?.dispose();
     for (const rig of this.passengerRigs.values()) rig.dispose();
     this.passengerRigs.clear();
+    this.ocean.dispose();
     this.scene.traverse((entry) => {
       if (entry instanceof THREE.Mesh) {
         entry.geometry.dispose();

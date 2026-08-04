@@ -119,6 +119,24 @@ export interface CabinState {
   lastImpulse: number;
 }
 
+/**
+ * The ocean under a hull that never translates.
+ *
+ * `drift` is how far the water has slid beneath the ship, in metres on the
+ * world XZ plane, and `swell` scales the whole wave table for the sea state.
+ */
+export interface SeaState {
+  drift: Vec2;
+  swell: number;
+}
+
+/** Hull attitude fitted to the sea surface. Angles in radians, heave in metres. */
+export interface HullMotion {
+  pitch: number;
+  roll: number;
+  heave: number;
+}
+
 export interface VoyageState {
   phase: VoyagePhase;
   phaseElapsed: number;
@@ -139,6 +157,13 @@ export interface VoyageState {
   hydraulics: number;
   structure: number;
   cabinAcceleration: Vec2;
+  /** The water the ship is on. Kept separate from the attitude fields above. */
+  sea: SeaState;
+  /**
+   * Hull attitude derived from `sea`. Distinct from `pitch`/`roll`, which are
+   * still the commanded attitude the helm asks for.
+   */
+  hull: HullMotion;
   warning?: string;
 }
 
