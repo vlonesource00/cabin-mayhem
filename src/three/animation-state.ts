@@ -22,7 +22,7 @@ export type CrewOneShot = 'serve' | 'recoil' | 'throw' | 'stumble' | 'celebrate'
 
 /** Speeds in metres per second. Below `walkSpeed` the crew reads as standing. */
 const walkSpeed = 0.35;
-const sprintSpeed = 3.1;
+const sprintSpeed = 4;
 
 const speedOf = (player: PlayerState): number => Math.hypot(player.velocity.x, player.velocity.y);
 

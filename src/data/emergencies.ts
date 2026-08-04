@@ -13,7 +13,7 @@ export const galleyFireDefinitionSchema = z.object({
 export const galleyFireDefinition = {
   id: 'fire-galley',
   name: 'Galley fire',
-  position: { x: 10.8, y: 23.6 },
+  position: { x: 8, y: 39 },
   radius: 1.35,
   initialIntensity: 0.82,
 } as const;
@@ -34,7 +34,7 @@ export const galleyRepairDefinitionSchema = z.object({
 export const galleyRepairDefinition = {
   id: 'repair-galley-breaker',
   name: 'Coffee machine mutiny',
-  position: { x: 5.25, y: 25.6 },
+  position: { x: 3.4, y: 33 },
   radius: 1.15,
   repairDuration: 3,
   triggerAfterCruiseSeconds: 18,

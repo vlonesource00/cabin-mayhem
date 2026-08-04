@@ -25,8 +25,8 @@ export const portalSchema = z.object({
 export const compartmentSchema = z.object({
   id: z.string().regex(/^[a-z0-9-]+$/),
   label: z.string().min(1),
-  /** Numbered playable deck, 0 (machinery) through 5 (exterior). */
-  deck: z.number().int().min(0).max(5),
+  /** Numbered playable deck, 0 (machinery) through 12 (sun deck). */
+  deck: z.number().int().min(0).max(12),
   /** Interior clear extent in metres: width, height, length. */
   size: vec3Schema,
   /**
@@ -65,13 +65,14 @@ export const shipLayout = {
       label: 'Atrium',
       deck: 2,
       // The atrium footprint is deliberately the simulation's cabin volume:
-      // 16 x 36 authored units at CABIN_SCALE 0.5 is 8 m x 18 m. Guests keep
-      // their seats and loose props keep their floor when the shell changes.
-      size: { x: 8, y: 6.4, z: 18 },
+      // 24 x 46 authored units at CABIN_SCALE 1 is 24 m x 46 m, centred on the
+      // anchor. Guests keep their seats and loose props keep their floor when
+      // the shell changes. Four decks of void overhead make it read as tall.
+      size: { x: 24, y: 12.8, z: 46 },
       anchor: { x: 0, y: 6.4, z: 0 },
       portals: [
-        { target: 'cabin-corridor-a', position: { x: 0, y: 0, z: -9 } },
-        { target: 'bridge', position: { x: 0, y: 0, z: 9 } },
+        { target: 'cabin-corridor-a', position: { x: 0, y: 0, z: -23 } },
+        { target: 'bridge', position: { x: 0, y: 0, z: 23 } },
       ],
       budget,
     },
@@ -79,30 +80,31 @@ export const shipLayout = {
       id: 'cabin-corridor-a',
       label: 'Cabin corridor A',
       deck: 1,
-      size: { x: 3, y: 2.8, z: 24 },
-      anchor: { x: 0, y: 3.2, z: -30 },
+      size: { x: 4, y: 2.8, z: 40 },
+      anchor: { x: 0, y: 3.2, z: -44 },
       portals: [
-        { target: 'atrium', position: { x: 0, y: 0, z: 12 } },
-        { target: 'engine-room', position: { x: 0, y: 0, z: -12 } },
+        { target: 'atrium', position: { x: 0, y: 0, z: 20 } },
+        { target: 'engine-room', position: { x: 0, y: 0, z: -20 } },
       ],
       budget,
     },
     {
       id: 'bridge',
       label: 'Bridge',
-      deck: 4,
-      size: { x: 14, y: 3, z: 7 },
-      anchor: { x: 0, y: 12.8, z: 96 },
-      portals: [{ target: 'atrium', position: { x: 0, y: 0, z: -3.5 } }],
+      // Deck 6, directly over the 12.8 m-tall atrium that starts on deck 2.
+      deck: 6,
+      size: { x: 26, y: 3.4, z: 10 },
+      anchor: { x: 0, y: 19.2, z: 96 },
+      portals: [{ target: 'atrium', position: { x: 0, y: 0, z: -5 } }],
       budget,
     },
     {
       id: 'engine-room',
       label: 'Engine room',
       deck: 0,
-      size: { x: 14, y: 7, z: 18 },
-      anchor: { x: 0, y: 0, z: -74 },
-      portals: [{ target: 'cabin-corridor-a', position: { x: 0, y: 0, z: 9 } }],
+      size: { x: 22, y: 8, z: 26 },
+      anchor: { x: 0, y: 0, z: -88 },
+      portals: [{ target: 'cabin-corridor-a', position: { x: 0, y: 0, z: 13 } }],
       budget,
     },
   ],

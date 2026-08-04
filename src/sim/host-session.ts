@@ -189,12 +189,21 @@ export class HostSession {
   ): void {
     const player = this.state.cabin.players[playerId];
     if (!player) return;
+    // Working positions on the 24 x 46 m atrium floor, in metres. Each one puts
+    // the crew inside interaction reach of the props that station is about and
+    // clear of every box in `cabinFixtures`, so a teleport lands somewhere you
+    // can actually work rather than inside the furniture.
     const targets = {
-      cockpit: { x: 8, y: 3.1 },
-      cabin: { x: 8, y: 15.4 },
-      galley: { x: 10.8, y: 22.4 },
-      cargo: { x: 8, y: 31.5 },
-      repair: { x: 5.2, y: 24.8 },
+      // Forward, just aft of the reception counter.
+      cockpit: { x: 12, y: 6.5 },
+      // The service station: cart ahead, staged trays and kits underfoot.
+      cabin: { x: 10.6, y: 13.9 },
+      // Port side of the bar, within extinguisher range of the galley fire.
+      galley: { x: 8, y: 36.5 },
+      // Aft, between the two lashed crates.
+      cargo: { x: 12, y: 44.2 },
+      // Beside the breaker panel and its toolbox, port aft.
+      repair: { x: 4.2, y: 33.2 },
     };
     player.position = { ...targets[station] };
     player.velocity = { x: 0, y: 0 };

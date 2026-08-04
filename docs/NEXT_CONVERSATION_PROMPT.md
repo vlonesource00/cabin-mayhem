@@ -30,8 +30,9 @@ are still the airliner vertical's, generalised but not yet replaced. That gap is
 expected, not a bug.
 
 The airliner geometry is gone. src/three/cabin-world.ts has no fuselage, seat or
-overhead-bin geometry and src/three/scenario-loader.ts is deleted. What a
-screenshot still shows is a room only 8 m wide — see the immediate task.
+overhead-bin geometry and src/three/scenario-loader.ts is deleted. The room is no
+longer aircraft-sized either: the playfield and the atrium are both 24 m abeam by
+46 m fore-and-aft, 12.8 m tall, at one metre per sim unit.
 
 Before changing code:
 1. Run `git status --short --branch`, `git log -5 --oneline --decorate`, then
@@ -98,20 +99,20 @@ Open decisions:
 - Gating for restricted compartments.
 
 Immediate task — Phase 5 in docs/ROADMAP.md, in this order:
-1. **Make the ship big.** This is the top priority and the only remaining reason
-   the game does not look like a cruise ship. `CABIN_SCALE = 0.5` in
-   `src/three/coordinates.ts` maps a 16 x 36 sim-unit playfield onto an 8 m x
-   18 m room, which is an airliner footprint, and every compartment is authored
-   to match it or guests stand outside the furniture. Raise the playfield and the
-   scale together, retune movement speed against the new distances, re-author the
-   four rooms in `tools/blender/compartments/build_compartments.py`, and hold
-   every room to its docs/PERFORMANCE.md budget. Do this before authoring a fifth
-   room, so the fifth is built once. The requirement to meet is the "Scale and
-   density" section of docs/SHIP_LAYOUT.md: tall, massive, dense with objects and
-   life inside and out, all in GLB.
-2. Helm station with positional input authority: the host accepts `HelmInput`
+1. **Author `stairwell-fwd` and `stairwell-aft`.** The atrium <-> bridge and
+   cabin-corridor-a <-> engine-room portals are stand-ins that skip several decks.
+   Authoring the two stairwells retires them, corrects the portal distances in
+   `src/data/ship-layout.ts`, and is what makes the twelve declared decks
+   something the crew feels rather than a number in a table. Hold each room to its
+   docs/PERFORMANCE.md budget. The requirement to meet is the "Scale and density"
+   section of docs/SHIP_LAYOUT.md: tall, massive, dense with objects and life
+   inside and out, all in GLB.
+2. **The uniform spatial-hash broadphase.** Loose-object collision is pairwise and
+   O(n²); this is a prerequisite for the second populated compartment, not an
+   optimisation.
+3. Helm station with positional input authority: the host accepts `HelmInput`
    only from a player standing in the bridge helm volume.
-3. The collision-course incident end to end: host spawns the obstacle, every
+4. The collision-course incident end to end: host spawns the obstacle, every
    client shows the same warning and countdown, a player must physically reach
    the bridge, the host validates the avoidance, clearing throws loose objects,
    missing breaches the hull.
@@ -120,10 +121,9 @@ Exit condition: the ship moves on an ocean, you can steer it, and two players ca
 dodge one iceberg together.
 
 Also outstanding:
-- Author `stairwell-fwd` and `stairwell-aft`. The atrium <-> bridge and
-  cabin-corridor-a <-> engine-room portals are stand-ins that skip several decks.
-- The uniform spatial-hash broadphase. Loose-object collision is pairwise O(n²)
-  and this is a prerequisite for a second populated compartment.
+- Snapshot delta compression. Crews above two players are blocked on it.
+- The 1400 m sea plane is 156x156 segments with `frustumCulled = false` and its
+  GPU cost has never been measured against docs/PERFORMANCE.md on a low-end target.
 
 Important rules:
 - `HostSession` is authoritative. UI and Three.js may request interaction but

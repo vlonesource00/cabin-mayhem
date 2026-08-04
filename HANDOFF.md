@@ -16,9 +16,9 @@ repair — are still the airliner vertical's, generalised but not yet replaced.
 **The airliner geometry is gone.** Earlier handoffs warned that a screenshot
 would show a fuselage. That is no longer true: `src/three/cabin-world.ts` has no
 cabin, seat or overhead-bin geometry, `src/three/scenario-loader.ts` is deleted,
-and the player stands in an authored compartment served by the streamer. What a
-screenshot _does_ still show is a room only 8 m wide, because the simulation's
-playfield is still 16 sim units across. See **Known problems** below.
+and the player stands in an authored compartment served by the streamer. The
+room is no longer aircraft-sized either: the playfield and the atrium are both
+24 m abeam by 46 m fore-and-aft, 12.8 m tall, at one metre per sim unit.
 
 What actually runs today, on top of the ocean:
 
@@ -152,14 +152,12 @@ Before that, documentation only. No runtime code changed.
 
 - The cruise premise is mostly designed, not built. Phase 5 in
   [docs/ROADMAP.md](docs/ROADMAP.md) is the implementation slice in progress.
-- **The ship is not big yet.** `CABIN_SCALE = 0.5` in `src/three/coordinates.ts`
-  maps the simulation's 16 x 36 sim-unit playfield to an 8 m x 18 m room, and
-  every compartment is authored to match it or guests stand outside the
-  furniture. That is a fuselage footprint, and it is the reason the interior read
-  as an aeroplane even after the seating was fixed. Meeting the "big, tall and
-  massive" requirement in [docs/SHIP_LAYOUT.md](docs/SHIP_LAYOUT.md) means moving
-  the playfield, the scale and the movement speed that rides on them together,
-  then re-authoring all four rooms. It is a slice, not a constant tweak.
+- **The ship is wide but not yet tall.** The atrium is now 24 m x 46 m x 12.8 m
+  at `CABIN_SCALE = 1`, so the fuselage footprint is gone. What still falls short
+  of the "big, tall and massive" requirement in
+  [docs/SHIP_LAYOUT.md](docs/SHIP_LAYOUT.md) is vertical and lateral reach: only
+  four compartments exist across three of the twelve declared decks, and the two
+  stairwells that would make the deck count felt are not authored.
 - **Two portals are stand-ins.** `atrium` <-> `bridge` and `cabin-corridor-a` <->
   `engine-room` should each pass through a stairwell across several decks. The
   stairwells are not authored, so the streamer links the rooms directly, which
@@ -184,17 +182,15 @@ Before that, documentation only. No runtime code changed.
 
 ## Next recommended task
 
-1. **Widen the ship.** Raise `CABIN_SCALE` and the playfield in
-   `src/three/coordinates.ts` and `src/sim/`, retune movement speed against the
-   new distances, and re-author the four compartments to the larger footprint.
-   The streaming architecture is done and the rooms are dressed; the single
-   remaining reason the game does not look like a cruise ship is that its rooms
-   are aircraft-sized. Do this before authoring a fifth room, so the fifth is
-   built once.
-2. Then the helm station with positional input authority — the host accepts
-   `HelmInput` only from a player standing in the bridge helm volume. It needs a
-   bridge to stand in, which is why it follows the greybox.
-3. Then the collision-course incident end to end — the slice that proves the
+1. **Author `stairwell-fwd` and `stairwell-aft`.** They retire the two stand-in
+   portals, and they are what makes the deck count something the crew feels
+   rather than a number in a table.
+2. **The uniform spatial-hash broadphase.** Loose-object collision is pairwise
+   and O(n²); this is a prerequisite for the second populated compartment, not
+   an optimisation.
+3. Then the helm station with positional input authority — the host accepts
+   `HelmInput` only from a player standing in the bridge helm volume.
+4. Then the collision-course incident end to end — the slice that proves the
    whole design.
 
 ## Current verification

@@ -52,10 +52,10 @@ authors the rest.
 
 | Compartment        | Deck | Draw meshes | Bytes     |
 | ------------------ | ---- | ----------- | --------- |
-| `atrium`           | 2    | 13          | 1,035,680 |
-| `cabin-corridor-a` | 1    | 10          | 466,240   |
-| `bridge`           | 4    | 13          | 258,400   |
-| `engine-room`      | 0    | 10          | 664,828   |
+| `atrium`           | 2    | 13          | 1,574,448 |
+| `cabin-corridor-a` | 1    | 10          | 769,964   |
+| `bridge`           | 6    | 13          | 326,356   |
+| `engine-room`      | 0    | 10          | 718,848   |
 
 Density comes from merging by material, not from spending draw calls: each room
 holds hundreds of authored props and still exports around a quarter of its

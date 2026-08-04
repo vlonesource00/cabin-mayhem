@@ -23,8 +23,8 @@ export function createCabinState(): CabinState {
     width: phaseOneCabinDefinition.width,
     length: phaseOneCabinDefinition.length,
     players: {
-      'crew-alpha': player('crew-alpha', 'Crew Alpha / host', '#f7be62', { x: 8, y: 5 }),
-      'crew-bravo': player('crew-bravo', 'Crew Bravo / client', '#73d5e8', { x: 8, y: 29 }),
+      'crew-alpha': player('crew-alpha', 'Crew Alpha / host', '#f7be62', { x: 12, y: 6.5 }),
+      'crew-bravo': player('crew-bravo', 'Crew Bravo / client', '#73d5e8', { x: 12, y: 39 }),
     },
     objects: Object.fromEntries(objects.map((entry) => [entry.id, entry])),
     collisionCount: 0,
@@ -181,7 +181,7 @@ export function makeSpawnObject(index: number): CabinObject {
     'Spawned light case',
     'light-case',
     'plastic',
-    { x: 8, y: 20 },
+    { x: 12, y: 30 },
     0.48,
     5,
     0.38,
@@ -251,7 +251,8 @@ function stepPlayer(
   const direction = normalized(input.move);
   const look = normalized(input.look);
   const facing = length(look) > 0.01 ? look : length(direction) > 0.01 ? direction : player.facing;
-  const speed = input.crouch ? 2.1 : input.sprint ? 5.4 : 3.55;
+  // Metres per second: one simulation unit is one metre since `CABIN_SCALE` is 1.
+  const speed = input.crouch ? 1.4 : input.sprint ? 5.4 : 2.6;
   const targetVelocity = scale(direction, speed);
   const braceFactor = input.brace ? 0.08 : 0.34;
   const inertia = scale(voyage.cabinAcceleration, braceFactor);
@@ -300,18 +301,35 @@ interface CabinFixture {
   maxY: number;
 }
 
+/**
+ * The atrium's solid furniture, in metres on the 24 x 46 playfield. These
+ * mirror what `tools/blender/compartments/build_compartments.py` authors, so
+ * the crew collides with the furniture they can see and nothing else.
+ */
+const seatRows = [9.5, 12.9, 16.3, 19.7, 23.1, 26.5, 29.9, 33.3];
+
 const cabinFixtures: CabinFixture[] = [
-  { minX: 1.2, maxX: 6.7, minY: 0.75, maxY: 2.25 },
-  { minX: 9.3, maxX: 14.8, minY: 0.75, maxY: 2.25 },
-  ...Array.from({ length: 8 }, (_, row) => {
-    const center = 7.2 + row * 2.76;
-    return [
-      { minX: 1.1, maxX: 5.9, minY: center - 0.9, maxY: center + 0.9 },
-      { minX: 10.1, maxX: 14.9, minY: center - 0.9, maxY: center + 0.9 },
-    ];
-  }).flat(),
-  { minX: 0.8, maxX: 6.2, minY: 29.15, maxY: 29.8 },
-  { minX: 9.8, maxX: 15.2, minY: 29.15, maxY: 29.8 },
+  // Feature column and the spiral stair wrapped around it, dead centre.
+  { minX: 9.0, maxX: 15.0, minY: 20.0, maxY: 26.0 },
+  // Reception counter across the forward end.
+  { minX: 7.0, maxX: 17.0, minY: 3.2, maxY: 5.0 },
+  // Bar counter across the aft end.
+  { minX: 6.5, maxX: 17.5, minY: 41.0, maxY: 42.8 },
+  // Grand piano, starboard aft.
+  { minX: 16.2, maxX: 19.4, minY: 35.4, maxY: 38.6 },
+  // The eight guest armchairs, port and starboard alternating. The inboard face
+  // stays 1.8 m from the seat so the service position remains within reach.
+  ...seatRows.map((seatY, index) =>
+    index % 2 === 0
+      ? { minX: 5.7, maxX: 7.5, minY: seatY - 0.9, maxY: seatY + 0.9 }
+      : { minX: 16.5, maxX: 18.3, minY: seatY - 0.9, maxY: seatY + 0.9 },
+  ),
+  // The café table and planter outboard of each armchair.
+  ...seatRows.map((seatY, index) =>
+    index % 2 === 0
+      ? { minX: 3.8, maxX: 5.4, minY: seatY - 1.4, maxY: seatY + 1.4 }
+      : { minX: 18.6, maxX: 20.2, minY: seatY - 1.4, maxY: seatY + 1.4 },
+  ),
 ];
 
 function resolveCabinFixtures(position: Vec2, previous: Vec2, radius: number): Vec2 {

@@ -37,7 +37,7 @@
       "runtimeFile": "public/assets/compartments/atrium.glb",
       "license": "Project-owned, all rights reserved",
       "owner": "Cabin Mayhem",
-      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; the deck 2 public atrium: a lit feature column with a spiral stair wrapped around it, fore and aft mezzanine balconies that leave the middle open to the full double height, reception, a grand piano, a bar, and eight angled armchairs standing where the simulation seats its guests. Merged by material to 13 draw meshes, no external textures or third-party assets.",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; the deck 2 public atrium, 24 m abeam by 46 m fore-and-aft: a lit feature column with a spiral stair wrapped around it, fore and aft mezzanine balconies that leave the middle open to the full double height, reception, a grand piano, a bar, and eight angled armchairs standing where the simulation seats its guests. Merged by material to 13 draw meshes, no external textures or third-party assets.",
       "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
     },
     {
@@ -57,7 +57,7 @@
       "runtimeFile": "public/assets/compartments/bridge.glb",
       "license": "Project-owned, all rights reserved",
       "owner": "Cabin Mayhem",
-      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; the deck 4 navigation bridge with a nine-panel forward window band, helm console, radar consoles and chart table. Merged by material to 13 draw meshes, no external textures or third-party assets.",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; the deck 6 navigation bridge with a nine-panel forward window band, helm console, radar consoles and chart table. Merged by material to 13 draw meshes, no external textures or third-party assets.",
       "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
     },
     {

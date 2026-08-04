@@ -14,10 +14,9 @@ Local work snapshot. Phases and exit conditions live in
 - [x] Ship motion model: heading, rudder, telegraph, momentum, turning radius, derived deck acceleration.
 - [x] Compartment set (atrium, cabin-corridor-a, bridge, engine-room) behind the streaming loader and
       portal graph. The airliner cabin is gone from the code and from the authored geometry.
-- [ ] Widen the ship. `CABIN_SCALE = 0.5` in `src/three/coordinates.ts` maps a 16 x 36 sim-unit
-      playfield onto an 8 m x 18 m room, which is a fuselage footprint. Every compartment is authored
-      to match it, so nothing reads as "big, tall and massive" until the playfield and the scale move
-      together with the movement speed that rides on them.
+- [x] Widen the ship. `CABIN_SCALE = 1` in `src/three/coordinates.ts` now maps a 24 x 46 metre
+      playfield onto a 24 m x 46 m atrium, 12.8 m tall, and every compartment, station, prop and
+      teleport target was restaged onto it. The fuselage footprint is gone.
 - [ ] Author `stairwell-fwd` and `stairwell-aft`. The `atrium` <-> `bridge` and
       `cabin-corridor-a` <-> `engine-room` portals are stand-ins that skip several decks.
 - [ ] Helm station with positional input authority.

@@ -188,14 +188,15 @@ graph above is real:
   residency set. Authoring `stairwell-fwd` and `stairwell-aft` is what retires
   it, and the portal distances in `src/data/ship-layout.ts` will change when it
   happens.
-- **The atrium is 8 m × 18 m because the simulation's playfield still is.**
-  `src/three/coordinates.ts` maps a 16 × 36 sim-unit volume through
-  `CABIN_SCALE = 0.5`, and the authored room has to match it or guests stand
-  outside the furniture. That footprint is a narrow box, and a narrow box is why
-  the room read as an aircraft fuselage until its seating was re-authored. The
-  ship described under [Scale and density](#scale-and-density) needs the
-  playfield widened and the scale raised; until that lands, every compartment is
-  built to airliner proportions no matter how it is dressed.
+- **The atrium is now 24 m × 46 m, and the playfield is the same.**
+  `src/data/phase-one.ts` declares a 24 × 46 playfield, `src/three/coordinates.ts`
+  maps it at `CABIN_SCALE = 1` (one sim unit is one metre) to world x ∈ [−12, +12]
+  and z ∈ [−23, +23], and the authored room matches it exactly — otherwise guests
+  stand outside the furniture. This retires the old 8 m × 18 m box that made the
+  room read as an aircraft fuselage. The room is now beam-width for a real ship,
+  and every station in `HostSession.teleport` was restaged onto it. The remaining
+  gap against [Scale and density](#scale-and-density) is vertical and lateral
+  reach: more decks and more compartments, not a wider atrium.
 
 ## Streaming and budget
 

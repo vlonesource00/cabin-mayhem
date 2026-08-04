@@ -7,7 +7,7 @@ const extinguisher: CabinObject = {
   name: 'Fire extinguisher',
   kind: 'extinguisher',
   material: 'metal',
-  position: { x: 10.8, y: 23.6 },
+  position: { x: 10, y: 12.8 },
   velocity: { x: 0, y: 0 },
   radius: 0.25,
   mass: 4,

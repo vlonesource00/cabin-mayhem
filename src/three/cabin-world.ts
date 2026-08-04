@@ -20,7 +20,7 @@ import {
   passengerAnimationState,
   passengerClip,
 } from './animation-state';
-import { cabinToWorld } from './coordinates';
+import { CABIN_CENTER_X, cabinToWorld } from './coordinates';
 import { GesturePlayer, handGestures, passengerPose } from './interaction-animation';
 import { OceanSurface } from './ocean-surface';
 import { CompartmentStreamer } from './compartment-streamer';
@@ -43,10 +43,10 @@ const localCrewId = 'crew-alpha';
 
 /**
  * Where the occupied compartment's floor centre sits in the simulation's world
- * space. `cabinToWorld` maps the 16 x 36 playfield onto z -1.5 to 16.5, so its
- * midpoint is 7.5.
+ * space. `cabinToWorld` maps the 24 x 46 playfield onto z -23 to +23, so the
+ * playfield is already centred on its compartment anchor.
  */
-const COMPARTMENT_ORIGIN_Z = 7.5;
+const COMPARTMENT_ORIGIN_Z = 0;
 
 /**
  * Name of the sub-group holding an avatar's procedural box body. Everything
@@ -271,15 +271,16 @@ export class CabinWorld {
     sun.position.set(-7, 12, -8);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.camera.left = -12;
-    sun.shadow.camera.right = 12;
-    sun.shadow.camera.top = 20;
-    sun.shadow.camera.bottom = -8;
+    sun.shadow.camera.left = -16;
+    sun.shadow.camera.right = 16;
+    sun.shadow.camera.top = 28;
+    sun.shadow.camera.bottom = -28;
     this.scene.add(sun);
 
-    for (let z = -2; z <= 16; z += 4.5) {
-      const light = new THREE.PointLight(0xd8f2ff, 3.1, 7.5, 1.6);
-      light.position.set(0, 2.75, z);
+    // Fill lights down the 46 m atrium, one every 5.75 m.
+    for (let z = -20.125; z <= 20.125; z += 5.75) {
+      const light = new THREE.PointLight(0xd8f2ff, 9, 22, 1.6);
+      light.position.set(0, 5.4, z);
       this.cabinLights.push(light);
       this.cabin.add(light);
     }
@@ -543,8 +544,9 @@ export class CabinWorld {
       const seat = cabinToWorld(passenger.seatPosition);
       const shake = Math.sin(elapsed * 15 + passenger.requestAt) * passenger.panic * 0.035;
       avatar.position.set(seat.x + shake, seat.y + react.bob, seat.z);
-      avatar.rotation.y = passenger.seatPosition.x < 8 ? -0.08 : 0.08;
-      avatar.rotation.z = passenger.injury * (passenger.seatPosition.x < 8 ? 0.22 : -0.22);
+      const toPort = passenger.seatPosition.x < CABIN_CENTER_X;
+      avatar.rotation.y = toPort ? -0.08 : 0.08;
+      avatar.rotation.z = passenger.injury * (toPort ? 0.22 : -0.22);
 
       const rig = this.passengerRig(passenger.id, avatar);
       if (rig) {
@@ -632,7 +634,7 @@ export class CabinWorld {
       this.crewBravo.rotation.z = bravo.knockdown > 0 ? 1.2 : 0;
       if (!this.crewBravoRig) {
         const speed = Math.hypot(bravo.velocity.x, bravo.velocity.y);
-        const stride = Math.min(speed / 3.2, 1);
+        const stride = Math.min(speed / 2.6, 1);
         const swing = Math.sin(elapsed * (6 + stride * 6)) * stride * 0.7;
         const limbs = proceduralBody(this.crewBravo).filter(
           (entry) => entry.name === 'crew leg' || entry.name === 'crew arm',

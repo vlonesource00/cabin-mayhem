@@ -454,7 +454,15 @@ export class CabinMayhemApp {
     if (!this.session) return;
     this.session.setNetwork({ enabled: false });
     this.session.teleport('crew-alpha', 'repair');
+    // The repair station stands aft of the toolbox, so aim at it explicitly
+    // rather than inheriting whatever the live camera happened to be facing.
+    // Interactions resolve before the look is applied, so this needs its own tick.
+    const aim = emptyCommand();
+    aim.look = { x: -0.32, y: -0.95 };
+    this.session.submitCommand('crew-alpha', aim);
+    this.session.step(1 / 60);
     const pickup = emptyCommand();
+    pickup.look = { x: -0.32, y: -0.95 };
     pickup.interact = true;
     pickup.interactionTargetId = 'toolbox-01';
     this.session.submitCommand('crew-alpha', pickup);
