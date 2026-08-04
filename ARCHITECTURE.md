@@ -49,8 +49,9 @@ Existing, carried over:
   host snapshots.
 - `CabinWorld`: Three.js world, lighting, GLB/procedural visuals, prop
   synchronisation, interaction raycast.
-- `scenario-loader`: validates and loads authored GLBs, leaving procedural
-  visuals active on failure.
+- `compartment-loader` / `CompartmentStreamer`: validate and load the authored
+  compartment GLBs and keep the right rooms resident, falling back to greybox
+  on failure.
 - `FirstPersonController`, `interaction-animation`, `animated-rig`,
   `animation-contract`, `animation-state`: unchanged. The `CM_HUMANOID` skeleton
   and arms rig survive the pivot intact.

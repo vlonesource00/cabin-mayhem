@@ -23,7 +23,8 @@ import {
 import { cabinToWorld } from './coordinates';
 import { GesturePlayer, handGestures, passengerPose } from './interaction-animation';
 import { OceanSurface } from './ocean-surface';
-import { disposeScenario, loadCabinScenario } from './scenario-loader';
+import { CompartmentStreamer } from './compartment-streamer';
+import { defaultCompartmentId } from '../data/ship-layout';
 
 const colors = {
   navy: 0x101a28,
@@ -39,6 +40,13 @@ const colors = {
 
 /** The camera always follows this crew slot; the peer is rendered as an avatar. */
 const localCrewId = 'crew-alpha';
+
+/**
+ * Where the occupied compartment's floor centre sits in the simulation's world
+ * space. `cabinToWorld` maps the 16 x 36 playfield onto z -1.5 to 16.5, so its
+ * midpoint is 7.5.
+ */
+const COMPARTMENT_ORIGIN_Z = 7.5;
 
 /**
  * Name of the sub-group holding an avatar's procedural box body. Everything
@@ -63,7 +71,6 @@ export class CabinWorld {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly cabin = new THREE.Group();
-  private readonly proceduralScenario = new THREE.Group();
   private readonly startedAt = performance.now();
   private readonly raycaster = new THREE.Raycaster();
   private readonly dynamicObjects = new Map<string, THREE.Group>();
@@ -71,6 +78,16 @@ export class CabinWorld {
   private readonly interactionRoots: THREE.Object3D[] = [];
   private readonly gestures = new GesturePlayer();
   private readonly ocean = new OceanSurface();
+  /**
+   * Owns the shell the crew stands in. The occupied compartment's asset source
+   * is published on the canvas so the browser tests can tell an authored room
+   * from the greybox fallback without reaching into Three.js.
+   */
+  private readonly compartments = new CompartmentStreamer({
+    onSourceChange: (source) => {
+      this.canvas.dataset.assetMode = source;
+    },
+  });
   private readonly reactionAt = new Map<string, number>();
   private readonly reactionStatus = new Map<string, PassengerRequestStatus>();
   private previousState?: MissionState;
@@ -80,7 +97,6 @@ export class CabinWorld {
   private readonly galleyBreaker: THREE.Group;
   private interactionPrompt = 'CLICK TO CAPTURE MOUSE';
   private targetObjectId: string | null = null;
-  private productionScenario?: THREE.Group;
   private disposed = false;
 
   /** Authored-rig layer. Absent until the GLBs load; may never arrive. */
@@ -111,11 +127,11 @@ export class CabinWorld {
     this.canvas.dataset.assetMode = 'loading';
 
     this.buildLighting();
-    const scenarioStart = this.cabin.children.length;
-    this.buildCabin();
-    this.proceduralScenario.name = 'Procedural cabin fallback';
-    this.proceduralScenario.add(...this.cabin.children.slice(scenarioStart));
-    this.cabin.add(this.proceduralScenario);
+    // The compartment's floor centre sits at the middle of the simulation's
+    // playfield, so the atrium's authored footprint lands exactly on the volume
+    // the physics already uses. See src/three/coordinates.ts.
+    this.compartments.group.position.set(0, 0, COMPARTMENT_ORIGIN_Z);
+    this.cabin.add(this.compartments.group);
     this.galleyFire = this.createGalleyFire();
     this.cabin.add(this.galleyFire);
     this.galleyBreaker = this.createGalleyBreaker();
@@ -125,7 +141,7 @@ export class CabinWorld {
     this.scene.add(this.cabin);
     this.scene.add(this.ocean.group);
     this.scene.add(this.camera);
-    this.loadProductionScenario();
+    void this.compartments.setCurrent(defaultCompartmentId);
     this.loadAuthoredRigs();
     this.resize();
     window.addEventListener('resize', this.resize);
@@ -168,6 +184,7 @@ export class CabinWorld {
     this.firstPersonArms?.dispose();
     for (const rig of this.passengerRigs.values()) rig.dispose();
     this.passengerRigs.clear();
+    this.compartments.dispose();
     this.ocean.dispose();
     this.scene.traverse((entry) => {
       if (entry instanceof THREE.Mesh) {
@@ -182,23 +199,6 @@ export class CabinWorld {
     });
     this.renderer.dispose();
     this.canvas.remove();
-  }
-
-  private loadProductionScenario(): void {
-    void loadCabinScenario()
-      .then((scenario) => {
-        if (this.disposed) {
-          disposeScenario(scenario);
-          return;
-        }
-        this.productionScenario = scenario;
-        this.cabin.add(scenario);
-        this.hideProceduralScenario();
-        this.canvas.dataset.assetMode = 'glb';
-      })
-      .catch(() => {
-        if (!this.disposed) this.canvas.dataset.assetMode = 'fallback';
-      });
   }
 
   /**
@@ -257,27 +257,6 @@ export class CabinWorld {
     for (const rig of this.passengerRigs.values()) rig.update(delta);
   }
 
-  private hideProceduralScenario(): void {
-    const interactive = new Set(this.interactionRoots);
-    this.proceduralScenario.traverse((entry) => {
-      if (!(entry instanceof THREE.Mesh)) return;
-      if (!interactive.has(entry)) {
-        entry.visible = false;
-        return;
-      }
-      const materials = Array.isArray(entry.material) ? entry.material : [entry.material];
-      const invisible = materials.map((material) => {
-        const clone = material.clone();
-        clone.transparent = true;
-        clone.opacity = 0;
-        clone.depthWrite = false;
-        clone.colorWrite = false;
-        return clone;
-      });
-      entry.material = Array.isArray(entry.material) ? invisible : invisible[0]!;
-    });
-  }
-
   private readonly resize = (): void => {
     const width = Math.max(1, this.mount.clientWidth);
     const height = Math.max(1, this.mount.clientHeight);
@@ -304,204 +283,6 @@ export class CabinWorld {
       this.cabinLights.push(light);
       this.cabin.add(light);
     }
-  }
-
-  private buildCabin(): void {
-    const floorMaterial = this.material(colors.carpet, 0.86, 0.05);
-    const shellMaterial = this.material(colors.cream, 0.68, 0.08);
-    const trimMaterial = this.material(colors.panel, 0.48, 0.35);
-
-    this.cabin.add(this.box('floor', [8.4, 0.18, 20.5], [0, -0.09, 7.25], floorMaterial));
-    this.cabin.add(this.box('left wall', [0.18, 2.65, 20.5], [-4.1, 1.32, 7.25], shellMaterial));
-    this.cabin.add(this.box('right wall', [0.18, 2.65, 20.5], [4.1, 1.32, 7.25], shellMaterial));
-    this.cabin.add(this.box('ceiling', [6.8, 0.16, 20.5], [0, 3.08, 7.25], shellMaterial));
-
-    const leftSlope = this.box('left roof', [1.8, 0.16, 20.5], [-3.35, 2.78, 7.25], shellMaterial);
-    leftSlope.rotation.z = -0.34;
-    const rightSlope = this.box('right roof', [1.8, 0.16, 20.5], [3.35, 2.78, 7.25], shellMaterial);
-    rightSlope.rotation.z = 0.34;
-    this.cabin.add(leftSlope, rightSlope);
-
-    for (let z = -1.5; z <= 16.5; z += 2.25) {
-      this.cabin.add(this.box('floor rib', [8.22, 0.025, 0.055], [0, 0.015, z], trimMaterial));
-      this.addWindows(z + 0.45);
-    }
-
-    this.buildCockpit();
-    this.buildPassengerCabin();
-    this.buildCargoBay();
-    this.buildDoorsAndSigns();
-  }
-
-  private buildCockpit(): void {
-    const dark = this.material(colors.navy, 0.62, 0.35);
-    const instrument = this.material(0x172939, 0.4, 0.45, 0x1f6f91);
-    const bulkhead = this.box(
-      'cockpit bulkhead',
-      [8, 2.9, 0.18],
-      [0, 1.45, 0.55],
-      this.material(colors.navySoft),
-    );
-    this.cabin.add(bulkhead);
-
-    const doorway = this.box(
-      'cockpit doorway',
-      [1.65, 2.45, 0.23],
-      [0, 1.22, 0.49],
-      this.material(0x07111d),
-    );
-    this.cabin.add(doorway);
-
-    const panel = this.box('voyage deck', [6.8, 1.05, 1.05], [0, 1.05, -2.25], instrument);
-    panel.rotation.x = -0.18;
-    panel.userData.interaction =
-      'Bridge helm — left/right arrows wind the wheel, R/F work the telegraph, B crash stop';
-    this.interactionRoots.push(panel);
-    this.cabin.add(panel);
-
-    for (const x of [-2.25, -0.75, 0.75, 2.25]) {
-      const screen = this.box(
-        'instrument display',
-        [1.1, 0.04, 0.48],
-        [x, 1.42, -1.76],
-        this.material(0x07141d, 0.28, 0.25, colors.cyan),
-      );
-      screen.rotation.x = -1.18;
-      this.cabin.add(screen);
-    }
-
-    this.cabin.add(this.createSeat(-1.25, -0.85, 0x263648, true));
-    this.cabin.add(this.createSeat(1.25, -0.85, 0x263648, true));
-    this.cabin.add(this.label('FLIGHT DECK', [0, 2.35, 0.38], 1.5, 0.32, colors.cyan));
-
-    const windscreenMaterial = this.material(0x244e68, 0.18, 0.72, 0x14394d);
-    for (const x of [-2.3, -0.75, 0.75, 2.3]) {
-      const glass = this.box('windscreen', [1.3, 0.05, 0.8], [x, 2.2, -2.9], windscreenMaterial);
-      glass.rotation.x = -0.55;
-      this.cabin.add(glass);
-    }
-    this.cabin.add(this.box('cockpit nose', [8.1, 3.05, 0.25], [0, 1.5, -3.2], dark));
-  }
-
-  private buildPassengerCabin(): void {
-    const seatXs = [-2.85, -1.65, 1.65, 2.85];
-    for (let row = 0; row < 8; row += 1) {
-      const z = 2.1 + row * 1.38;
-      for (const x of seatXs)
-        this.cabin.add(this.createSeat(x, z, row % 2 === 0 ? 0x234c62 : 0x2a5b70));
-      this.cabin.add(this.createOverheadBin(-3.25, z));
-      this.cabin.add(this.createOverheadBin(3.25, z));
-    }
-
-    for (let z = 2.2; z < 12.5; z += 2.75) {
-      const strip = this.box(
-        'aisle light',
-        [0.12, 0.02, 1.8],
-        [0, 3, z],
-        this.material(0xeaf8ff, 0.3, 0.15, 0xb8e8ff),
-      );
-      this.cabin.add(strip);
-    }
-  }
-
-  private buildCargoBay(): void {
-    const metal = this.material(0x66727b, 0.62, 0.62);
-    const divider = this.box(
-      'cargo divider',
-      [8, 2.85, 0.16],
-      [0, 1.42, 13.25],
-      this.material(colors.navySoft),
-    );
-    this.cabin.add(divider);
-    this.cabin.add(
-      this.box('cargo opening', [1.8, 2.4, 0.22], [0, 1.2, 13.18], this.material(0x07111d)),
-    );
-    this.cabin.add(this.label('CARGO / SERVICE', [0, 2.55, 13.08], 1.7, 0.28, colors.orange));
-
-    for (const x of [-3.2, 3.2]) {
-      for (const y of [0.5, 1.45, 2.4])
-        this.cabin.add(this.box('shelf', [1.35, 0.1, 4.15], [x, y, 15.5], metal));
-      for (const z of [13.6, 17.45])
-        this.cabin.add(this.box('shelf post', [0.12, 2.5, 0.12], [x, 1.25, z], metal));
-    }
-    const cargoDoor = this.box(
-      'cargo door',
-      [0.16, 2.3, 2.2],
-      [4.01, 1.2, 16],
-      this.material(0x9aa2a6, 0.55, 0.25),
-    );
-    cargoDoor.userData.interaction = 'Cargo door — locked during flight';
-    this.interactionRoots.push(cargoDoor);
-    this.cabin.add(cargoDoor);
-  }
-
-  private buildDoorsAndSigns(): void {
-    const emergency = this.material(colors.red, 0.4, 0.2, 0x6e1711);
-    for (const side of [-1, 1]) {
-      const door = this.box(
-        'emergency exit',
-        [0.2, 2.15, 1.35],
-        [side * 4.01, 1.1, 7.7],
-        this.material(0xc2c8c9, 0.58, 0.22),
-      );
-      door.userData.interaction = 'Emergency exit — armed';
-      this.interactionRoots.push(door);
-      this.cabin.add(door);
-      const sign = this.box('exit sign', [0.22, 0.25, 0.8], [side * 3.95, 2.45, 7.7], emergency);
-      this.cabin.add(sign);
-    }
-  }
-
-  private addWindows(z: number): void {
-    const glass = this.material(0x4ba3c7, 0.24, 0.55, 0x174d69);
-    for (const side of [-1, 1]) {
-      const window = this.box('window', [0.08, 0.58, 0.82], [side * 4.02, 1.75, z], glass);
-      this.cabin.add(window);
-    }
-  }
-
-  private createSeat(x: number, z: number, color: number, cockpit = false): THREE.Group {
-    const group = new THREE.Group();
-    group.name = cockpit ? 'pilot seat' : 'passenger seat';
-    const fabric = this.material(color, 0.82, 0.04);
-    const frame = this.material(0x7b858c, 0.5, 0.72);
-    const cushion = this.box('seat cushion', [0.92, 0.22, 0.72], [0, 0.56, 0], fabric);
-    const back = this.box('seat back', [0.92, 1.22, 0.2], [0, 1.18, 0.31], fabric);
-    back.rotation.x = -0.08;
-    const head = this.box(
-      'headrest',
-      [0.76, 0.35, 0.24],
-      [0, 1.78, 0.34],
-      this.material(colors.orange, 0.7),
-    );
-    group.add(cushion, back, head);
-    for (const legX of [-0.34, 0.34])
-      group.add(this.box('seat leg', [0.08, 0.52, 0.08], [legX, 0.25, 0.1], frame));
-    group.position.set(x, 0, z);
-    group.userData.interaction = cockpit ? 'Pilot seat' : 'Passenger seat — secured';
-    this.interactionRoots.push(group);
-    return group;
-  }
-
-  private createOverheadBin(x: number, z: number): THREE.Group {
-    const group = new THREE.Group();
-    const bin = this.box(
-      'overhead bin',
-      [1.35, 0.62, 1.15],
-      [0, 0, 0],
-      this.material(0xbfc3bd, 0.72, 0.15),
-    );
-    const handle = this.box(
-      'bin handle',
-      [0.42, 0.04, 0.08],
-      [x < 0 ? 0.6 : -0.6, -0.1, 0],
-      this.material(0x62696d, 0.4, 0.65),
-    );
-    group.add(bin, handle);
-    group.position.set(x, 2.35, z);
-    group.userData.interaction = 'Overhead bin — sealed in Phase 1';
-    this.interactionRoots.push(group);
-    return group;
   }
 
   private createCrewAvatar(color: number): THREE.Group {

@@ -17,6 +17,47 @@ node in the portal graph and one entry in `public/assets/manifest.json`.
   voyage continues.
 - **Nothing on the critical path may live in exactly one compartment** unless
   losing it is the point. The helm is the deliberate exception.
+- **Everything is authored in GLB.** Procedural geometry exists only as the
+  fallback that keeps the voyage running when a GLB is missing or fails
+  validation. It is never the shipped look.
+
+## Scale and density
+
+The ship is big. Tall and massive, dense with objects and detail inside and out,
+and stocked with what a real cruise ship actually has. That is a design
+requirement, not a stretch goal, and it is the reason every technique in
+[`PERFORMANCE.md`](PERFORMANCE.md) exists.
+
+Fixed dimensions, so geometry authored in different scripts agrees:
+
+| Quantity                | Value | Note                                            |
+| ----------------------- | ----- | ----------------------------------------------- |
+| Length overall          | 290 m | Hull origin amidships, bow at +Z                |
+| Beam                    | 38 m  | Centreline at x = 0                             |
+| Draught                 | 8.4 m | Waterline is y = 0 in ship-local space          |
+| Deck-to-deck pitch      | 3.2 m | 2.8 m clear headroom plus 0.4 m of deckhead     |
+| Superstructure height   | 45 m  | Waterline to the top of the funnel              |
+| Exterior decks readable | 14    | What the silhouette shows from outside          |
+| Numbered playable decks | 6     | Decks 0–5 below; the rest are exterior geometry |
+
+The two deck counts are deliberate and must not be reconciled by shrinking the
+ship. The exterior reads as a full-height liner because that is the fantasy. The
+interior graph is the six numbered decks in the tables below, growing toward the
+seventy-odd spaces listed under _Beyond the initial set_. Unentered exterior
+decks are hull, balconies, windows and railings only — silhouette, no rooms.
+
+Density is measured, not eyeballed. Per full-detail compartment:
+
+- at least 40 distinct authored props, and enough repeated dressing that the
+  space reads as lived-in rather than as a box with four objects in it,
+- every repeated prop through `InstancedMesh`, which is what makes the number
+  above affordable inside the 40-draw-mesh budget,
+- signs of life that cost nothing per frame: fixed clutter, wear, signage,
+  lighting colour and silhouette variation, rather than more unique meshes.
+
+Detail lives in silhouette, colour and instancing. It does not live in draw
+calls. A compartment that is dense and over budget is not shippable, and the
+answer is always merging, instancing or LOD — never deleting the content.
 
 ## Decks
 
@@ -132,6 +173,29 @@ weather-deck ─── lifeboat-station
 
 Two vertical stairwells, forward and aft, connect every deck. They are the
 throttle on crew movement and the reason position matters.
+
+### What is actually authored today
+
+Four compartments exist as GLBs: `atrium`, `cabin-corridor-a`, `bridge` and
+`engine-room`. Two honest caveats, both of which have to be paid off before the
+graph above is real:
+
+- **The portals `atrium ↔ bridge` and `cabin-corridor-a ↔ engine-room` are
+  stand-ins.** In the real graph those routes climb or drop several decks
+  through a stairwell. The stairwells are not authored yet, so the streamer
+  links the rooms directly. This makes the bridge one hop from the atrium
+  instead of several, which flatters both crew-movement timing and the
+  residency set. Authoring `stairwell-fwd` and `stairwell-aft` is what retires
+  it, and the portal distances in `src/data/ship-layout.ts` will change when it
+  happens.
+- **The atrium is 8 m × 18 m because the simulation's playfield still is.**
+  `src/three/coordinates.ts` maps a 16 × 36 sim-unit volume through
+  `CABIN_SCALE = 0.5`, and the authored room has to match it or guests stand
+  outside the furniture. That footprint is a narrow box, and a narrow box is why
+  the room read as an aircraft fuselage until its seating was re-authored. The
+  ship described under [Scale and density](#scale-and-density) needs the
+  playfield widened and the scale raised; until that lands, every compartment is
+  built to airliner proportions no matter how it is dressed.
 
 ## Streaming and budget
 

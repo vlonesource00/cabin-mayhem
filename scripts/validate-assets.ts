@@ -2,6 +2,11 @@ import { readFile, stat } from 'node:fs/promises';
 import { z } from 'zod';
 import { inspectGlb } from './glb-inspect';
 import { clipSeconds, frameTolerance, rigContracts } from '../src/three/animation-contract';
+import { shipLayout } from '../src/data/ship-layout';
+
+const compartmentAssetId = (id: string) => `cabin-mayhem-compartment-${id}`;
+const compartmentRootName = (id: string) => `CM_${id.toUpperCase().replace(/-/g, '_')}_ROOT`;
+const portalMarkerName = (target: string) => `CM_PORTAL_${target.toUpperCase().replace(/-/g, '_')}`;
 
 const assetSchema = z.object({
   id: z.string().min(1),
@@ -88,5 +93,46 @@ if (!result.success) {
   } else {
     const clipTotal = rigContracts.reduce((sum, rig) => sum + rig.clips.length, 0);
     console.log(`Rig contract valid: ${rigContracts.length} rigs, ${clipTotal} authored clips.`);
+  }
+
+  // Every compartment in the ship layout must have an exported room that the
+  // streamer can actually resolve, and it must fit the budget it declares. A
+  // compartment that overruns its budget fails here, not on the player's frame.
+  const compartmentViolations: string[] = [];
+  for (const compartment of shipLayout.compartments) {
+    const entry = result.data.assets.find(
+      (asset) => asset.id === compartmentAssetId(compartment.id),
+    );
+    if (!entry) {
+      compartmentViolations.push(`${compartment.id}: not listed in the asset manifest`);
+      continue;
+    }
+    const glb = await inspectGlb(entry.runtimeFile);
+
+    const root = compartmentRootName(compartment.id);
+    if (!glb.nodeNames.includes(root))
+      compartmentViolations.push(`${compartment.id}: missing root node ${root}`);
+    for (const portal of compartment.portals) {
+      const marker = portalMarkerName(portal.target);
+      if (!glb.nodeNames.includes(marker))
+        compartmentViolations.push(`${compartment.id}: missing portal empty ${marker}`);
+    }
+
+    if (glb.meshNames.length > compartment.budget.maxDrawMeshes)
+      compartmentViolations.push(
+        `${compartment.id}: ${glb.meshNames.length} draw meshes exceeds the budget of ` +
+          `${compartment.budget.maxDrawMeshes}`,
+      );
+    if (glb.bytes > compartment.budget.maxBytes)
+      compartmentViolations.push(
+        `${compartment.id}: ${glb.bytes} bytes exceeds the budget of ${compartment.budget.maxBytes}`,
+      );
+  }
+
+  if (compartmentViolations.length > 0) {
+    console.error('Compartment budget violations:', compartmentViolations);
+    process.exitCode = 1;
+  } else {
+    console.log(`Compartments valid: ${shipLayout.compartments.length} rooms within budget.`);
   }
 }

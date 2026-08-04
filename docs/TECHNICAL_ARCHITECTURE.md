@@ -41,7 +41,7 @@ function at a few hull sample points. They agree without sharing a mesh.
 ## Compartment streaming
 
 The ship is a portal graph of compartments ([`SHIP_LAYOUT.md`](SHIP_LAYOUT.md)),
-each one authored GLB. `scenario-loader` validates a compartment's root node
+each one authored GLB. `compartment-loader` validates a compartment's root node
 `CM_<COMPARTMENT>_ROOT` and its declared `CM_PORTAL_<TARGET>` empties before
 activation. Residency follows portal distance from the player; loads are async
 and pre-warmed at portal approach so a transition never blocks a frame.
@@ -101,7 +101,8 @@ compartment, not an optimisation.
   belongs in `src/sim/`.
 - Rendering, audio and network adapters observe domain state; do not import them
   into deterministic rules.
-- `scenario-loader.ts` validates a compartment's root and portal contract before
-  swapping visuals. A fetch, parse or contract failure is non-fatal.
+- `compartment-loader.ts` validates a compartment's root, portal and budget
+  contract before it enters the scene. A fetch, parse or contract failure is
+  non-fatal: `CompartmentStreamer` substitutes greybox and the voyage continues.
 - `PeerRoom` is an adapter around the deterministic host. The simulation remains
   testable without a network service.

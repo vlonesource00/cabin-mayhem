@@ -11,16 +11,6 @@
       "usageReferences": ["src-tauri/tauri.conf.json"]
     },
     {
-      "id": "cabin-mayhem-scenario-v1",
-      "type": "production-glb-scenario",
-      "sourceFile": "assets-src/blender/cabin-mayhem-scenario.blend",
-      "runtimeFile": "public/assets/scenarios/cabin-mayhem-scenario.glb",
-      "license": "Project-owned, all rights reserved",
-      "owner": "Cabin Mayhem",
-      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/build_cabin_scenario.py; covers the flight deck, forward galley, seat rows, rear service area and cargo hold; 12 material-batched meshes, no external textures or third-party assets.",
-      "usageReferences": ["src/three/scenario-loader.ts", "src/three/cabin-world.ts"]
-    },
-    {
       "id": "cabin-mayhem-characters",
       "type": "production-glb-rig",
       "sourceFile": "assets-src/blender/cabin-mayhem-characters.blend",
@@ -39,6 +29,46 @@
       "owner": "Cabin Mayhem",
       "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/build_first_person_arms.py; a camera-space 7-bone arms rig kept separate from the humanoid skeleton because first-person framing needs exaggerated proportions, with 19 named actions exported as separate glTF animation clips. No external textures or third-party assets.",
       "usageReferences": ["src/three/animation-contract.ts", "src/three/animated-rig.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-atrium",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/atrium.blend",
+      "runtimeFile": "public/assets/compartments/atrium.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; the deck 2 public atrium: a lit feature column with a spiral stair wrapped around it, fore and aft mezzanine balconies that leave the middle open to the full double height, reception, a grand piano, a bar, and eight angled armchairs standing where the simulation seats its guests. Merged by material to 13 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-cabin-corridor-a",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/cabin-corridor-a.blend",
+      "runtimeFile": "public/assets/compartments/cabin-corridor-a.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; the deck 1 passenger corridor with sixteen numbered cabin doors, housekeeping clutter and a fire station. Merged by material to 10 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-bridge",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/bridge.blend",
+      "runtimeFile": "public/assets/compartments/bridge.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; the deck 4 navigation bridge with a nine-panel forward window band, helm console, radar consoles and chart table. Merged by material to 13 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-engine-room",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/engine-room.blend",
+      "runtimeFile": "public/assets/compartments/engine-room.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; the deck 0 engine room with two main engine blocks, a centreline catwalk, switchboards, pipe runs and a workbench. Merged by material to 10 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
     }
   ]
 }

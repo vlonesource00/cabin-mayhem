@@ -8,14 +8,17 @@ Tauri/Rust Windows wrapper. The stable project branch is `novo-main-stable`.
 **The premise changed.** The game is now a cruise ship, not an airliner. See
 [ADR 0001](docs/adr/0001-cruise-ship-pivot.md) for what is kept, what is renamed
 and what is retired. The documentation is rewritten for the ship. Implementation
-has started on `new-idea-vlone`: the vocabulary is renamed, the ocean is in and
-the ship handles like a ship, but every gameplay system below is still the
-airliner vertical.
+is underway on `new-idea-vlone`: the vocabulary is renamed, the ocean is in, the
+ship handles like a ship, and the interior is now streamed ship compartments
+rather than an aircraft cabin. The gameplay systems below — service, fire,
+repair — are still the airliner vertical's, generalised but not yet replaced.
 
-**Read this before looking at a screenshot.** The three slices done so far
-replaced the simulation, not the geometry. The ship sails, but the compartment
-the player stands in is still the airliner cabin, because replacing it is the
-next slice (greybox compartments). That is expected, not a regression.
+**The airliner geometry is gone.** Earlier handoffs warned that a screenshot
+would show a fuselage. That is no longer true: `src/three/cabin-world.ts` has no
+cabin, seat or overhead-bin geometry, `src/three/scenario-loader.ts` is deleted,
+and the player stands in an authored compartment served by the streamer. What a
+screenshot _does_ still show is a room only 8 m wide, because the simulation's
+playfield is still 16 sim units across. See **Known problems** below.
 
 What actually runs today, on top of the ocean:
 
@@ -32,8 +35,9 @@ What actually runs today, on top of the ocean:
 - An icon-first contextual HUD with a closed-by-default `F1` drawer.
 - Free two-player PeerJS/WebRTC rooms, host-authoritative.
 - A landing debrief with reviews and room-preserving replay.
-- A Blender-authored static cabin GLB with runtime validation and automatic
-  procedural fallback.
+- Four Blender-authored ship compartments — `atrium`, `cabin-corridor-a`,
+  `bridge`, `engine-room` — streamed by portal residency, contract-checked at
+  load, each degrading independently to a greybox of the same dimensions.
 - Two Blender skeletal rigs — a shared 19-bone humanoid (25 clips) and a 7-bone
   first-person arms rig (19 clips) — on a Three.js `AnimationMixer` layer, each
   degrading independently to the procedural layer.
@@ -43,7 +47,34 @@ generalisation, and the rest is new.
 
 ## Last changes
 
-Phase 5 step 3 gave the ship real handling, on branch `new-idea-vlone`.
+Phase 5 step 4 replaced the airliner interior with streamed ship compartments,
+on branch `new-idea-vlone`. `src/data/ship-layout.ts` is a Zod-validated
+compartment graph: four rooms, their sizes, deck numbers, world anchors, per-room
+budgets and a symmetric portal pair per connection, plus `residency(origin)`,
+which returns the occupied room and its one-hop neighbours at full detail and its
+two-hop neighbours at reduced detail. `src/three/compartment-loader.ts` refuses a
+GLB that lacks `CM_<ID>_ROOT`, that is missing a `CM_PORTAL_<TARGET>` empty for a
+declared portal, or that exceeds its draw-mesh budget, and
+`buildGreyboxCompartment()` stands in with the same footprint and the same
+doorways when it does. `src/three/compartment-streamer.ts` owns residency: it
+loads neighbours in the background, hides dressing but keeps the shell on
+reduced-detail rooms, evicts what leaves the set, and reports `glb` or `fallback`
+through `canvas.dataset.assetMode`. 198 lines of fuselage geometry and the whole
+single-scenario loader are deleted.
+
+The four rooms are generated deterministically by
+`tools/blender/compartments/build_compartments.py` and merged by material, so the
+draw-mesh count tracks materials rather than props: 13, 10, 13 and 10 against a
+budget of 40. The atrium was authored twice. The first version put thirty-two
+chairs on a two-aisle-two grid, which is an aircraft seating plan whatever the
+room is called; it now has a lit feature column with a fourteen-step spiral stair
+wrapped around it, fore and aft balconies that leave the middle open to the full
+double height, a piano, a bar and eight angled armchairs standing exactly where
+the simulation seats its guests. The remaining aeroplane vocabulary went with it:
+`MS CABIN MAYHEM / DECK LOG`, `SAIL ANOTHER SHIFT`, a ship icon, and debrief
+verdicts about ports rather than airports.
+
+Before that, Phase 5 step 3 gave the ship real handling.
 `src/sim/ship-model.ts` is now a rate-command helm: `HelmInput` carries
 `rudder`/`telegraph` deltas plus `emergencyStop`, and the wheel and telegraph
 positions live in `VoyageState` and hold where the crew left them. Speed is in
@@ -121,6 +152,18 @@ Before that, documentation only. No runtime code changed.
 
 - The cruise premise is mostly designed, not built. Phase 5 in
   [docs/ROADMAP.md](docs/ROADMAP.md) is the implementation slice in progress.
+- **The ship is not big yet.** `CABIN_SCALE = 0.5` in `src/three/coordinates.ts`
+  maps the simulation's 16 x 36 sim-unit playfield to an 8 m x 18 m room, and
+  every compartment is authored to match it or guests stand outside the
+  furniture. That is a fuselage footprint, and it is the reason the interior read
+  as an aeroplane even after the seating was fixed. Meeting the "big, tall and
+  massive" requirement in [docs/SHIP_LAYOUT.md](docs/SHIP_LAYOUT.md) means moving
+  the playfield, the scale and the movement speed that rides on them together,
+  then re-authoring all four rooms. It is a slice, not a constant tweak.
+- **Two portals are stand-ins.** `atrium` <-> `bridge` and `cabin-corridor-a` <->
+  `engine-room` should each pass through a stairwell across several decks. The
+  stairwells are not authored, so the streamer links the rooms directly, which
+  flatters both crew-movement timing and the residency set.
 - The 1400 m sea plane is 156×156 segments with `frustumCulled = false`, and its
   GPU cost has not been measured against the
   [docs/PERFORMANCE.md](docs/PERFORMANCE.md) budgets on a low-end target.
@@ -141,11 +184,13 @@ Before that, documentation only. No runtime code changed.
 
 ## Next recommended task
 
-1. **Greybox compartments — bridge, one corridor, one public room, engine room —
-   behind the streaming loader and the portal graph.** This is the slice that
-   retires the airliner cabin. It is deliberately first now: the simulation is
-   already a ship, so the interior is the single largest remaining thing that
-   still reads as the old game.
+1. **Widen the ship.** Raise `CABIN_SCALE` and the playfield in
+   `src/three/coordinates.ts` and `src/sim/`, retune movement speed against the
+   new distances, and re-author the four compartments to the larger footprint.
+   The streaming architecture is done and the rooms are dressed; the single
+   remaining reason the game does not look like a cruise ship is that its rooms
+   are aircraft-sized. Do this before authoring a fifth room, so the fifth is
+   built once.
 2. Then the helm station with positional input authority — the host accepts
    `HelmInput` only from a player standing in the bridge helm volume. It needs a
    bridge to stand in, which is why it follows the greybox.
@@ -154,25 +199,24 @@ Before that, documentation only. No runtime code changed.
 
 ## Current verification
 
-Run against the ship motion slice on `new-idea-vlone`:
+Run against the compartment-streaming slice on `new-idea-vlone`:
 
 - `git diff --check`, Prettier check, ESLint, TypeScript, authored-data
-  validation and asset validation pass. Asset validation covers 4 project-owned
-  assets and both rigs (2 rigs, 44 authored clips).
-- Unit: 118 tests pass across 15 files, 6 of them rewritten for ship handling.
-  Integration: 2 tests pass.
+  validation and asset validation pass. Asset validation covers 7 project-owned
+  assets, both rigs (2 rigs, 44 authored clips) and 4 compartments within budget.
+- Unit: 133 tests pass across 17 files, including new suites for the ship layout,
+  the compartment loader and the streamer. Integration: 2 tests pass.
 - Playwright: 11 collected; 10 pass, 1 live-multiplayer test skipped without
-  `LIVE_MULTIPLAYER`.
+  `LIVE_MULTIPLAYER`. The GLB-failure test now aborts the atrium request and
+  asserts the greybox fallback.
 - Vite production build passes with the existing large-chunk warning.
 - Tauri MSI and NSIS packaging passes; installers unsigned.
-- Manual: dev server, no console errors. Driving the test bridge to `open-sea`
-  gives `speed 19` knots on `heading 082` with the wheel and telegraph holding
-  position, which is the motion model running live in the browser rather than
-  only under Vitest.
-- Not yet done: nobody has looked at the sea through a window on screen. The
-  camera starts facing down the cabin aisle and the windows are to the side, so
-  the obvious screenshot shows interior. Verify this while doing the greybox
-  slice, where the geometry changes anyway.
+- Manual: dev server, no console errors. `canvas.dataset` reads
+  `assetMode: 'glb'`, `characterRig: 'glb'`, `armsRig: 'glb'`, and a browser
+  screenshot of a solo shift shows the atrium — feature column, spiral stair,
+  balconies — with no seat rows anywhere.
+- Not yet done: nobody has looked at the sea through a window on screen, and no
+  manual two-browser room playtest has been run against this slice.
 
 ## Verification commands
 

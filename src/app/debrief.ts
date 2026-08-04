@@ -85,12 +85,12 @@ function verdictFor(state: MissionState): string {
   if (state.service.outcome === 'success') {
     if (state.service.score >= 500) return 'THE CABIN CLAPPED. LEGALLY, THAT COUNTS AS A PARADE.';
     if (state.fire.status === 'suppressed' && state.repair.status === 'fixed')
-      return 'BUDGET AIRLINE OF THE MINUTE. ALL APPLIANCES DEFEATED.';
-    return 'MOST DIGNITY ARRIVED IN THE SAME AIRPORT.';
+      return 'BUDGET CRUISE LINE OF THE MINUTE. ALL APPLIANCES DEFEATED.';
+    return 'MOST DIGNITY REACHED THE SAME PORT.';
   }
   if (state.fire.status === 'active') return 'ONE STAR. THE STAR WAS ALSO ON FIRE.';
   if (state.service.missed >= 4) return 'THE CALL BUTTONS HAVE FORMED A UNION.';
-  return 'CUSTOMER SERVICE HAS LEFT THE AIRSPACE.';
+  return 'CUSTOMER SERVICE HAS GONE OVERBOARD.';
 }
 
 function fireResult(state: MissionState): DebriefSystemResult {

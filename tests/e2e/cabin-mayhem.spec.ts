@@ -16,8 +16,10 @@ test('menu enters a compact first-person Three.js aircraft UI', async ({ page })
   );
 });
 
-test('procedural cabin remains playable when production GLB fails', async ({ page }) => {
-  await page.route('**/assets/scenarios/cabin-mayhem-scenario.glb', (route) => route.abort());
+test('greybox compartment keeps the voyage playable when the authored GLB fails', async ({
+  page,
+}) => {
+  await page.route('**/assets/compartments/atrium.glb', (route) => route.abort());
   await page.goto('/');
   await page.getByRole('button', { name: 'Solo shift' }).click();
 
@@ -94,7 +96,7 @@ test('two isolated browsers join one host-authoritative WebRTC room', async ({ b
     .toBe('failed');
   await host
     .getByTestId('landing-debrief')
-    .getByRole('button', { name: 'FLY ANOTHER SHIFT' })
+    .getByRole('button', { name: 'SAIL ANOTHER SHIFT' })
     .click();
   await expect
     .poll(() => guest.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.service.outcome))
@@ -164,7 +166,7 @@ test('failed landing shows reviews, score and incident results', async ({ page }
   await expect(debrief.locator('.passenger-review')).toHaveCount(4);
 });
 
-test('successful landing can fly another shift', async ({ page }) => {
+test('successful arrival can sail another shift', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
   await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.completeShift('success'));
@@ -176,7 +178,7 @@ test('successful landing can fly another shift', async ({ page }) => {
   await expect(debrief.locator('[data-debrief="missed"]')).toHaveText('0');
   await expect(debrief.locator('[data-debrief="outcome"]')).toHaveText('SUCCESS');
 
-  await debrief.getByRole('button', { name: 'FLY ANOTHER SHIFT' }).click();
+  await debrief.getByRole('button', { name: 'SAIL ANOTHER SHIFT' }).click();
   await expect(debrief).toBeHidden();
   await expect(page.locator('[data-hud="phase"]')).toHaveText('MOORED');
   await expect
@@ -197,5 +199,5 @@ test('landing debrief remains usable on a narrow viewport', async ({ page }) => 
   const box = await card.boundingBox();
   expect(box?.x).toBeGreaterThanOrEqual(0);
   expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(390);
-  await expect(debrief.getByRole('button', { name: 'FLY ANOTHER SHIFT' })).toBeVisible();
+  await expect(debrief.getByRole('button', { name: 'SAIL ANOTHER SHIFT' })).toBeVisible();
 });

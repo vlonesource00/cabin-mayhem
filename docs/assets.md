@@ -46,8 +46,24 @@ merged at author time.
 
 Every compartment in [`SHIP_LAYOUT.md`](SHIP_LAYOUT.md) is one authored GLB, one
 build script under `tools/blender/compartments/`, one entry in
-`public/assets/manifest.json` and one node in the portal graph. None of them are
-built yet — Phase 5 authors the greybox set and Phase 6 authors the rest.
+`public/assets/manifest.json` and one node in the portal graph. Four are built:
+the atrium, one passenger corridor, the bridge and the engine room. Phase 6
+authors the rest.
+
+| Compartment        | Deck | Draw meshes | Bytes     |
+| ------------------ | ---- | ----------- | --------- |
+| `atrium`           | 2    | 13          | 1,035,680 |
+| `cabin-corridor-a` | 1    | 10          | 466,240   |
+| `bridge`           | 4    | 13          | 258,400   |
+| `engine-room`      | 0    | 10          | 664,828   |
+
+Density comes from merging by material, not from spending draw calls: each room
+holds hundreds of authored props and still exports around a quarter of its
+40-mesh budget. Rebuild all four deterministically:
+
+```powershell
+& 'C:Program FilesBlender FoundationBlender 5.1lender.exe' --background --python tools/blender/compartments/build_compartments.py
+```
 
 Runtime contract per compartment:
 
@@ -60,31 +76,13 @@ Runtime contract per compartment:
 Loading is non-authoritative. A missing or invalid compartment GLB degrades to
 greybox and the voyage continues.
 
-## Blender cabin scenario (retired premise)
+## Blender cabin scenario (removed)
 
-The airliner cabin GLB still builds and still loads. It is superseded by the
-per-compartment set above ([ADR 0001](adr/0001-cruise-ship-pivot.md)) and is kept
-because it is the working reference for a deterministic Blender build script.
-
-- Source: `assets-src/blender/cabin-mayhem-scenario.blend`
-- Runtime: `public/assets/scenarios/cabin-mayhem-scenario.glb`
-- Generator: `tools/blender/build_cabin_scenario.py`
-- Blender: 5.1
-- Runtime contract: `CM_SCENARIO_ROOT`, at least four render meshes, Three.js
-  Y-up cabin-local coordinates
-- Optimization: material-batched geometry, 12 draw meshes, no textures,
-  approximately 2.12 MB uncompressed
-
-Regenerate deterministically:
-
-```powershell
-& 'C:\Program Files\Blender Foundation\Blender 5.1\blender.exe' --background --python tools/blender/build_cabin_scenario.py
-```
-
-`CabinWorld` starts with the procedural cabin visible. Once the GLB validates and
-loads, authored visuals replace it while invisible procedural interaction proxies
-remain. Load or validation failure leaves the procedural scene active. That
-fallback rule carries forward unchanged to compartment streaming.
+The airliner cabin GLB, its loader and its unit test were deleted when the
+compartment set landed ([ADR 0001](adr/0001-cruise-ship-pivot.md)). The Blender
+source `assets-src/blender/cabin-mayhem-scenario.blend` and its generator
+`tools/blender/build_cabin_scenario.py` are kept as the working reference for a
+deterministic build script; nothing at runtime loads them.
 
 ## Blender character rigs
 

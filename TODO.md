@@ -12,9 +12,14 @@ Local work snapshot. Phases and exit conditions live in
 ## Next (Phase 5)
 
 - [x] Ship motion model: heading, rudder, telegraph, momentum, turning radius, derived deck acceleration.
-- [ ] Greybox compartment set (bridge, corridor, public room, engine room) behind the streaming loader.
-      **This is the next slice, and it is the one that removes the airliner cabin.** Until it lands, the
-      simulation is a ship but the geometry the player stands in is still the fuselage.
+- [x] Compartment set (atrium, cabin-corridor-a, bridge, engine-room) behind the streaming loader and
+      portal graph. The airliner cabin is gone from the code and from the authored geometry.
+- [ ] Widen the ship. `CABIN_SCALE = 0.5` in `src/three/coordinates.ts` maps a 16 x 36 sim-unit
+      playfield onto an 8 m x 18 m room, which is a fuselage footprint. Every compartment is authored
+      to match it, so nothing reads as "big, tall and massive" until the playfield and the scale move
+      together with the movement speed that rides on them.
+- [ ] Author `stairwell-fwd` and `stairwell-aft`. The `atrium` <-> `bridge` and
+      `cabin-corridor-a` <-> `engine-room` portals are stand-ins that skip several decks.
 - [ ] Helm station with positional input authority.
 - [ ] Collision-course incident end to end: spawn, warning, countdown, host-validated avoidance, consequences either way.
 
@@ -58,6 +63,8 @@ Local work snapshot. Phases and exit conditions live in
 - [x] Camera settled as first person in [ADR 0002](docs/adr/0002-first-person-camera.md). Phase 6 unblocked.
 - [x] Mechanical voyage rename: `VoyageState`, `VoyagePhase`, `HelmInput`, `src/sim/ship-model.ts`, `MissionState.voyage`, `PlayerCommand.helm`, `voyage` event type.
 - [x] Ocean: one wave table shared by the simulation and a generated vertex shader, hull pitch/roll/heave fitted to it, drift under a hull that never translates.
+- [x] Compartment streaming: Zod-validated portal graph, contract-checked GLB loading, greybox fallback, residency and eviction, four authored rooms inside budget.
+- [x] Retired the airliner from the runtime: no fuselage geometry, no scenario loader, no aeroplane copy or icons.
 
 ## Retired with the pivot
 

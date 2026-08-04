@@ -9,7 +9,7 @@ import { FirstPersonController } from '../three/first-person-controller';
 import { buildDebrief, type DebriefSystemResult } from './debrief';
 
 type Screen = 'menu' | 'voyage';
-type IconName = 'plane' | 'alert' | 'tool' | 'fire' | 'hand' | 'people' | 'dev' | 'mute';
+type IconName = 'ship' | 'alert' | 'tool' | 'fire' | 'hand' | 'people' | 'dev' | 'mute';
 
 interface Objective {
   kind: 'service' | 'fire' | 'repair' | 'complete';
@@ -73,9 +73,9 @@ export class CabinMayhemApp {
       <main class="landing-shell">
         <div class="landing-grid"></div>
         <section class="landing-card">
-          <p class="landing-eyebrow">FLIGHT 07 / AIRLINE SITCOM EMERGENCY SHIFT</p>
+          <p class="landing-eyebrow">MS CABIN MAYHEM / CRUISE SITCOM EMERGENCY SHIFT</p>
           <h1>Cabin<br />Mayhem</h1>
-          <p>Serve a live cabin, stop tiny disasters, and make sure the coffee machine never wins an election.</p>
+          <p>Crew a live cruise ship, keep it off the rocks, and make sure the coffee machine never wins an election.</p>
           <div class="landing-actions">
             <button class="primary-button" data-action="start">Solo shift</button>
             <button class="secondary-button" data-action="host-room">Host 2-player room</button>
@@ -116,8 +116,8 @@ export class CabinMayhemApp {
       <main class="game-shell" data-testid="technical-test-scene" data-debug-open="false" data-audio="on" data-room-role="${role}" data-room-phase="idle">
         <section class="world-stage" data-world-stage></section>
         <header class="flight-chip">
-          ${icon('plane')}
-          <div><p class="flight-chip__eyebrow">FLIGHT 07 / CABIN MAYHEM</p><strong data-hud="phase">MOORED</strong></div>
+          ${icon('ship')}
+          <div><p class="flight-chip__eyebrow">MS CABIN MAYHEM / DECK LOG</p><strong data-hud="phase">MOORED</strong></div>
         </header>
         <button class="dev-toggle" data-action="debug-toggle" type="button" aria-expanded="false">
           ${icon('dev')}<span>F1</span>
@@ -146,13 +146,13 @@ export class CabinMayhemApp {
           <div class="debrief__card">
             <header class="debrief__header">
               <div>
-                <p class="debrief__eyebrow">FLIGHT 07 / PASSENGER JUDGEMENT COURT</p>
+                <p class="debrief__eyebrow">MS CABIN MAYHEM / PASSENGER JUDGEMENT COURT</p>
                 <strong class="debrief__stamp" data-debrief="outcome-label">SHIFT CLEARED</strong>
               </div>
               <div class="debrief__score"><span>FINAL SCORE</span><strong data-debrief="score">0</strong></div>
             </header>
             <div class="debrief__headline">
-              <p data-debrief="verdict">MOST DIGNITY ARRIVED IN THE SAME AIRPORT.</p>
+              <p data-debrief="verdict">MOST DIGNITY REACHED THE SAME PORT.</p>
               <h2 id="debrief-title" data-debrief="title">You landed the punchline.</h2>
             </div>
             <div class="debrief__metrics" aria-label="Passenger service results">
@@ -169,8 +169,8 @@ export class CabinMayhemApp {
               <div class="debrief__review-grid" data-debrief="reviews"></div>
             </section>
             <footer class="debrief__footer">
-              <button class="debrief__restart" data-action="fly-another" type="button">FLY ANOTHER SHIFT</button>
-              <p data-debrief="restart-note">Fresh cabin. Same questionable airline.</p>
+              <button class="debrief__restart" data-action="sail-again" type="button">SAIL ANOTHER SHIFT</button>
+              <p data-debrief="restart-note">Fresh voyage. Same questionable cruise line.</p>
             </footer>
           </div>
         </section>
@@ -309,7 +309,7 @@ export class CabinMayhemApp {
             ? 'fire'
             : objective.kind === 'service'
               ? 'alert'
-              : 'plane',
+              : 'ship',
       );
     const progress = this.root.querySelector<HTMLElement>('[data-hud="objective-progress"]');
     if (progress) progress.style.width = `${Math.round((objective.progress ?? 0) * 100)}%`;
@@ -363,8 +363,8 @@ export class CabinMayhemApp {
     this.button('repair-bay', () =>
       this.hostOnly(() => this.session?.teleport('crew-alpha', 'repair')),
     );
-    this.button('reset', () => this.flyAnotherShift());
-    this.button('fly-another', () => this.flyAnotherShift());
+    this.button('reset', () => this.sailAnotherShift());
+    this.button('sail-again', () => this.sailAnotherShift());
   }
 
   private installTestBridge(): void {
@@ -548,13 +548,13 @@ export class CabinMayhemApp {
         }),
       );
     }
-    const restart = this.root.querySelector<HTMLButtonElement>('[data-action="fly-another"]');
+    const restart = this.root.querySelector<HTMLButtonElement>('[data-action="sail-again"]');
     if (restart) restart.disabled = this.roomRole === 'guest';
     this.text(
       '[data-debrief="restart-note"]',
       this.roomRole === 'guest'
-        ? 'Waiting for the host to book the next questionable flight.'
-        : 'Fresh cabin. Same questionable airline.',
+        ? 'Waiting for the host to book the next questionable voyage.'
+        : 'Fresh voyage. Same questionable cruise line.',
     );
   }
 
@@ -566,7 +566,7 @@ export class CabinMayhemApp {
     this.text(`[data-debrief="${kind}-detail"]`, result.detail);
   }
 
-  private flyAnotherShift(): void {
+  private sailAnotherShift(): void {
     if (this.roomRole === 'guest') return;
     this.session = new HostSession();
     if (this.roomRole !== 'solo') this.session.setNetwork({ enabled: false });
@@ -651,7 +651,7 @@ function headingLabel(heading: number): string {
 
 function icon(name: IconName): string {
   const paths: Record<IconName, string> = {
-    plane: '<path d="M3 12h18M12 3v18M5 12l4-3v6m6-6 4-3v6"/>',
+    ship: '<path d="M4 18h16l1-5H3l1 5Zm2-5V7h12v6M9 7V4h6v3M12 13v5"/>',
     alert: '<path d="M12 3 3 20h18L12 3Zm0 6v4m0 3h.01"/>',
     tool: '<path d="m14 5 5 5m-9 8 9-9M5 4l3 3-3 3-3-3 3-3Zm1 11 4 4"/>',
     fire: '<path d="M12 3c2 4-1 5 1 8 1-1 3-2 3-5 3 3 5 7 2 12-3 4-9 4-12 0-2-4 0-8 3-11 0 3 1 4 3 5 1-3-1-5 0-9Z"/>',
