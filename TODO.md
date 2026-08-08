@@ -1,0 +1,84 @@
+# TODO
+
+Local work snapshot. Phases and exit conditions live in
+[docs/ROADMAP.md](docs/ROADMAP.md).
+
+## In progress
+
+- [ ] Cruise-ship pivot documentation - Martim
+- [ ] Decide Git LFS before Phase 6 starts landing one GLB per compartment - unassigned
+- [ ] Decide one Blender version between both collaborators. `passengers.blend` was written by 502.44 and warns of data loss when opened in 5.1; nothing should be skinned until this is settled - unassigned
+
+## Next (Phase 5)
+
+- [x] Ship motion model: heading, rudder, telegraph, momentum, turning radius, derived deck acceleration.
+- [x] Compartment set (atrium, cabin-corridor-a, bridge, engine-room) behind the streaming loader and
+      portal graph. The airliner cabin is gone from the code and from the authored geometry.
+- [x] Widen the ship. `CABIN_SCALE = 1` in `src/three/coordinates.ts` now maps a 24 x 46 metre
+      playfield onto a 24 m x 46 m atrium, 12.8 m tall, and every compartment, station, prop and
+      teleport target was restaged onto it. The fuselage footprint is gone.
+- [ ] Compartment traversal. `cabin-world.ts` calls `setCurrent(defaultCompartmentId)` once at
+      startup and nothing calls it again; the simulation has no notion of which room a player is
+      in, so all four authored rooms are unreachable and the player is locked in the atrium. Needs
+      `compartmentId` on `PlayerState`, positional portal entry validated by `HostSession`, the
+      player remapped into the destination room's local frame, and the streamer driven from the
+      snapshot. Everything below is unverifiable until this lands.
+- [ ] Author `stairwell-fwd` and `stairwell-aft`. The `atrium` <-> `bridge` and
+      `cabin-corridor-a` <-> `engine-room` portals are stand-ins that skip several decks.
+- [ ] Exterior and open decks — the largest gap. Every compartment authored so far is a sealed
+      interior box: no hull exterior or superstructure, no promenade, pool deck or sun deck, no
+      balconies, no railings, funnels, lifeboats or davits, and no glazing you can see the sea
+      through. All GLB. Exterior rooms see the ocean, the sky and the rest of the ship at once, so
+      state their budgets and LOD tiers in `docs/PERFORMANCE.md` before authoring them.
+- [ ] Helm station with positional input authority.
+- [ ] Collision-course incident end to end: spawn, warning, countdown, host-validated avoidance, consequences either way.
+
+## Backlog
+
+- [ ] Uniform spatial hash broadphase. The current pairwise loop is O(n²) and blocks the second compartment.
+- [ ] Public snapshot projection, delta compression and backpressure. Prerequisite for crews above two.
+- [ ] Split the production JavaScript bundle to remove the known non-blocking Vite chunk-size warning.
+- [ ] Join and skin the 22 T-pose characters to the shared `CM_HUMANOID` skeleton so the cast inherits authored clips. Blocked on the Blender version decision.
+- [ ] Replace procedural Web Audio with production-recorded ship sound and guest voices.
+- [ ] Profile/settings migration for controls and accessibility.
+- [ ] Production relay/TURN and a room/lobby experience.
+
+## Done
+
+- [x] Vite browser runtime and Tauri Windows wrapper.
+- [x] Explicit phase state machine.
+- [x] Vehicle-local physics, securing, grabbing and throwing.
+- [x] Host authority plus latency/jitter/loss test harness.
+- [x] Greybox technical scene, debug display and automated tests.
+- [x] Three.js first-person world, procedural 3D asset kit and pointer-lock controls.
+- [x] Static fixture collisions and 3D loose-object synchronisation.
+- [x] Reliable backward movement and first-person pickup/place/throw loop.
+- [x] Browser visual pass and Windows `.exe`/MSI/NSIS build.
+- [x] Validated authored passenger and service-item data.
+- [x] Eight 3D passengers with drink, meal and medical requests.
+- [x] Host-validated service delivery, patience, panic, injury, score and mission result.
+- [x] Host-authoritative service-cart inventory, selection, dispensing, returns and stock HUD.
+- [x] Host-authoritative galley-fire suppression.
+- [x] Colorful responsive indie HUD lanes and GitHub Pages deployment workflow.
+- [x] Deterministic host-authoritative repair crisis with tool/range/hold validation, pressure and scoring.
+- [x] Icon-first contextual HUD; telemetry and Chaos Lab in a closed-by-default `F1` drawer.
+- [x] Free two-player PeerJS/WebRTC rooms with host-only authority, ordered snapshots and disconnect cleanup.
+- [x] Responsive debrief with score, reviews, incident verdicts and room-preserving replay.
+- [x] Blender-authored static GLB, tracked `.blend` source, validated loader and procedural fallback.
+- [x] Procedural Web Audio and `M` mute control.
+- [x] Snapshot-driven held-item, repair, passenger and crew interaction animation.
+- [x] Two Blender-authored skeletal rigs, 44 clips, `AnimationMixer` playback and a validated clip contract.
+- [x] CI-sized Playwright timeout budget and uploaded failure traces.
+- [x] Branch consolidation onto `novo-main-stable` with protection enabled.
+- [x] Camera settled as first person in [ADR 0002](docs/adr/0002-first-person-camera.md). Phase 6 unblocked.
+- [x] Mechanical voyage rename: `VoyageState`, `VoyagePhase`, `HelmInput`, `src/sim/ship-model.ts`, `MissionState.voyage`, `PlayerCommand.helm`, `voyage` event type.
+- [x] Ocean: one wave table shared by the simulation and a generated vertex shader, hull pitch/roll/heave fitted to it, drift under a hull that never translates.
+- [x] Compartment streaming: Zod-validated portal graph, contract-checked GLB loading, greybox fallback, residency and eviction, four authored rooms inside budget.
+- [x] Retired the airliner from the runtime: no fuselage geometry, no scenario loader, no aeroplane copy or icons.
+
+## Retired with the pivot
+
+Airliner content is superseded by [ADR 0001](docs/adr/0001-cruise-ship-pivot.md)
+and stays in Git history: automatic taxi/takeoff climb, the flight model, the
+landing debrief framing, world-prop animation for the cabin scenario, and the
+manual service-flight playtest that was pending against it.

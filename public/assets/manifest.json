@@ -1,0 +1,184 @@
+{
+  "assets": [
+    {
+      "id": "cabin-mayhem-app-icon",
+      "type": "application-icon",
+      "sourceFile": "src-tauri/icons/app-icon.svg",
+      "runtimeFile": "src-tauri/icons/icon.ico",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Generated from original SVG with `pnpm exec tauri icon`.",
+      "usageReferences": ["src-tauri/tauri.conf.json"]
+    },
+    {
+      "id": "cabin-mayhem-characters",
+      "type": "production-glb-rig",
+      "sourceFile": "assets-src/blender/cabin-mayhem-characters.blend",
+      "runtimeFile": "public/assets/characters/cabin-mayhem-characters.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/build_character_rig.py; one shared 19-bone humanoid skeleton skinned to a crew and a passenger mesh, with 25 named actions exported as separate glTF animation clips. Rigid one-bone-per-part weighting, no external textures or third-party assets. Bone and clip names are the contract in src/three/animation-contract.ts and docs/rig-contract.md.",
+      "usageReferences": ["src/three/animation-contract.ts", "src/three/animated-rig.ts"]
+    },
+    {
+      "id": "cabin-mayhem-fp-arms",
+      "type": "production-glb-rig",
+      "sourceFile": "assets-src/blender/cabin-mayhem-fp-arms.blend",
+      "runtimeFile": "public/assets/characters/cabin-mayhem-fp-arms.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/build_first_person_arms.py; a camera-space 7-bone arms rig kept separate from the humanoid skeleton because first-person framing needs exaggerated proportions, with 19 named actions exported as separate glTF animation clips. No external textures or third-party assets.",
+      "usageReferences": ["src/three/animation-contract.ts", "src/three/animated-rig.ts"]
+    },
+    {
+      "id": "cabin-mayhem-ship-exterior",
+      "type": "production-glb-exterior",
+      "sourceFile": "assets-src/blender/ship-exterior.blend",
+      "runtimeFile": "public/assets/ship-exterior.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_exterior.py; the whole vessel as one always-resident asset — a 28-station lofted hull 290 m by 38 m on an 8.4 m draught, boot top and sheer strake, bulbous bow, twin shafts, propellers, rudders and stabilisers, the stacked deckhouses up to the bridge at 25 m, three balcony bands, two window bands, two full-height funnels, eighteen lifeboats turned out on davits, masts, radar, ground tackle and navigation lights. It owns the shell and everything permanently outboard of or above the compartment volumes; a compartment owns what stands on its own deck, so the bands stand down over the stretches the cabin, dining and promenade compartments dress themselves. Merged by material into two named LOD groups — CM_STRUCTURE_* and CM_DRESSING_*, which is what the X1 exterior tier hides — for 20 draw meshes and 28k triangles. No external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-streamer.ts", "src/data/ship-layout.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-engine-room",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/engine-room.blend",
+      "runtimeFile": "public/assets/compartments/engine-room.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; deck 0, 26 m abeam by 44 m fore-and-aft and two decks tall — two main engines on their seatings with auxiliaries, switchboards, pipe runs, a centreline catwalk and a workbench. Merged by material to 11 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-crew-corridor",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/crew-corridor.blend",
+      "runtimeFile": "public/assets/compartments/crew-corridor.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; deck 1, 5 m abeam by 46 m fore-and-aft — the working alleyway between the after and midships stair towers, with numbered crew doors, cable trays, stores and fire stations. Merged by material to 12 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-main-galley",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/main-galley.blend",
+      "runtimeFile": "public/assets/compartments/main-galley.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; deck 2, 24 m abeam by 32 m fore-and-aft — two cooking lines back to back under their extraction hoods, pass, pot wash, cold rooms and racking. Merged by material to 10 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-atrium",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/atrium.blend",
+      "runtimeFile": "public/assets/compartments/atrium.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; deck 2, 24 m abeam by 46 m fore-and-aft and four decks of void — a lit feature column with a spiral stair wrapped around it, fore and aft galleries that leave the middle open the full height, reception, a grand piano, a bar and the armchairs the simulation seats its guests in. Merged by material to 12 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-dining-room",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/dining-room.blend",
+      "runtimeFile": "public/assets/compartments/dining-room.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; deck 2, 28 m abeam by 44 m fore-and-aft — the main restaurant, glazed both sides so the sea is visible from the middle of the ship, with laid tables, banquettes, service stations and a buffet line. It glazes its own shell, so the exterior's deck 2 window band stands down over it. Merged by material to 10 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-cabin-deck-four",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/cabin-deck-four.blend",
+      "runtimeFile": "public/assets/compartments/cabin-deck-four.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; deck 4, 34 m abeam by 60 m fore-and-aft — a centreline corridor with numbered balcony cabins outboard both sides, each with its own balcony, rail, chairs and divider. It authors those balconies, so the exterior's deck 4 band stands down over z -81..-21. Merged by material to 14 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-promenade",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/promenade.blend",
+      "runtimeFile": "public/assets/compartments/promenade.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; deck 5, 38 m abeam by 260 m fore-and-aft — the teak walk that wraps the ship outboard of the deckhouse, 52 stations of planking with rails outboard and the glazed deckhouse face inboard, its three doors landing on the three stair towers. It lays its own planking with the top face exactly at the sheer, so the hull's weather deck is dropped 0.14 m below it. Merged by material to 10 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-cabin-deck-seven",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/cabin-deck-seven.blend",
+      "runtimeFile": "public/assets/compartments/cabin-deck-seven.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; deck 7, 30 m abeam by 29 m fore-and-aft — suites, fewer and larger, forward where the hull is already fining, with their own balconies. The exterior's deck 7 band stands down over z 49..78 to match. Merged by material to 13 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-pool-deck",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/pool-deck.blend",
+      "runtimeFile": "public/assets/compartments/pool-deck.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; deck 8, 34 m abeam by 119 m fore-and-aft — the lido, with the pool, a bar under its canopy, loungers, parasols, tower houses and the funnel casings rising through the deck. Those casings nest inside the exterior's full-height funnels at the same stations. Merged by material to 17 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-sun-deck",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/sun-deck.blend",
+      "runtimeFile": "public/assets/compartments/sun-deck.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; deck 9, 30 m abeam by 74 m fore-and-aft — the topmost open deck abaft the funnels, with loungers, a jogging track and the mainmast. It lays its own plating and stands its own mast, so the exterior caps the house beneath it at 21.46 m and carries no mast aft. Merged by material to 9 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-bridge",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/bridge.blend",
+      "runtimeFile": "public/assets/compartments/bridge.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; deck 9, 26 m abeam by 12 m fore-and-aft — the wheelhouse, with a forward window band, the helm console the rate-command helm is actually read from, radar consoles and a chart table. It glazes its own fore bulkhead, so the exterior carries no wheelhouse front glass. Merged by material to 12 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/data/ship-layout.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-stairwell-aft",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/stairwell-aft.blend",
+      "runtimeFile": "public/assets/compartments/stairwell-aft.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; the after stair tower, an 11 m by 12 m shaft rising 32 m through ten decks from the engine room to the sun deck, with a landing plate on every deck, switchback flights climbing in a well hard to starboard, signage, handrails, lighting and extinguishers. The landing ladder mirrors `stairLandings` in src/sim/compartment-space.ts exactly, because the simulation walks the tower unrolled. Merged by material to 8 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/sim/compartment-space.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-stairwell-mid",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/stairwell-mid.blend",
+      "runtimeFile": "public/assets/compartments/stairwell-mid.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; the midships stair tower, an 11 m by 12 m shaft rising 28.8 m through nine decks from the crew alleyway to the pool deck, built from the same landing-and-flight geometry as the other two. Merged by material to 8 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/sim/compartment-space.ts"]
+    },
+    {
+      "id": "cabin-mayhem-compartment-stairwell-fwd",
+      "type": "production-glb-compartment",
+      "sourceFile": "assets-src/blender/compartments/stairwell-fwd.blend",
+      "runtimeFile": "public/assets/compartments/stairwell-fwd.glb",
+      "license": "Project-owned, all rights reserved",
+      "owner": "Cabin Mayhem",
+      "importNotes": "Deterministically generated in Blender 5.1 by tools/blender/compartments/build_compartments.py; the forward stair tower, an 11 m by 12 m shaft rising 16 m through five decks from the promenade to the bridge, built from the same landing-and-flight geometry as the other two. Merged by material to 8 draw meshes, no external textures or third-party assets.",
+      "usageReferences": ["src/three/compartment-loader.ts", "src/sim/compartment-space.ts"]
+    }
+  ]
+}

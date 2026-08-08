@@ -1,0 +1,996 @@
+import * as THREE from 'three';
+import { needLabel } from '../sim/service-mission';
+import type {
+  CabinObject,
+  MissionState,
+  ObjectKind,
+  PassengerRequestStatus,
+  PassengerState,
+} from '../sim/types';
+import { instantiate, loadRig, type LoadedRig, type RigInstance } from './animated-rig';
+import { characterRigId, firstPersonRigId } from './animation-contract';
+import {
+  crewClips,
+  crewMotion,
+  crewOneShotClip,
+  crewOneShots,
+  crewStance,
+  firstPersonClip,
+  firstPersonOneShotClip,
+  passengerAnimationState,
+  passengerClip,
+} from './animation-state';
+import { cabinToWorld, centrelineX } from './coordinates';
+import { GesturePlayer, handGestures, passengerPose } from './interaction-animation';
+import { OceanSurface } from './ocean-surface';
+import { CompartmentStreamer } from './compartment-streamer';
+import { defaultCompartmentId } from '../data/ship-layout';
+
+const colors = {
+  navy: 0x101a28,
+  navySoft: 0x1b2a3c,
+  cream: 0xd8d6cd,
+  panel: 0xb9bec1,
+  carpet: 0x263644,
+  orange: 0xff8a3d,
+  cyan: 0x63d9ff,
+  red: 0xff4e43,
+  cargo: 0x987143,
+};
+
+/** The camera always follows this crew slot; the peer is rendered as an avatar. */
+const localCrewId = 'crew-alpha';
+
+/**
+ * The service slice — guests, loose objects, the galley fire and the breaker —
+ * is authored against the atrium's playfield, so it renders in the atrium's
+ * frame no matter which compartment the camera is streaming from. When that
+ * content spreads across the ship it will carry its own compartment id, and
+ * these call sites become per-entity rather than constant.
+ */
+const gameplayCompartmentId = defaultCompartmentId;
+
+/**
+ * Name of the sub-group holding an avatar's procedural box body. Everything
+ * else on the avatar — beacons, hitboxes, interaction metadata — stays outside
+ * it, so swapping in an authored rig is one `visible = false`.
+ */
+const proceduralBodyName = 'procedural body';
+
+/**
+ * Sea haze, thinner than the airliner's interior-only value: at 0.018 the sea
+ * faded out a few metres past the windows and there was no horizon at all.
+ * The free camera gets thinner still — see `setSpectating`.
+ */
+const VOYAGE_FOG = 0.0042;
+const SPECTATOR_FOG = 0.00055;
+
+const proceduralBody = (avatar: THREE.Object3D): THREE.Object3D[] =>
+  avatar.getObjectByName(proceduralBodyName)?.children ?? [];
+
+const hideProceduralCharacter = (avatar: THREE.Object3D): void => {
+  const body = avatar.getObjectByName(proceduralBodyName);
+  if (body) body.visible = false;
+};
+
+export class CabinWorld {
+  public readonly canvas: HTMLCanvasElement;
+  // The far plane has to clear the sea plane now, not just the cabin.
+  public readonly camera = new THREE.PerspectiveCamera(72, 1, 0.05, 2400);
+
+  private readonly renderer: THREE.WebGLRenderer;
+  private readonly scene = new THREE.Scene();
+  private readonly cabin = new THREE.Group();
+  private readonly startedAt = performance.now();
+  private readonly raycaster = new THREE.Raycaster();
+  private readonly dynamicObjects = new Map<string, THREE.Group>();
+  private readonly passengerAvatars = new Map<string, THREE.Group>();
+  private readonly interactionRoots: THREE.Object3D[] = [];
+  private readonly gestures = new GesturePlayer();
+  private readonly ocean = new OceanSurface();
+  /**
+   * Owns the shell the crew stands in. The occupied compartment's asset source
+   * is published on the canvas so the browser tests can tell an authored room
+   * from the greybox fallback without reaching into Three.js.
+   */
+  private readonly compartments = new CompartmentStreamer({
+    onSourceChange: (source) => {
+      this.canvas.dataset.assetMode = source;
+    },
+  });
+  private readonly reactionAt = new Map<string, number>();
+  private readonly reactionStatus = new Map<string, PassengerRequestStatus>();
+  private previousState?: MissionState;
+  private readonly cabinLights: THREE.PointLight[] = [];
+  private readonly crewBravo: THREE.Group;
+  private readonly galleyFire: THREE.Group;
+  private readonly galleyBreaker: THREE.Group;
+  private interactionPrompt = 'CLICK TO CAPTURE MOUSE';
+  private targetObjectId: string | null = null;
+  private disposed = false;
+  /**
+   * The compartment the render origin sits on. Follows the host's snapshot, not
+   * startup: the crew walks and the ship streams around them.
+   */
+  private originCompartmentId = '';
+
+  /** Authored-rig layer. Absent until the GLBs load; may never arrive. */
+  private characterRig?: LoadedRig;
+  private crewBravoRig?: RigInstance;
+  private firstPersonArms?: RigInstance;
+  private readonly passengerRigs = new Map<string, RigInstance>();
+  private lastFrameAt?: number;
+
+  public constructor(private readonly mount: HTMLElement) {
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: 'high-performance',
+    });
+    this.canvas = this.renderer.domElement;
+    this.canvas.dataset.testid = 'three-canvas';
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.08;
+    this.scene.background = new THREE.Color(0x16394f);
+    this.scene.fog = new THREE.FogExp2(0x16394f, VOYAGE_FOG);
+    this.mount.append(this.canvas);
+    this.canvas.dataset.assetMode = 'loading';
+
+    this.buildLighting();
+    // The streamer offsets every resident by its anchor relative to the
+    // occupied compartment, so its group sits on the render origin and
+    // `cabinToWorld` does the rebasing. See src/three/coordinates.ts.
+    this.compartments.group.position.set(0, 0, 0);
+    this.cabin.add(this.compartments.group);
+    this.galleyFire = this.createGalleyFire();
+    this.cabin.add(this.galleyFire);
+    this.galleyBreaker = this.createGalleyBreaker();
+    this.cabin.add(this.galleyBreaker);
+    this.crewBravo = this.createCrewAvatar(0x38bdf8);
+    this.cabin.add(this.crewBravo);
+    this.scene.add(this.cabin);
+    this.scene.add(this.ocean.group);
+    this.scene.add(this.camera);
+    this.loadAuthoredRigs();
+    this.resize();
+    window.addEventListener('resize', this.resize);
+  }
+
+  public render(state: MissionState): void {
+    const elapsed = this.elapsed();
+    // Clamped the same way the simulation clamps its own step: a backgrounded
+    // tab must not fast-forward every mixer when it comes back.
+    const delta = Math.min(elapsed - (this.lastFrameAt ?? elapsed), 0.05);
+    this.lastFrameAt = elapsed;
+    this.gestures.push(handGestures(this.previousState, state, localCrewId), elapsed);
+    this.syncRigs(state);
+    this.previousState = state;
+    this.syncState(state, elapsed);
+    // Driven by the authoritative voyage clock, not the render clock, so every
+    // client fitted to the same snapshot sees the same wave under the hull.
+    this.ocean.sync(state.voyage.sea, state.voyage.hull, state.voyage.clock);
+    this.updateRigs(delta);
+    this.updateInteraction(state);
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  /** The compartment the render origin sits on, for rebasing the free camera. */
+  public originCompartment(): string {
+    return this.originCompartmentId || defaultCompartmentId;
+  }
+
+  /**
+   * Enter or leave the free camera's view state.
+   *
+   * Two things change and neither of them is the simulation. The exterior stops
+   * being culled against the occupied compartment, and the haze thins out: at
+   * the playing density the far end of a 290 m ship is 80% fog, which is right
+   * from a window and useless when the point is to look at the ship.
+   */
+  public setSpectating(spectating: boolean): void {
+    this.compartments.setSpectating(spectating);
+    if (this.scene.fog instanceof THREE.FogExp2)
+      this.scene.fog.density = spectating ? SPECTATOR_FOG : VOYAGE_FOG;
+  }
+
+  public prompt(): string {
+    return this.interactionPrompt;
+  }
+
+  public interactionTarget(): string | null {
+    return this.targetObjectId;
+  }
+
+  public elapsed(): number {
+    return (performance.now() - this.startedAt) / 1000;
+  }
+
+  public dispose(): void {
+    this.disposed = true;
+    window.removeEventListener('resize', this.resize);
+    this.crewBravoRig?.dispose();
+    this.firstPersonArms?.dispose();
+    for (const rig of this.passengerRigs.values()) rig.dispose();
+    this.passengerRigs.clear();
+    this.compartments.dispose();
+    this.ocean.dispose();
+    this.scene.traverse((entry) => {
+      if (entry instanceof THREE.Mesh) {
+        entry.geometry.dispose();
+        const materials = Array.isArray(entry.material) ? entry.material : [entry.material];
+        for (const material of materials) {
+          if (material instanceof THREE.MeshStandardMaterial && material.map)
+            material.map.dispose();
+          material.dispose();
+        }
+      }
+    });
+    this.renderer.dispose();
+    this.canvas.remove();
+  }
+
+  /**
+   * Loads the authored skeletal rigs. Each rig is independent: if the arms load
+   * and the characters do not, the arms still animate and the crew stay on the
+   * procedural layer. Nothing here can fail the frame loop.
+   */
+  private loadAuthoredRigs(): void {
+    void loadRig(characterRigId)
+      .then((rig) => {
+        if (this.disposed) return;
+        this.characterRig = rig;
+        this.crewBravoRig = instantiate(rig, 'CM_CREW');
+        hideProceduralCharacter(this.crewBravo);
+        this.crewBravo.add(this.crewBravoRig.root);
+        this.canvas.dataset.characterRig = 'glb';
+      })
+      .catch(() => {
+        if (!this.disposed) this.canvas.dataset.characterRig = 'fallback';
+      });
+
+    void loadRig(firstPersonRigId)
+      .then((rig) => {
+        if (this.disposed) return;
+        const arms = instantiate(rig, 'CM_FP_ARMS');
+        // Parented to the camera, so the arms inherit look direction for free.
+        arms.root.position.set(0, -0.06, 0);
+        this.camera.add(arms.root);
+        this.firstPersonArms = arms;
+        this.canvas.dataset.armsRig = 'glb';
+      })
+      .catch(() => {
+        if (!this.disposed) this.canvas.dataset.armsRig = 'fallback';
+      });
+  }
+
+  /**
+   * The authored rig for one seated passenger, created on first sight. Returns
+   * undefined while the GLB is still loading or if it never arrives, which is
+   * what keeps the procedural seat pose in charge.
+   */
+  private passengerRig(passengerId: string, avatar: THREE.Group): RigInstance | undefined {
+    const existing = this.passengerRigs.get(passengerId);
+    if (existing || !this.characterRig) return existing;
+    const rig = instantiate(this.characterRig, 'CM_PASSENGER');
+    hideProceduralCharacter(avatar);
+    avatar.add(rig.root);
+    this.passengerRigs.set(passengerId, rig);
+    return rig;
+  }
+
+  /** Advances every live mixer. Delta is clamped so a stalled tab cannot skip. */
+  private updateRigs(delta: number): void {
+    this.crewBravoRig?.update(delta);
+    this.firstPersonArms?.update(delta);
+    for (const rig of this.passengerRigs.values()) rig.update(delta);
+  }
+
+  private readonly resize = (): void => {
+    const width = Math.max(1, this.mount.clientWidth);
+    const height = Math.max(1, this.mount.clientHeight);
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(width, height, false);
+  };
+
+  private buildLighting(): void {
+    this.scene.add(new THREE.HemisphereLight(0xb9dfff, 0x17202a, 1.35));
+    const sun = new THREE.DirectionalLight(0xfff4da, 2.2);
+    sun.position.set(-7, 12, -8);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.camera.left = -16;
+    sun.shadow.camera.right = 16;
+    sun.shadow.camera.top = 28;
+    sun.shadow.camera.bottom = -28;
+    this.scene.add(sun);
+
+    // Fill lights down the 46 m atrium, one every 5.75 m.
+    for (let z = -20.125; z <= 20.125; z += 5.75) {
+      const light = new THREE.PointLight(0xd8f2ff, 9, 22, 1.6);
+      light.position.set(0, 5.4, z);
+      this.cabinLights.push(light);
+      this.cabin.add(light);
+    }
+  }
+
+  private createCrewAvatar(color: number): THREE.Group {
+    const group = new THREE.Group();
+    // Body parts live in their own group so the authored rig can replace them
+    // wholesale without touching beacons, hitboxes or attachment points.
+    const body = new THREE.Group();
+    body.name = proceduralBodyName;
+    const uniform = this.material(color, 0.72, 0.08);
+    const skin = this.material(0xc58c6c, 0.78, 0.02);
+    body.add(this.box('crew torso', [0.58, 0.82, 0.34], [0, 1.08, 0], uniform));
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.23, 16, 12), skin);
+    head.position.y = 1.66;
+    head.castShadow = true;
+    body.add(head);
+    for (const x of [-0.18, 0.18]) {
+      body.add(this.box('crew leg', [0.16, 0.72, 0.18], [x, 0.36, 0], this.material(colors.navy)));
+      body.add(this.box('crew arm', [0.14, 0.6, 0.14], [x * 2.3, 1.06, 0], skin));
+    }
+    group.add(body);
+    return group;
+  }
+
+  private createPassengerAvatar(passenger: PassengerState): THREE.Group {
+    const group = new THREE.Group();
+    group.name = passenger.name;
+    const clothes = this.material(Number.parseInt(passenger.color.slice(1), 16), 0.8, 0.03);
+    const skin = this.material(0xc99072, 0.82, 0.01);
+    const body = new THREE.Group();
+    body.name = proceduralBodyName;
+    body.add(this.box('passenger torso', [0.56, 0.72, 0.32], [0, 1.15, 0.05], clothes));
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 14), skin);
+    head.name = 'passenger head';
+    head.position.set(0, 1.68, 0.08);
+    head.castShadow = true;
+    body.add(head);
+    for (const x of [-0.19, 0.19]) {
+      const leg = this.box('passenger leg', [0.15, 0.54, 0.16], [x, 0.57, -0.18], clothes);
+      leg.rotation.x = -1.15;
+      body.add(leg);
+      const arm = this.box('passenger arm', [0.13, 0.55, 0.13], [x * 1.72, 1.12, -0.02], skin);
+      arm.rotation.x = -0.35;
+      body.add(arm);
+    }
+    group.add(body);
+    const beacon = new THREE.Mesh(
+      new THREE.TorusGeometry(0.22, 0.035, 8, 24),
+      new THREE.MeshBasicMaterial({ color: colors.orange, transparent: true, opacity: 0.95 }),
+    );
+    beacon.name = 'request beacon';
+    beacon.position.y = 2.18;
+    beacon.rotation.x = Math.PI / 2;
+    group.add(beacon);
+    const hitbox = new THREE.Mesh(
+      new THREE.BoxGeometry(0.85, 2.25, 0.85),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+    );
+    hitbox.position.y = 1.1;
+    group.add(hitbox);
+    group.userData.passengerId = passenger.id;
+    this.interactionRoots.push(group);
+    this.cabin.add(group);
+    return group;
+  }
+
+  private createObjectAsset(object: CabinObject): THREE.Group {
+    const group = new THREE.Group();
+    group.name = object.name;
+    const asset = objectAsset(object.kind, this);
+    const interactionHitbox = new THREE.Mesh(
+      new THREE.BoxGeometry(Math.max(0.9, object.radius * 1.4), 1.75, Math.max(0.8, object.radius)),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+    );
+    interactionHitbox.name = 'interaction hitbox';
+    interactionHitbox.position.y = 0.85;
+    group.add(asset, interactionHitbox);
+    group.userData.interaction = `${object.name} — E grab/place, Q throw`;
+    group.userData.objectId = object.id;
+    this.interactionRoots.push(group);
+    this.cabin.add(group);
+    return group;
+  }
+
+  private createGalleyFire(): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'galley fire';
+    const ember = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.62, 0.8, 0.16, 18),
+      this.material(0x2a1514, 0.56, 0.18, 0x7f1200),
+    );
+    ember.position.y = 0.08;
+    group.add(ember);
+    const flameOffsets: Array<readonly [number, number]> = [
+      [-0.36, 0.24],
+      [0, 0.42],
+      [0.32, 0.18],
+      [0.08, -0.28],
+    ];
+    for (const [index, offset] of flameOffsets.entries()) {
+      const flame = new THREE.Mesh(
+        new THREE.ConeGeometry(index % 2 === 0 ? 0.24 : 0.18, 0.88 + index * 0.08, 10),
+        this.material(index % 2 === 0 ? 0xff5a1f : 0xffca3a, 0.35, 0.15, 0xff3b13),
+      );
+      flame.name = 'fire flame';
+      flame.position.set(offset[0], 0.48, offset[1]);
+      flame.castShadow = true;
+      group.add(flame);
+    }
+    const light = new THREE.PointLight(0xff4d1e, 4.8, 6.5, 1.45);
+    light.name = 'fire light';
+    light.position.y = 1.05;
+    group.add(light);
+    const hitbox = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.25, 1.25, 2.2, 16),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+    );
+    hitbox.position.y = 1;
+    group.add(hitbox);
+    group.userData.fireId = 'fire-galley';
+    group.userData.interaction = 'GALLEY FIRE - extinguisher required';
+    group.visible = false;
+    this.interactionRoots.push(group);
+    return group;
+  }
+
+  private createGalleyBreaker(): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'coffee machine breaker';
+    group.add(
+      this.box(
+        'breaker housing',
+        [0.8, 1.05, 0.2],
+        [0, 0.65, 0],
+        this.material(0x243342, 0.38, 0.72),
+      ),
+    );
+    group.add(
+      this.box(
+        'breaker glow',
+        [0.58, 0.58, 0.04],
+        [0, 0.72, -0.125],
+        this.material(0xff4e43, 0.28, 0.2, 0xa81820),
+      ),
+    );
+    const sparkPositions: Array<readonly [number, number, number]> = [
+      [-0.32, 1.42, -0.16],
+      [0.28, 1.18, -0.16],
+      [0.06, 1.62, -0.16],
+    ];
+    for (const [index, position] of sparkPositions.entries()) {
+      const spark = new THREE.Mesh(
+        new THREE.BoxGeometry(0.05, 0.36, 0.04),
+        this.material(index === 1 ? 0xff9c35 : 0xfff0a8, 0.3, 0.12, 0xff7200),
+      );
+      spark.name = 'breaker spark';
+      spark.position.set(...position);
+      spark.rotation.z = index * 0.76;
+      group.add(spark);
+    }
+    const light = new THREE.PointLight(0xff4e43, 2.2, 4.5, 1.5);
+    light.name = 'breaker light';
+    light.position.set(0, 1.18, 0.1);
+    group.add(light);
+    const hitbox = new THREE.Mesh(
+      new THREE.BoxGeometry(1.7, 2.25, 1.3),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+    );
+    hitbox.position.y = 0.9;
+    group.add(hitbox);
+    group.userData.repairId = 'repair-galley-breaker';
+    group.userData.interaction = 'COFFEE MACHINE MUTINY - toolbox required';
+    group.visible = false;
+    this.interactionRoots.push(group);
+    return group;
+  }
+
+  private heldKind(state: MissionState): ObjectKind | undefined {
+    const heldId = state.cabin.players[localCrewId]?.heldObjectId;
+    return heldId ? state.cabin.objects[heldId]?.kind : undefined;
+  }
+
+  private held(state: MissionState, playerId: string): CabinObject | undefined {
+    const heldId = state.cabin.players[playerId]?.heldObjectId;
+    return heldId ? state.cabin.objects[heldId] : undefined;
+  }
+
+  /**
+   * Projects the snapshot onto authored clips for the peer avatar and the
+   * first-person arms. Read-only with respect to the simulation: a wrong clip
+   * here can only ever look wrong.
+   */
+  private syncRigs(state: MissionState): void {
+    const bravo = state.cabin.players['crew-bravo'];
+    if (this.crewBravoRig && bravo) {
+      const held = this.held(state, 'crew-bravo');
+      this.crewBravoRig.play(crewClips(crewMotion(bravo), crewStance(state, bravo, held)));
+      for (const shot of crewOneShots(this.previousState, state, 'crew-bravo'))
+        this.crewBravoRig.trigger(crewOneShotClip(shot));
+    }
+
+    const alpha = state.cabin.players[localCrewId];
+    if (this.firstPersonArms && alpha) {
+      this.firstPersonArms.play({
+        base: firstPersonClip(state, alpha, this.held(state, localCrewId)),
+      });
+      for (const shot of crewOneShots(this.previousState, state, localCrewId))
+        this.firstPersonArms.trigger(firstPersonOneShotClip(shot));
+    }
+  }
+
+  /**
+   * The occupied compartment is authoritative state, so residency follows the
+   * snapshot. Walking through a door is what loads the next room; the renderer
+   * never decides where the crew is.
+   */
+  private syncResidency(state: MissionState): void {
+    const occupied = state.cabin.players[localCrewId]?.compartmentId ?? defaultCompartmentId;
+    if (occupied === this.originCompartmentId) return;
+    this.originCompartmentId = occupied;
+    void this.compartments.setCurrent(occupied);
+  }
+
+  private syncState(state: MissionState, elapsed: number): void {
+    this.syncResidency(state);
+    const origin = this.originCompartmentId;
+    const heldKind = this.heldKind(state);
+    const pose = this.gestures.pose(
+      state,
+      heldKind === 'extinguisher' || heldKind === 'toolbox',
+      elapsed,
+    );
+    for (const asset of this.dynamicObjects.values()) asset.visible = false;
+    for (const object of Object.values(state.cabin.objects)) {
+      const asset = this.dynamicObjects.get(object.id) ?? this.createObjectAsset(object);
+      this.dynamicObjects.set(object.id, asset);
+      if (object.ownerId === localCrewId) {
+        // The gesture only nudges the presentation offset; the host already
+        // resolved the interaction that produced it.
+        const heldOffset =
+          object.kind === 'cart'
+            ? new THREE.Vector3(0.68, -1.18 + pose.lift * 0.4, -1.65 + pose.push * 0.5)
+            : new THREE.Vector3(0.34, -0.42 + pose.lift, -0.9 + pose.push);
+        const handPosition = heldOffset
+          .applyQuaternion(this.camera.quaternion)
+          .add(this.camera.position);
+        asset.position.lerp(handPosition, 0.62);
+        const swing = new THREE.Quaternion().setFromEuler(
+          new THREE.Euler(pose.pitch, 0, pose.roll, 'XYZ'),
+        );
+        asset.quaternion.slerp(this.camera.quaternion.clone().multiply(swing), 0.38);
+      } else {
+        const position = cabinToWorld(
+          object.position,
+          object.radius * 0.34,
+          gameplayCompartmentId,
+          origin,
+        );
+        asset.position.lerp(position, object.ownerId ? 0.55 : 0.28);
+        asset.rotation.z = THREE.MathUtils.lerp(asset.rotation.z, object.velocity.x * -0.025, 0.12);
+        asset.rotation.x = THREE.MathUtils.lerp(asset.rotation.x, object.velocity.y * 0.018, 0.12);
+      }
+      asset.visible = true;
+      const securedRing = asset.getObjectByName('secured ring');
+      if (securedRing instanceof THREE.Mesh) securedRing.visible = object.secured;
+    }
+
+    for (const passenger of Object.values(state.service.passengers)) {
+      const avatar =
+        this.passengerAvatars.get(passenger.id) ?? this.createPassengerAvatar(passenger);
+      this.passengerAvatars.set(passenger.id, avatar);
+      if (this.reactionStatus.get(passenger.id) !== passenger.requestStatus) {
+        this.reactionStatus.set(passenger.id, passenger.requestStatus);
+        this.reactionAt.set(passenger.id, elapsed);
+      }
+      const reactionAge = elapsed - (this.reactionAt.get(passenger.id) ?? elapsed);
+      const react = passengerPose(passenger, elapsed, reactionAge);
+      const seat = cabinToWorld(passenger.seatPosition, 0, gameplayCompartmentId, origin);
+      const shake = Math.sin(elapsed * 15 + passenger.requestAt) * passenger.panic * 0.035;
+      avatar.position.set(seat.x + shake, seat.y + react.bob, seat.z);
+      const toPort = passenger.seatPosition.x < centrelineX(gameplayCompartmentId);
+      avatar.rotation.y = toPort ? -0.08 : 0.08;
+      avatar.rotation.z = passenger.injury * (toPort ? 0.22 : -0.22);
+
+      const rig = this.passengerRig(passenger.id, avatar);
+      if (rig) {
+        // The authored clip owns the body. Only the seat-level offsets above,
+        // which the clips know nothing about, stay procedural.
+        avatar.rotation.x = 0;
+        rig.play({ base: passengerClip(passengerAnimationState(passenger, state, reactionAge)) });
+      } else {
+        avatar.rotation.x = react.lean;
+        const arms = proceduralBody(avatar).filter((entry) => entry.name === 'passenger arm');
+        for (const [index, arm] of arms.entries())
+          arm.rotation.x = THREE.MathUtils.lerp(
+            arm.rotation.x,
+            -0.35 - react.armLift * (index === arms.length - 1 ? 1.9 : 0.25),
+            0.18,
+          );
+      }
+      avatar.userData.interaction = passengerInteraction(passenger);
+      const beacon = avatar.getObjectByName('request beacon');
+      if (beacon instanceof THREE.Mesh && beacon.material instanceof THREE.MeshBasicMaterial) {
+        beacon.visible = passenger.requestStatus === 'active';
+        beacon.material.color.setHex(
+          passenger.need === 'medical'
+            ? colors.red
+            : passenger.patience < 0.35
+              ? 0xffc14d
+              : colors.cyan,
+        );
+        beacon.scale.setScalar(1 + Math.sin(elapsed * 5) * 0.12);
+      }
+    }
+
+    this.galleyFire.position.copy(
+      cabinToWorld(state.fire.position, 0, gameplayCompartmentId, origin),
+    );
+    this.galleyFire.visible = state.fire.status === 'active';
+    if (this.galleyFire.visible) {
+      const pulse = 0.9 + Math.sin(elapsed * 14) * 0.16;
+      this.galleyFire.scale.setScalar(pulse * (0.55 + state.fire.intensity * 0.55));
+      for (const [index, flame] of this.galleyFire.children
+        .filter((entry) => entry.name === 'fire flame')
+        .entries()) {
+        flame.rotation.z = Math.sin(elapsed * 9 + index) * 0.18;
+        flame.scale.y = 0.84 + Math.sin(elapsed * 17 + index * 2) * 0.22;
+      }
+      const fireLight = this.galleyFire.getObjectByName('fire light');
+      if (fireLight instanceof THREE.PointLight)
+        fireLight.intensity = 3.1 + state.fire.intensity * 3.2 + Math.sin(elapsed * 19) * 0.75;
+    }
+
+    this.galleyBreaker.position.copy(
+      cabinToWorld(state.repair.position, 0, gameplayCompartmentId, origin),
+    );
+    this.galleyBreaker.visible = state.repair.status !== 'dormant';
+    if (this.galleyBreaker.visible) {
+      const active = state.repair.status === 'active';
+      const repairing = state.repair.status === 'repairing';
+      const pulse = active ? 0.75 + Math.sin(elapsed * 18) * 0.25 : 0.28;
+      const glow = this.galleyBreaker.getObjectByName('breaker glow');
+      if (glow instanceof THREE.Mesh && glow.material instanceof THREE.MeshStandardMaterial) {
+        glow.material.color.setHex(
+          repairing ? 0xffcf4f : state.repair.status === 'fixed' ? 0x57edcf : 0xff4e43,
+        );
+        glow.material.emissive.setHex(
+          repairing ? 0x9d6400 : state.repair.status === 'fixed' ? 0x0e5d55 : 0xa81820,
+        );
+        glow.material.emissiveIntensity = repairing ? 1.1 : pulse;
+      }
+      for (const [index, spark] of this.galleyBreaker.children
+        .filter((entry) => entry.name === 'breaker spark')
+        .entries()) {
+        spark.visible = active;
+        spark.position.y = 1.2 + Math.sin(elapsed * 20 + index) * 0.28 + index * 0.18;
+        spark.rotation.z = elapsed * (index % 2 === 0 ? 7 : -8);
+      }
+      const breakerLight = this.galleyBreaker.getObjectByName('breaker light');
+      if (breakerLight instanceof THREE.PointLight) {
+        breakerLight.color.setHex(
+          state.repair.status === 'fixed' ? 0x57edcf : repairing ? 0xffcf4f : 0xff4e43,
+        );
+        breakerLight.intensity = state.repair.status === 'fixed' ? 0.55 : 1.6 + pulse * 2;
+      }
+    }
+
+    const bravo = state.cabin.players['crew-bravo'];
+    if (bravo) {
+      // The peer may be several decks away, so their avatar is placed through
+      // their own compartment and rebased onto ours.
+      this.crewBravo.position.copy(cabinToWorld(bravo.position, 0, bravo.compartmentId, origin));
+      this.crewBravo.rotation.y = Math.atan2(bravo.facing.x, bravo.facing.y);
+      this.crewBravo.rotation.z = bravo.knockdown > 0 ? 1.2 : 0;
+      if (!this.crewBravoRig) {
+        const speed = Math.hypot(bravo.velocity.x, bravo.velocity.y);
+        const stride = Math.min(speed / 2.6, 1);
+        const swing = Math.sin(elapsed * (6 + stride * 6)) * stride * 0.7;
+        const limbs = proceduralBody(this.crewBravo).filter(
+          (entry) => entry.name === 'crew leg' || entry.name === 'crew arm',
+        );
+        for (const [index, limb] of limbs.entries())
+          limb.rotation.x =
+            (index % 2 === 0 ? swing : -swing) * (limb.name === 'crew arm' ? 0.8 : 1);
+      }
+    }
+
+    const health = Math.min(state.voyage.electrical, state.voyage.structure);
+    const breakerFault = state.repair.status === 'active';
+    for (const [index, light] of this.cabinLights.entries()) {
+      const flicker =
+        breakerFault && Math.sin(elapsed * 21 + index * 3.1) > 0.12
+          ? true
+          : health < 0.75 && Math.sin(elapsed * 17 + index * 4.2) > health;
+      light.intensity = flicker ? 0.18 : 2.3 + health;
+      light.color.setHex(breakerFault || health < 0.45 ? 0xff704d : 0xd8f2ff);
+    }
+  }
+
+  private updateInteraction(state: MissionState): void {
+    const player = state.cabin.players['crew-alpha'];
+    const held = player?.heldObjectId ? state.cabin.objects[player.heldObjectId] : undefined;
+    this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+    let target: THREE.Object3D | null = null;
+    for (const entry of this.raycaster.intersectObjects(this.interactionRoots, true)) {
+      if (entry.distance > 1.9) break;
+      let candidate: THREE.Object3D | null = entry.object;
+      while (candidate && typeof candidate.userData.interaction !== 'string')
+        candidate = candidate.parent;
+      if (!candidate || candidate.userData.objectId === held?.id) continue;
+      target = candidate;
+      break;
+    }
+    const passengerId =
+      target && typeof target.userData.passengerId === 'string'
+        ? target.userData.passengerId
+        : null;
+    const objectId =
+      target && typeof target.userData.objectId === 'string' ? target.userData.objectId : null;
+    const fireId =
+      target && typeof target.userData.fireId === 'string' ? target.userData.fireId : null;
+    const repairId =
+      target && typeof target.userData.repairId === 'string' ? target.userData.repairId : null;
+    if (held && passengerId) {
+      this.targetObjectId = passengerId;
+      this.interactionPrompt = `${String(target?.userData.interaction)} - E deliver ${held.name}`;
+      return;
+    }
+    if (fireId) {
+      this.targetObjectId = fireId;
+      this.interactionPrompt =
+        held?.kind === 'extinguisher'
+          ? 'GALLEY FIRE - E spray extinguisher'
+          : held
+            ? `GALLEY FIRE - ${held.name} cannot suppress it`
+            : 'GALLEY FIRE - grab extinguisher and spray with E';
+      return;
+    }
+    if (repairId) {
+      this.targetObjectId = repairId;
+      if (state.fire.status === 'active') {
+        this.interactionPrompt = 'GALLEY FIRE TAKES PRIORITY - grab extinguisher';
+        return;
+      }
+      this.interactionPrompt =
+        held?.kind === 'toolbox'
+          ? `COFFEE MACHINE MUTINY - hold E to repair ${Math.round(state.repair.progress * 100)}%`
+          : held
+            ? `COFFEE MACHINE MUTINY - ${held.name} is not a toolbox`
+            : 'COFFEE MACHINE MUTINY - grab the red toolbox';
+      return;
+    }
+    if (held && objectId === 'cart-01') {
+      this.targetObjectId = objectId;
+      this.interactionPrompt = `Service cart - E return ${held.name}`;
+      return;
+    }
+    if (held) {
+      this.targetObjectId = held.id;
+      this.interactionPrompt = `${held.name} - E place, Q throw`;
+      return;
+    }
+    if (!target) {
+      this.targetObjectId = null;
+      this.interactionPrompt =
+        document.pointerLockElement === this.canvas ? 'SCAN CABIN' : 'CLICK TO CAPTURE MOUSE';
+      return;
+    }
+    this.targetObjectId = passengerId ?? objectId ?? fireId ?? repairId;
+    if (objectId === 'cart-01' && player) {
+      const need = player.selectedServiceNeed;
+      this.interactionPrompt = `Service cart - 1 drink  2 meal  3 medical - E take ${need.toUpperCase()} (${state.service.cart.stock[need]}) - Shift+E move`;
+      return;
+    }
+    this.interactionPrompt = String(target?.userData.interaction ?? 'INTERACT');
+  }
+
+  private label(
+    text: string,
+    position: [number, number, number],
+    width: number,
+    height: number,
+    color: number,
+  ): THREE.Mesh {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const context = canvas.getContext('2d');
+    if (context) {
+      context.fillStyle = '#07111d';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
+      context.lineWidth = 8;
+      context.strokeRect(5, 5, canvas.width - 10, canvas.height - 10);
+      context.fillStyle = '#f5fbff';
+      context.font = '700 48px Arial';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText(text, 256, 66);
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(width, height),
+      new THREE.MeshBasicMaterial({ map: texture }),
+    );
+    mesh.position.set(...position);
+    return mesh;
+  }
+
+  public box(
+    name: string,
+    size: [number, number, number],
+    position: [number, number, number],
+    material: THREE.Material,
+  ): THREE.Mesh {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
+    mesh.name = name;
+    mesh.position.set(...position);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+  }
+
+  public material(
+    color: number,
+    roughness = 0.72,
+    metalness = 0.08,
+    emissive = 0x000000,
+  ): THREE.MeshStandardMaterial {
+    return new THREE.MeshStandardMaterial({
+      color,
+      roughness,
+      metalness,
+      emissive,
+      emissiveIntensity: emissive ? 0.7 : 0,
+    });
+  }
+}
+
+function objectAsset(kind: ObjectKind, world: CabinWorld): THREE.Group {
+  const group = new THREE.Group();
+  if (kind === 'cart') {
+    group.add(
+      world.box(
+        'cart body',
+        [0.72, 1.08, 0.62],
+        [0, 0.62, 0],
+        world.material(0x98a2a8, 0.35, 0.72),
+      ),
+    );
+    group.add(
+      world.box('cart top', [0.78, 0.08, 0.68], [0, 1.18, 0], world.material(0xd8dde0, 0.28, 0.8)),
+    );
+    for (const x of [-0.25, 0.25])
+      for (const z of [-0.2, 0.2]) {
+        const wheel = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.09, 0.09, 0.08, 12),
+          world.material(0x171b20, 0.9),
+        );
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(x, 0.08, z);
+        group.add(wheel);
+      }
+  } else if (kind === 'heavy-crate') {
+    group.add(
+      world.box(
+        'heavy crate',
+        [1.05, 0.78, 0.86],
+        [0, 0.42, 0],
+        world.material(colors.cargo, 0.92, 0.02),
+      ),
+    );
+    for (const y of [0.15, 0.7])
+      group.add(
+        world.box('crate brace', [1.1, 0.08, 0.91], [0, y, 0], world.material(0x4d3624, 0.82)),
+      );
+  } else if (kind === 'toolbox') {
+    group.add(
+      world.box('toolbox', [0.72, 0.38, 0.42], [0, 0.22, 0], world.material(0xd7372f, 0.55, 0.35)),
+    );
+    group.add(
+      world.box(
+        'toolbox handle',
+        [0.38, 0.2, 0.06],
+        [0, 0.5, 0],
+        world.material(0x252a2e, 0.5, 0.65),
+      ),
+    );
+  } else if (kind === 'drink') {
+    const bottle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.13, 0.16, 0.52, 18),
+      world.material(0x57bde0, 0.28, 0.08, 0x0b3548),
+    );
+    bottle.position.y = 0.3;
+    group.add(bottle);
+    const cap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.09, 0.08, 16),
+      world.material(0xf1f7f8, 0.45, 0.12),
+    );
+    cap.position.y = 0.6;
+    group.add(cap);
+  } else if (kind === 'meal-tray') {
+    group.add(
+      world.box(
+        'meal tray',
+        [0.68, 0.09, 0.48],
+        [0, 0.08, 0],
+        world.material(0x303943, 0.55, 0.18),
+      ),
+    );
+    const meal = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.2, 0.09, 20),
+      world.material(0xe7a63d, 0.8, 0.01),
+    );
+    meal.position.set(-0.11, 0.17, 0);
+    group.add(meal);
+    group.add(world.box('meal side', [0.2, 0.1, 0.2], [0.2, 0.16, 0], world.material(0x5f9e52)));
+  } else if (kind === 'medkit') {
+    group.add(
+      world.box('medkit', [0.64, 0.46, 0.24], [0, 0.27, 0], world.material(0xe7ecee, 0.58, 0.08)),
+    );
+    group.add(
+      world.box(
+        'medical cross horizontal',
+        [0.3, 0.08, 0.03],
+        [0, 0.29, -0.135],
+        world.material(colors.red, 0.5, 0.05, 0x6e1711),
+      ),
+    );
+    group.add(
+      world.box(
+        'medical cross vertical',
+        [0.08, 0.3, 0.03],
+        [0, 0.29, -0.135],
+        world.material(colors.red, 0.5, 0.05, 0x6e1711),
+      ),
+    );
+  } else if (kind === 'extinguisher') {
+    const tank = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.17, 0.2, 0.72, 18),
+      world.material(0xd52d28, 0.38, 0.42),
+    );
+    tank.position.y = 0.4;
+    group.add(tank);
+    group.add(
+      world.box(
+        'extinguisher handle',
+        [0.25, 0.08, 0.12],
+        [0.08, 0.82, 0],
+        world.material(0x20262b, 0.48, 0.65),
+      ),
+    );
+  } else {
+    const color = kind === 'light-case' ? 0xf2a84b : 0x4aa7ad;
+    group.add(world.box(kind, [0.66, 0.48, 0.34], [0, 0.27, 0], world.material(color, 0.68, 0.1)));
+    group.add(
+      world.box('case handle', [0.28, 0.15, 0.05], [0, 0.58, 0], world.material(0x22282e, 0.75)),
+    );
+  }
+
+  const secured = new THREE.Mesh(
+    new THREE.TorusGeometry(0.5, 0.035, 8, 24),
+    new THREE.MeshBasicMaterial({ color: 0x53ff9d }),
+  );
+  secured.name = 'secured ring';
+  secured.rotation.x = Math.PI / 2;
+  secured.position.y = 0.04;
+  secured.visible = false;
+  group.add(secured);
+  return group;
+}
+
+function passengerInteraction(passenger: PassengerState): string {
+  if (passenger.requestStatus === 'active')
+    return `${passenger.name} needs ${needLabel(passenger.need)} (${Math.round(passenger.patience * 100)}%)`;
+  if (passenger.requestStatus === 'served') return `${passenger.name} - served`;
+  if (passenger.requestStatus === 'missed') return `${passenger.name} - request missed`;
+  return `${passenger.name} - waiting`;
+}

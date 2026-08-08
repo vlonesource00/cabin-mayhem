@@ -1,0 +1,532 @@
+import { phaseOneCabinDefinition, type PhaseOneObjectDefinition } from '../data/phase-one';
+import { serviceSliceDefinition, type ServiceObjectDefinition } from '../data/service';
+import {
+  DECK_PITCH,
+  DECK_ZERO_Y,
+  compartmentById,
+  defaultCompartmentId,
+  type CompartmentDefinition,
+  type PortalDefinition,
+} from '../data/ship-layout';
+import {
+  arrivalHeading,
+  arrivalPosition,
+  playfieldFor,
+  portalSimPosition,
+  type Playfield,
+} from './compartment-space';
+import { add, clamp, distance, length, normalized, scale } from './math';
+import type {
+  CabinObject,
+  CabinState,
+  DoorPrompt,
+  VoyageState,
+  PlayerCommand,
+  PlayerState,
+  Vec2,
+} from './types';
+
+const playerRadius = 0.58;
+/**
+ * How close to a doorway counts as standing in it. A crew member is held 1.38 m
+ * off a bulkhead by the wall clearance in `clampToPlayfield`, so the reach has to
+ * exceed that or the doors on the end bulkheads are unreachable. It is generous
+ * beyond that because reaching a door no longer means going through it — the
+ * radius only decides where the prompt appears.
+ */
+const portalReach = 2.2;
+
+export function createCabinState(): CabinState {
+  const objects = [
+    ...phaseOneCabinDefinition.objects.map(objectFromDefinition),
+    ...serviceSliceDefinition.objects
+      .filter((definition) => !('serviceNeed' in definition))
+      .map(serviceObjectFromDefinition),
+  ];
+  return {
+    width: phaseOneCabinDefinition.width,
+    length: phaseOneCabinDefinition.length,
+    players: {
+      'crew-alpha': player('crew-alpha', 'Crew Alpha / host', '#f7be62', { x: 12, y: 6.5 }),
+      'crew-bravo': player('crew-bravo', 'Crew Bravo / client', '#73d5e8', { x: 12, y: 39 }),
+    },
+    objects: Object.fromEntries(objects.map((entry) => [entry.id, entry])),
+    collisionCount: 0,
+    lastImpulse: 0,
+  };
+}
+
+function serviceObjectFromDefinition(definition: ServiceObjectDefinition): CabinObject {
+  return {
+    ...objectFromDefinition(definition),
+    serviceNeed: definition.serviceNeed,
+  };
+}
+
+function objectFromDefinition(
+  definition: PhaseOneObjectDefinition | ServiceObjectDefinition,
+): CabinObject {
+  return object(
+    definition.id,
+    definition.name,
+    definition.kind,
+    definition.material,
+    definition.position,
+    definition.radius,
+    definition.mass,
+    definition.friction,
+    definition.impactTolerance,
+    definition.secured,
+  );
+}
+
+export function stepCabin(
+  current: CabinState,
+  voyage: VoyageState,
+  commands: Record<string, PlayerCommand>,
+  deltaSeconds: number,
+): CabinState {
+  const dt = clamp(deltaSeconds, 0, 0.05);
+  const players = Object.fromEntries(
+    Object.entries(current.players).map(([id, player]) => [
+      id,
+      stepPlayer(player, commands[id], voyage, current, dt),
+    ]),
+  ) as CabinState['players'];
+  const objects = Object.fromEntries(
+    Object.entries(current.objects).map(([id, entry]) => [
+      id,
+      { ...entry, position: { ...entry.position }, velocity: { ...entry.velocity } },
+    ]),
+  ) as CabinState['objects'];
+  let collisionCount = 0;
+  let lastImpulse = 0;
+
+  for (const object of Object.values(objects)) {
+    if (object.secured && object.anchor) {
+      object.position = { ...object.anchor };
+      object.velocity = { x: 0, y: 0 };
+      continue;
+    }
+    const holder = object.ownerId ? players[object.ownerId] : undefined;
+    if (holder) {
+      const reach = scale(holder.facing, 0.9);
+      object.position = clampPosition(add(holder.position, reach), object.radius, current);
+      object.velocity = { ...holder.velocity };
+      continue;
+    }
+
+    const turbulence = turbulenceVector(voyage, object.id);
+    const inertiaScale = 1 / Math.max(1, Math.sqrt(object.mass) * 0.3);
+    object.velocity.x += (voyage.cabinAcceleration.x * inertiaScale + turbulence.x) * dt;
+    object.velocity.y += (voyage.cabinAcceleration.y * inertiaScale + turbulence.y) * dt;
+    const damping = Math.exp(-object.friction * 7 * dt);
+    object.velocity.x *= damping;
+    object.velocity.y *= damping;
+    const before = { ...object.position };
+    const intended = add(object.position, scale(object.velocity, dt));
+    object.position = resolveCabinFixtures(
+      clampPosition(intended, object.radius, current),
+      before,
+      object.radius,
+    );
+    if (distance(intended, object.position) > 0.001) {
+      const impulse = length(object.velocity) * object.mass * 0.025;
+      object.velocity.x *= -0.38;
+      object.velocity.y *= -0.38;
+      object.damage = clamp(
+        object.damage + Math.max(0, impulse - object.impactTolerance) * 0.02,
+        0,
+        1,
+      );
+      collisionCount += 1;
+      lastImpulse = Math.max(lastImpulse, impulse);
+    }
+  }
+
+  const freeObjects = Object.values(objects).filter((entry) => !entry.secured && !entry.ownerId);
+  for (let index = 0; index < freeObjects.length; index += 1) {
+    const first = freeObjects[index];
+    if (!first) continue;
+    for (let otherIndex = index + 1; otherIndex < freeObjects.length; otherIndex += 1) {
+      const second = freeObjects[otherIndex];
+      if (!second) continue;
+      const impulse = resolveObjectCollision(first, second);
+      if (impulse > 0) {
+        collisionCount += 1;
+        lastImpulse = Math.max(lastImpulse, impulse);
+      }
+    }
+  }
+
+  return { ...current, players, objects, collisionCount, lastImpulse };
+}
+
+export function closestInteractable(
+  cabin: CabinState,
+  player: PlayerState,
+  requestedId?: string | null,
+): CabinObject | undefined {
+  const candidates = Object.values(cabin.objects)
+    .filter((entry) => !entry.ownerId || entry.ownerId === player.id)
+    .filter((entry) => distance(entry.position, player.position) <= 1.8);
+
+  if (requestedId === null) return undefined;
+  if (requestedId !== undefined) {
+    const requested = candidates.find((entry) => entry.id === requestedId);
+    if (!requested) return undefined;
+    const towardTarget = normalized({
+      x: requested.position.x - player.position.x,
+      y: requested.position.y - player.position.y,
+    });
+    const facingScore = towardTarget.x * player.facing.x + towardTarget.y * player.facing.y;
+    return facingScore >= 0.2 ? requested : undefined;
+  }
+
+  return candidates.sort(
+    (a, b) => distance(a.position, player.position) - distance(b.position, player.position),
+  )[0];
+}
+
+export function setObjectSecured(object: CabinObject, secured: boolean): CabinObject {
+  return {
+    ...object,
+    secured,
+    ownerId: undefined,
+    anchor: secured ? { ...object.position } : undefined,
+    velocity: { x: 0, y: 0 },
+  };
+}
+
+export function makeSpawnObject(index: number): CabinObject {
+  const id = `case-spawn-${index}`;
+  return object(
+    id,
+    'Spawned light case',
+    'light-case',
+    'plastic',
+    { x: 12, y: 30 },
+    0.48,
+    5,
+    0.38,
+    1.5,
+  );
+}
+
+function player(
+  id: string,
+  name: string,
+  color: string,
+  position: Vec2,
+  compartmentId: string = defaultCompartmentId,
+): PlayerState {
+  return {
+    id,
+    name,
+    color,
+    compartmentId,
+    portalCooldown: 0,
+    position,
+    velocity: { x: 0, y: 0 },
+    facing: { x: 0, y: -1 },
+    crouched: false,
+    braced: false,
+    knockdown: 0,
+    selectedServiceNeed: 'drink',
+    lastAction: 'Ready',
+  };
+}
+
+function object(
+  id: string,
+  name: string,
+  kind: CabinObject['kind'],
+  material: CabinObject['material'],
+  position: Vec2,
+  radius: number,
+  mass: number,
+  friction: number,
+  impactTolerance: number,
+  secured = false,
+): CabinObject {
+  return {
+    id,
+    name,
+    kind,
+    material,
+    position,
+    velocity: { x: 0, y: 0 },
+    radius,
+    mass,
+    friction,
+    impactTolerance,
+    secured,
+    anchor: secured ? { ...position } : undefined,
+    damage: 0,
+  };
+}
+
+function stepPlayer(
+  player: PlayerState,
+  command: PlayerCommand | undefined,
+  voyage: VoyageState,
+  cabin: CabinState,
+  dt: number,
+): PlayerState {
+  const input = command ?? {
+    move: { x: 0, y: 0 },
+    look: player.facing,
+    sprint: false,
+    crouch: false,
+    brace: false,
+  };
+  const direction = normalized(input.move);
+  const look = normalized(input.look);
+  const facing = length(look) > 0.01 ? look : length(direction) > 0.01 ? direction : player.facing;
+  // Metres per second: one simulation unit is one metre since `CABIN_SCALE` is 1.
+  const speed = input.crouch ? 1.4 : input.sprint ? 5.4 : 2.6;
+  const targetVelocity = scale(direction, speed);
+  const braceFactor = input.brace ? 0.08 : 0.34;
+  const inertia = scale(voyage.cabinAcceleration, braceFactor);
+  const velocity = {
+    x:
+      player.velocity.x +
+      (targetVelocity.x - player.velocity.x) * Math.min(1, dt * 12) +
+      inertia.x * dt,
+    y:
+      player.velocity.y +
+      (targetVelocity.y - player.velocity.y) * Math.min(1, dt * 12) +
+      inertia.y * dt,
+  };
+  const force = length(voyage.cabinAcceleration);
+  const knockdown = input.brace
+    ? Math.max(0, player.knockdown - dt * 2)
+    : Math.max(0, player.knockdown - dt);
+  const forcedKnockdown = force > 11 && !input.brace ? Math.max(knockdown, 0.8) : knockdown;
+  const field = playfieldFor(player.compartmentId);
+  const intended = clampToPlayfield(add(player.position, scale(velocity, dt)), playerRadius, field);
+  // The atrium is the only compartment whose furniture the simulation knows
+  // about; the rest collide against their own bulkheads until their fixtures
+  // are authored.
+  const position =
+    player.compartmentId === 'atrium'
+      ? resolveCabinFixtures(intended, player.position, playerRadius)
+      : intended;
+  const walked: PlayerState = {
+    ...player,
+    position,
+    velocity,
+    facing,
+    crouched: input.crouch,
+    braced: input.brace,
+    knockdown: forcedKnockdown,
+    portalCooldown: Math.max(0, player.portalCooldown - dt),
+    lastAction: input.brace ? 'Braced' : forcedKnockdown > 0 ? 'Recovering' : player.lastAction,
+  };
+  // The same key serves doors and everything else the crew can reach. A doorway
+  // in range wins the press: standing in one is unambiguous, and a fixture close
+  // enough to compete with it is close enough to step away from.
+  return stepPortalTransit(walked, command?.interact === true);
+}
+
+/**
+ * Doorways: what the crew member can see to use, and what happens when they do.
+ *
+ * Doors are opened deliberately. Walking near one used to be enough, which meant
+ * crossing an atrium along a bulkhead could dump you into a stair tower you never
+ * meant to enter, and the only thing standing between the crew and a loop was the
+ * cooldown. So proximity now only *offers* the door — the transit itself waits on
+ * the interact key, and the offer is published on the player so the HUD names
+ * where it goes before it is taken.
+ *
+ * The transfer stays positional and host-owned: nothing in the renderer or the UI
+ * gets a say in whether a door opens, and the arrival point comes from the
+ * layout's own portal pair, which validation has already proven meets in ship
+ * space.
+ */
+function stepPortalTransit(player: PlayerState, useDoor: boolean): PlayerState {
+  const compartment = compartmentById(player.compartmentId);
+  if (!compartment) return player;
+
+  // Doors on a stair landing sit within a few metres of each other, so the
+  // nearest one wins rather than the first one authored: a prompt that flickers
+  // between two destinations is worse than no prompt.
+  let nearest: { portal: PortalDefinition; range: number } | undefined;
+  for (const portal of compartment.portals) {
+    const range = distance(player.position, portalSimPosition(compartment, portal));
+    if (range > portalReach) continue;
+    if (!nearest || range < nearest.range) nearest = { portal, range };
+  }
+
+  if (!nearest) return player.pendingDoor ? { ...player, pendingDoor: undefined } : player;
+  const destination = compartmentById(nearest.portal.target);
+  if (!destination) return player;
+
+  const from = portalDeck(compartment, nearest.portal);
+  const to = portalDeck(destination, reciprocal(destination, compartment.id));
+  const prompt: DoorPrompt = {
+    target: destination.id,
+    label: destination.label,
+    deck: to,
+    direction: to > from ? 'up' : to < from ? 'down' : 'level',
+  };
+  if (!useDoor || player.portalCooldown > 0) return { ...player, pendingDoor: prompt };
+
+  return {
+    ...player,
+    compartmentId: destination.id,
+    position: arrivalPosition(destination, compartment.id),
+    arrivalYaw: arrivalHeading(destination, compartment.id),
+    velocity: { x: 0, y: 0 },
+    portalCooldown: 0.6,
+    pendingDoor: undefined,
+    lastAction: `Entered ${destination.label}`,
+  };
+}
+
+/**
+ * Which deck a doorway stands on. A room has one, but a stair tower spans as
+ * many as ten, so the tower's own `deck` field says only where the shaft starts.
+ * The door's height above the tower's anchor is what tells you which landing it
+ * opens off, and therefore whether using it is a climb or a descent.
+ */
+function portalDeck(
+  compartment: CompartmentDefinition,
+  portal: PortalDefinition | undefined,
+): number {
+  if (!portal) return compartment.deck;
+  return Math.round((compartment.anchor.y + portal.position.y - DECK_ZERO_Y) / DECK_PITCH);
+}
+
+/** The far half of a doorway. Validation has already proven every pair exists. */
+function reciprocal(
+  destination: CompartmentDefinition,
+  from: string,
+): PortalDefinition | undefined {
+  return destination.portals.find((portal) => portal.target === from);
+}
+
+function clampToPlayfield(position: Vec2, radius: number, field: Playfield): Vec2 {
+  return {
+    x: clamp(position.x, 0.8 + radius, field.width - 0.8 - radius),
+    y: clamp(position.y, 0.8 + radius, field.length - 0.8 - radius),
+  };
+}
+
+function clampPosition(position: Vec2, radius: number, cabin: CabinState): Vec2 {
+  return clampToPlayfield(position, radius, { width: cabin.width, length: cabin.length });
+}
+
+export interface CabinFixture {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+/**
+ * The atrium's solid furniture, in metres on the 24 x 46 playfield. These
+ * mirror what `tools/blender/compartments/build_compartments.py` authors, so
+ * the crew collides with the furniture they can see and nothing else.
+ */
+const seatRows = [9.5, 12.9, 16.3, 19.7, 23.1, 26.5, 29.9, 33.3];
+
+export const cabinFixtures: CabinFixture[] = [
+  // Feature column and the spiral stair wrapped around it, dead centre. It sits
+  // clear of the centreline gangway's ends, so it narrows the walk rather than
+  // closing it.
+  { minX: 9.0, maxX: 15.0, minY: 20.0, maxY: 26.0 },
+  // Reception counter, port side by the after door. Both stair-tower doors open on the
+  // centreline at the ends of this room, so nothing may stand across it: a
+  // counter spanning the full beam would wall the crew into the atrium.
+  { minX: 2.0, maxX: 9.0, minY: 3.2, maxY: 5.0 },
+  // Bar counter, starboard side by the forward door, held off the centreline
+  // for the same reason.
+  { minX: 15.0, maxX: 21.5, minY: 41.0, maxY: 42.8 },
+  // Grand piano, starboard aft.
+  { minX: 16.2, maxX: 19.4, minY: 35.4, maxY: 38.6 },
+  // The eight guest armchairs, port and starboard alternating. The inboard face
+  // stays 1.8 m from the seat so the service position remains within reach.
+  ...seatRows.map((seatY, index) =>
+    index % 2 === 0
+      ? { minX: 5.7, maxX: 7.5, minY: seatY - 0.9, maxY: seatY + 0.9 }
+      : { minX: 16.5, maxX: 18.3, minY: seatY - 0.9, maxY: seatY + 0.9 },
+  ),
+  // The café table and planter outboard of each armchair.
+  ...seatRows.map((seatY, index) =>
+    index % 2 === 0
+      ? { minX: 3.8, maxX: 5.4, minY: seatY - 1.4, maxY: seatY + 1.4 }
+      : { minX: 18.6, maxX: 20.2, minY: seatY - 1.4, maxY: seatY + 1.4 },
+  ),
+];
+
+function resolveCabinFixtures(position: Vec2, previous: Vec2, radius: number): Vec2 {
+  let resolved = { ...position };
+  for (const fixture of cabinFixtures) {
+    const expanded = {
+      minX: fixture.minX - radius,
+      maxX: fixture.maxX + radius,
+      minY: fixture.minY - radius,
+      maxY: fixture.maxY + radius,
+    };
+    if (!inside(resolved, expanded)) continue;
+    const xOnly = { x: previous.x, y: resolved.y };
+    const yOnly = { x: resolved.x, y: previous.y };
+    if (!inside(xOnly, expanded)) resolved = xOnly;
+    else if (!inside(yOnly, expanded)) resolved = yOnly;
+    else resolved = pushToNearestEdge(resolved, expanded);
+  }
+  return resolved;
+}
+
+function inside(position: Vec2, fixture: CabinFixture): boolean {
+  return (
+    position.x > fixture.minX &&
+    position.x < fixture.maxX &&
+    position.y > fixture.minY &&
+    position.y < fixture.maxY
+  );
+}
+
+function pushToNearestEdge(position: Vec2, fixture: CabinFixture): Vec2 {
+  const edges = [
+    { distance: Math.abs(position.x - fixture.minX), position: { ...position, x: fixture.minX } },
+    { distance: Math.abs(fixture.maxX - position.x), position: { ...position, x: fixture.maxX } },
+    { distance: Math.abs(position.y - fixture.minY), position: { ...position, y: fixture.minY } },
+    { distance: Math.abs(fixture.maxY - position.y), position: { ...position, y: fixture.maxY } },
+  ];
+  edges.sort((first, second) => first.distance - second.distance);
+  return edges[0]?.position ?? position;
+}
+
+function turbulenceVector(voyage: VoyageState, objectId: string): Vec2 {
+  const hash = [...objectId].reduce((value, char) => value + char.charCodeAt(0), 0);
+  const oscillation = Math.sin(voyage.clock * 6.8 + hash) * voyage.turbulence;
+  const secondary = Math.cos(voyage.clock * 9.2 + hash * 0.3) * voyage.turbulence;
+  return { x: oscillation * 3.1, y: secondary * 2.6 };
+}
+
+function resolveObjectCollision(first: CabinObject, second: CabinObject): number {
+  const delta = {
+    x: second.position.x - first.position.x,
+    y: second.position.y - first.position.y,
+  };
+  const separation = length(delta);
+  const minimum = first.radius + second.radius;
+  if (separation >= minimum || separation < 0.0001) return 0;
+  const normal = normalized(delta);
+  const overlap = minimum - separation;
+  const totalMass = first.mass + second.mass;
+  first.position = add(first.position, scale(normal, -overlap * (second.mass / totalMass)));
+  second.position = add(second.position, scale(normal, overlap * (first.mass / totalMass)));
+  const relativeVelocity = {
+    x: second.velocity.x - first.velocity.x,
+    y: second.velocity.y - first.velocity.y,
+  };
+  const closing = relativeVelocity.x * normal.x + relativeVelocity.y * normal.y;
+  if (closing >= 0) return 0;
+  const impulse = (-1.15 * closing) / (1 / first.mass + 1 / second.mass);
+  first.velocity = add(first.velocity, scale(normal, -impulse / first.mass));
+  second.velocity = add(second.velocity, scale(normal, impulse / second.mass));
+  return Math.abs(impulse);
+}
