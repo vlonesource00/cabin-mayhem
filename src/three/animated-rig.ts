@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { clipSeconds, isLooping, rigContract, type RigContract } from './animation-contract';
+import { installRoundedFirstPersonVisual, type HandSide } from './rounded-first-person-rig';
 
 /**
  * Authored-clip playback for the Blender rigs.
@@ -199,6 +200,15 @@ export class RigInstance {
     this.mixer.update(delta);
   }
 
+  /** Stable hand attachment point for presentation-only carried tools. */
+  public handSocket(side: HandSide): THREE.Object3D | undefined {
+    let socket: THREE.Object3D | undefined;
+    this.root.traverse((entry) => {
+      if (!socket && entry.name === `fp_hand_socket.${side}`) socket = entry;
+    });
+    return socket;
+  }
+
   public dispose(): void {
     this.mixer.stopAllAction();
     this.mixer.uncacheRoot(this.root);
@@ -215,7 +225,12 @@ export class RigInstance {
  */
 export function instantiate(rig: LoadedRig, meshName: string): RigInstance {
   const source = rig.scene.getObjectByName(rig.contract.rootNode) ?? rig.scene;
-  const root = cloneSkeleton(source);
+  // FP presentation replaces the source skinned mesh and only needs the
+  // authored node hierarchy; a plain deep clone keeps every named joint under
+  // the camera-space root. Shared character rigs still use SkeletonUtils so
+  // their visible skinned meshes retain independent skeletons.
+  const root =
+    rig.contract.rootNode === 'CM_FPARMS_ROOT' ? source.clone(true) : cloneSkeleton(source);
   root.name = `${rig.contract.id}:${meshName}`;
   let matched = false;
   root.traverse((entry) => {
@@ -229,5 +244,9 @@ export function instantiate(rig: LoadedRig, meshName: string): RigInstance {
     entry.frustumCulled = false;
   });
   if (!matched) throw new Error(`Rig ${rig.contract.id} has no mesh named ${meshName}.`);
+  if (rig.contract.rootNode === 'CM_FPARMS_ROOT') {
+    const rounded = installRoundedFirstPersonVisual(root);
+    root.userData.presentationArms = rounded ? 'rounded' : 'authored-block';
+  }
   return new RigInstance(rig, root);
 }

@@ -127,4 +127,47 @@ describe('mission audio projection', () => {
     expect(kinds(previous, dropping)).toEqual(['air-pocket']);
     expect(kinds(dropping, dropping)).toEqual([]);
   });
+
+  it('raises alarms for navigation and boarding threats', () => {
+    const state = clone(new HostSession().snapshot());
+    expect(missionMix(state).alarm).toBe(0);
+    state.navigation.phase = 'warning';
+    expect(missionMix(state).alarm).toBe(1);
+    state.navigation.phase = 'idle';
+    state.invasion.phase = 'approach';
+    expect(missionMix(state).alarm).toBe(1);
+  });
+
+  it('derives movement, door, interaction, navigation and boarding cues from state deltas', () => {
+    const previous = new HostSession().snapshot();
+    const next = clone(previous);
+    const player = next.cabin.players['crew-alpha'];
+    if (!player) throw new Error('local player missing from test snapshot');
+    player.velocity = { x: 2, y: 0 };
+    player.compartmentId = 'bridge';
+    player.lastAction = 'Holding toolbox';
+    next.navigation.phase = 'warning';
+    next.invasion.phase = 'warning';
+
+    expect(kinds(previous, next)).toEqual(
+      expect.arrayContaining([
+        'movement-start',
+        'door',
+        'interaction',
+        'navigation-warning',
+        'boarding-warning',
+      ]),
+    );
+    expect(kinds(next, next)).toEqual([]);
+  });
+
+  it('caps counter-derived service cues so delayed snapshots do not spam voices', () => {
+    const previous = new HostSession().snapshot();
+    const next = clone(previous);
+    next.service.served += 20;
+    next.service.missed += 20;
+    const emitted = missionCues(previous, next, 'crew-alpha').map((cue) => cue.kind);
+    expect(emitted.filter((kind) => kind === 'serve-good')).toHaveLength(2);
+    expect(emitted.filter((kind) => kind === 'serve-bad')).toHaveLength(2);
+  });
 });

@@ -1,36 +1,59 @@
 import * as THREE from 'three';
-import type { AmbientActivity, AmbientCrowdState, AmbientResidentState } from '../sim/types';
+import type { AmbientArchetype } from '../data/ambient-crowd';
+import type { AmbientCrowdState, AmbientResidentState } from '../sim/types';
 import { cabinToWorld } from './coordinates';
 import { instantiate, type LoadedRig, type RigInstance } from './animated-rig';
+import { ambientPresentationFor, type AmbientPresentationState } from './ambient-npc-animation';
+import {
+  ambientArchetypeFor,
+  applyAmbientNpcStyle,
+  disposeAmbientNpcStyle,
+} from './ambient-npc-style';
 
-const clips: Record<AmbientActivity, string> = {
-  strolling: 'walk',
-  chatting: 'idle',
-  dining: 'seat_idle',
-  cooking: 'serve',
-  housekeeping: 'push_cart',
-  sightseeing: 'idle',
-  photography: 'serve',
-  swimming: 'sprint',
-  sunbathing: 'seat_idle',
-  evacuating: 'sprint',
-};
+export { ambientActivityClip } from './ambient-npc-animation';
 
-export function ambientActivityClip(activity: AmbientActivity): string {
-  return clips[activity];
+interface AmbientTarget {
+  position: THREE.Vector3;
+  rotationY: number;
+  rotationZ: number;
+  presentation: AmbientPresentationState;
 }
 
-function residentHeight(resident: AmbientResidentState): number {
-  if (resident.activity === 'swimming') return -0.55;
-  if (resident.activity === 'sunbathing') return -0.25;
-  return 0;
+interface AmbientInstance {
+  rig: RigInstance;
+  style: AmbientArchetype;
+  target: AmbientTarget;
+}
+
+function dampAngle(current: number, target: number, alpha: number): number {
+  const difference = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  return current + difference * alpha;
+}
+
+function ambientTarget(
+  resident: AmbientResidentState,
+  style: AmbientArchetype,
+  originCompartmentId: string,
+): AmbientTarget {
+  const presentation = ambientPresentationFor(resident, style);
+  return {
+    position: cabinToWorld(
+      resident.position,
+      presentation.rootHeight,
+      resident.compartmentId,
+      originCompartmentId,
+    ),
+    rotationY: Math.atan2(resident.facing.x, resident.facing.y) + presentation.yawOffset,
+    rotationZ: presentation.rotationZ,
+    presentation,
+  };
 }
 
 /** Presentation-only pool of Blender-authored passenger rigs for the occupied deck. */
 export class AmbientCrowdPresenter {
   public readonly group = new THREE.Group();
   private rig?: LoadedRig;
-  private readonly instances = new Map<string, RigInstance>();
+  private readonly instances = new Map<string, AmbientInstance>();
   private compartmentId = '';
 
   public constructor() {
@@ -52,10 +75,11 @@ export class AmbientCrowdPresenter {
       .filter((resident) => resident.compartmentId === originCompartmentId)
       .sort((left, right) => left.id.localeCompare(right.id));
     const visibleIds = new Set(visible.map((resident) => resident.id));
-    for (const [id, instance] of this.instances) {
+    for (const [id, entry] of this.instances) {
       if (visibleIds.has(id)) continue;
-      this.group.remove(instance.root);
-      instance.dispose();
+      this.group.remove(entry.rig.root);
+      disposeAmbientNpcStyle(entry.rig.root);
+      entry.rig.dispose();
       this.instances.delete(id);
     }
     if (!this.rig) {
@@ -63,33 +87,56 @@ export class AmbientCrowdPresenter {
       return;
     }
     for (const resident of visible) {
-      let instance = this.instances.get(resident.id);
-      if (!instance) {
-        instance = instantiate(this.rig, 'CM_PASSENGER');
-        instance.root.name = `ambient:${resident.id}:${resident.activity}`;
-        instance.root.userData.residentId = resident.id;
-        instance.update(resident.phase * 1.8);
-        this.instances.set(resident.id, instance);
-        this.group.add(instance.root);
+      let entry = this.instances.get(resident.id);
+      const style = entry?.style ?? ambientArchetypeFor(resident.id);
+      const target = ambientTarget(resident, style, originCompartmentId);
+      if (!entry) {
+        const rig = instantiate(this.rig, 'CM_PASSENGER');
+        applyAmbientNpcStyle(rig.root, style);
+        rig.root.name = `ambient:${resident.id}:${resident.activity}`;
+        rig.root.userData.residentId = resident.id;
+        rig.root.userData.ambientArchetype = style.id;
+        rig.root.userData.ambientPresentationMode = target.presentation.mode;
+        rig.root.userData.ambientSeatAnchor = target.presentation.seat;
+        rig.root.position.copy(target.position);
+        rig.root.rotation.y = target.rotationY;
+        rig.root.rotation.z = target.rotationZ;
+        rig.update(resident.phase * 1.8);
+        entry = { rig, style, target };
+        this.instances.set(resident.id, entry);
+        this.group.add(rig.root);
+      } else {
+        entry.target.position.copy(target.position);
+        entry.target.rotationY = target.rotationY;
+        entry.target.rotationZ = target.rotationZ;
+        entry.target.presentation = target.presentation;
       }
-      instance.root.position.copy(
-        cabinToWorld(
-          resident.position,
-          residentHeight(resident),
-          resident.compartmentId,
-          originCompartmentId,
-        ),
-      );
-      instance.root.rotation.y = Math.atan2(resident.facing.x, resident.facing.y);
-      instance.root.rotation.z = resident.activity === 'swimming' ? Math.PI / 2 : 0;
-      instance.root.scale.setScalar(resident.activity === 'sunbathing' ? 0.96 : 1);
-      instance.play({ base: ambientActivityClip(resident.activity) });
+      entry.rig.root.name = `ambient:${resident.id}:${resident.activity}`;
+      entry.rig.root.userData.ambientPresentationMode = target.presentation.mode;
+      entry.rig.root.userData.ambientSeatAnchor = target.presentation.seat;
+      entry.rig.play({ base: target.presentation.clip });
     }
     this.group.visible = visible.length > 0;
   }
 
   public update(delta: number): void {
-    for (const instance of this.instances.values()) instance.update(delta);
+    const clamped = Math.max(0, Math.min(0.05, delta));
+    const alpha = 1 - Math.exp(-clamped * 14);
+    for (const entry of this.instances.values()) {
+      entry.rig.update(clamped);
+      if (alpha === 0) continue;
+      entry.rig.root.position.lerp(entry.target.position, alpha);
+      entry.rig.root.rotation.y = dampAngle(
+        entry.rig.root.rotation.y,
+        entry.target.rotationY,
+        alpha,
+      );
+      entry.rig.root.rotation.z = THREE.MathUtils.lerp(
+        entry.rig.root.rotation.z,
+        entry.target.rotationZ,
+        alpha,
+      );
+    }
   }
 
   public visibleCount(): number {
@@ -102,7 +149,10 @@ export class AmbientCrowdPresenter {
   }
 
   private clear(): void {
-    for (const instance of this.instances.values()) instance.dispose();
+    for (const entry of this.instances.values()) {
+      disposeAmbientNpcStyle(entry.rig.root);
+      entry.rig.dispose();
+    }
     this.instances.clear();
     this.group.clear();
   }

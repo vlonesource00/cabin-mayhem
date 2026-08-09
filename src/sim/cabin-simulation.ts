@@ -15,6 +15,7 @@ import {
   portalSimPosition,
   type Playfield,
 } from './compartment-space';
+import { stepWaypointTravel } from './waypoint-travel';
 import { add, clamp, distance, length, normalized, scale } from './math';
 import type {
   CabinObject,
@@ -279,6 +280,12 @@ function stepPlayer(
   cabin: CabinState,
   dt: number,
 ): PlayerState {
+  const waypointStep = stepWaypointTravel(player, command, dt, {
+    authority: 'host',
+    canWalk: waypointWalkClear,
+  });
+  if (waypointStep.handled) return waypointStep.player;
+
   const input = command ?? {
     move: { x: 0, y: 0 },
     look: player.facing,
@@ -465,6 +472,30 @@ export const cabinFixtures: CabinFixture[] = [
       : { minX: 18.6, maxX: 20.2, minY: seatY - 1.4, maxY: seatY + 1.4 },
   ),
 ];
+
+function waypointWalkClear(compartmentId: string, from: Vec2, to: Vec2): boolean {
+  if (compartmentId !== defaultCompartmentId) return true;
+  const samples = Math.max(2, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / 0.45));
+  for (let index = 0; index <= samples; index += 1) {
+    const progress = index / samples;
+    const position = {
+      x: from.x + (to.x - from.x) * progress,
+      y: from.y + (to.y - from.y) * progress,
+    };
+    if (
+      cabinFixtures.some((fixture) =>
+        inside(position, {
+          minX: fixture.minX - playerRadius,
+          maxX: fixture.maxX + playerRadius,
+          minY: fixture.minY - playerRadius,
+          maxY: fixture.maxY + playerRadius,
+        }),
+      )
+    )
+      return false;
+  }
+  return true;
+}
 
 function resolveCabinFixtures(position: Vec2, previous: Vec2, radius: number): Vec2 {
   let resolved = { ...position };

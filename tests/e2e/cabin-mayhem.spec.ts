@@ -236,7 +236,15 @@ test('pool deck shows the host-owned animated cruise crowd', async ({ page }) =>
   await expect(canvas).toHaveAttribute('data-crowd-residents', '78');
   await expect(canvas).toHaveAttribute('data-crowd-visible', '12');
   await expect(canvas).toHaveAttribute('data-crowd-evacuating', 'false');
+  await page.waitForTimeout(700);
   await page.screenshot({ path: 'test-results/crowd-evidence/pool-deck-cruise-crowd.png' });
+
+  await page.mouse.click(640, 360);
+  await page.keyboard.down('w');
+  await page.waitForTimeout(1800);
+  await page.keyboard.up('w');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'test-results/crowd-evidence/pool-deck-seating-close.png' });
 });
 
 test('fire is exposed through the compact critical icon', async ({ page }) => {

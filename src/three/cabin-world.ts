@@ -31,6 +31,12 @@ import { feedbackForObjectKind, feedbackForTarget } from './interactable-feedbac
 import { InvasionPresenter } from './invasion-presenter';
 import { NavigationObstaclePresenter } from './navigation-obstacle-presenter';
 import { AmbientCrowdPresenter } from './ambient-crowd-presenter';
+import { RoundedFirstPersonFallback } from './rounded-first-person-rig';
+import {
+  buildPresentationLighting,
+  configurePresentationRenderer,
+  type PresentationLighting,
+} from './presentation-lighting';
 
 const colors = {
   navy: 0x101a28,
@@ -110,7 +116,8 @@ export class CabinWorld {
   private readonly reactionAt = new Map<string, number>();
   private readonly reactionStatus = new Map<string, PassengerRequestStatus>();
   private previousState?: MissionState;
-  private readonly cabinLights: THREE.PointLight[] = [];
+  private readonly lighting: PresentationLighting;
+  private readonly firstPersonFallback: RoundedFirstPersonFallback;
   private readonly crewBravo: THREE.Group;
   private readonly galleyFire: THREE.Group;
   private readonly galleyBreaker: THREE.Group;
@@ -143,21 +150,25 @@ export class CabinWorld {
       antialias: true,
       powerPreference: 'high-performance',
     });
+    configurePresentationRenderer(this.renderer);
     this.canvas = this.renderer.domElement;
     this.canvas.dataset.testid = 'three-canvas';
     this.canvas.dataset.localPlayerId = this.localCrewId;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
     this.scene.background = new THREE.Color(0x16394f);
     this.scene.fog = new THREE.FogExp2(0x16394f, VOYAGE_FOG);
+    this.lighting = buildPresentationLighting(this.scene, this.cabin);
+    this.firstPersonFallback = new RoundedFirstPersonFallback();
+    this.camera.add(this.firstPersonFallback.root);
     this.mount.append(this.canvas);
     this.canvas.dataset.assetMode = 'loading';
+    this.canvas.dataset.lightingMode = 'bounded-zones';
+    this.canvas.dataset.shadowMode = 'directional-pcf-soft-1024';
+    this.canvas.dataset.postFx = 'fog-emissive-fallback';
+    this.canvas.dataset.armsRig = 'loading';
+    this.canvas.dataset.armsPresentation = 'rounded';
+    this.canvas.dataset.armsSource = 'rounded-fallback';
+    this.canvas.dataset.armsSocket = 'fp_hand_socket.R';
 
-    this.buildLighting();
     // The streamer offsets every resident by its anchor relative to the
     // occupied compartment, so its group sits on the render origin and
     // `cabinToWorld` does the rebasing. See src/three/coordinates.ts.
@@ -289,10 +300,28 @@ export class CabinWorld {
         arms.root.position.set(0, -0.06, 0);
         this.camera.add(arms.root);
         this.firstPersonArms = arms;
+        const hasRoundedGlbVisual = arms.root.userData.presentationArms === 'rounded';
+        // Keep the authored mixer/clip marker alive, but never show its
+        // incompatible block mesh when the replacement could not bind.
+        arms.root.visible = hasRoundedGlbVisual;
+        this.firstPersonFallback.root.visible = !hasRoundedGlbVisual;
         this.canvas.dataset.armsRig = 'glb';
+        this.canvas.dataset.armsPresentation = 'rounded';
+        this.canvas.dataset.armsSource = hasRoundedGlbVisual ? 'glb-rounded' : 'rounded-fallback';
+        this.canvas.dataset.armsMissing = String(
+          arms.root.userData.roundedFirstPersonMissing ?? '',
+        );
+        this.canvas.dataset.armsSocket =
+          (hasRoundedGlbVisual ? arms.handSocket('R')?.name : undefined) ?? 'fp_hand_socket.R';
       })
       .catch(() => {
-        if (!this.disposed) this.canvas.dataset.armsRig = 'fallback';
+        if (!this.disposed) {
+          this.firstPersonFallback.root.visible = true;
+          this.canvas.dataset.armsRig = 'fallback';
+          this.canvas.dataset.armsPresentation = 'rounded';
+          this.canvas.dataset.armsSource = 'rounded-fallback';
+          this.canvas.dataset.armsSocket = 'fp_hand_socket.R';
+        }
       });
   }
 
@@ -326,27 +355,6 @@ export class CabinWorld {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
   };
-
-  private buildLighting(): void {
-    this.scene.add(new THREE.HemisphereLight(0xb9dfff, 0x17202a, 1.35));
-    const sun = new THREE.DirectionalLight(0xfff4da, 2.2);
-    sun.position.set(-7, 12, -8);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.camera.left = -16;
-    sun.shadow.camera.right = 16;
-    sun.shadow.camera.top = 28;
-    sun.shadow.camera.bottom = -28;
-    this.scene.add(sun);
-
-    // Fill lights down the 46 m atrium, one every 5.75 m.
-    for (let z = -20.125; z <= 20.125; z += 5.75) {
-      const light = new THREE.PointLight(0xd8f2ff, 9, 22, 1.6);
-      light.position.set(0, 5.4, z);
-      this.cabinLights.push(light);
-      this.cabin.add(light);
-    }
-  }
 
   private createCrewAvatar(color: number): THREE.Group {
     const group = new THREE.Group();
@@ -706,6 +714,9 @@ export class CabinWorld {
       heldKind === 'extinguisher' || heldKind === 'toolbox',
       elapsed,
     );
+    const local = state.cabin.players[this.localCrewId];
+    const stride = local ? Math.min(Math.hypot(local.velocity.x, local.velocity.y) / 2.6, 1) : 0;
+    this.firstPersonFallback.update(elapsed, pose, stride);
     for (const asset of this.dynamicObjects.values()) asset.visible = false;
     for (const object of Object.values(state.cabin.objects)) {
       const asset = this.dynamicObjects.get(object.id) ?? this.createObjectAsset(object);
@@ -917,14 +928,7 @@ export class CabinWorld {
 
     const health = Math.min(state.voyage.electrical, state.voyage.structure);
     const breakerFault = state.repair.status === 'active';
-    for (const [index, light] of this.cabinLights.entries()) {
-      const flicker =
-        breakerFault && Math.sin(elapsed * 21 + index * 3.1) > 0.12
-          ? true
-          : health < 0.75 && Math.sin(elapsed * 17 + index * 4.2) > health;
-      light.intensity = flicker ? 0.18 : 2.3 + health;
-      light.color.setHex(breakerFault || health < 0.45 ? 0xff704d : 0xd8f2ff);
-    }
+    this.lighting.updateElectrical(health, breakerFault, elapsed);
   }
 
   private syncHelmFeedback(state: MissionState, elapsed: number, origin: string): void {

@@ -1,5 +1,6 @@
 import { CabinAudio } from '../audio/cabin-audio';
 import { navigationIncidentDefinition } from '../data/emergencies';
+import { waypoints } from '../data/waypoints';
 import { CabinInputController } from '../input/cabin-input';
 import { normalizeRoomCode, PeerRoom, type RoomRole, type RoomStatus } from '../network/peer-room';
 import { HostSession } from '../sim/host-session';
@@ -10,6 +11,12 @@ import {
   type PlayerCommand,
   type PlayerState,
 } from '../sim/types';
+import {
+  setWaypointRequest,
+  waypointPrompt,
+  waypointStatusText,
+  waypointTravelFor,
+} from '../sim/waypoint-travel';
 import { CabinWorld } from '../three/cabin-world';
 import { FirstPersonController } from '../three/first-person-controller';
 import { SpectatorCamera } from '../three/spectator-camera';
@@ -51,6 +58,8 @@ export class CabinMayhemApp {
   private lastCompartmentId = '';
   /** Test-only held repair intent; still travels through normal host validation. */
   private testNavigationRepairHeld = false;
+  /** One-shot destination intent; host consumes it through the normal command path. */
+  private requestedWaypointId?: string;
   private readonly freeCamera = new SpectatorCamera();
 
   public constructor(private readonly root: HTMLElement) {}
@@ -130,6 +139,7 @@ export class CabinMayhemApp {
     this.room = new PeerRoom();
     this.devOpen = false;
     this.debriefVisible = false;
+    this.requestedWaypointId = undefined;
     this.root.innerHTML = `
       <main class="game-shell" data-testid="technical-test-scene" data-debug-open="false" data-audio="on" data-room-role="${role}" data-room-phase="idle">
         <section class="world-stage" data-world-stage></section>
@@ -201,6 +211,12 @@ export class CabinMayhemApp {
         <aside class="dev-drawer" aria-label="Development controls" aria-hidden="true">
           <p class="dev-drawer__title">CHAOS LAB / F1</p>
           <div class="dev-readout"><span>Telemetry</span><span data-hud="speed">0 kt</span><span>Heading</span><span data-hud="heading">000</span><span>Stock</span><span data-hud="cart-stock">D 3 / M 3 / MED 2</span><span>Objects</span><span data-hud="objects">0</span></div>
+          <section data-testid="waypoint-panel" aria-label="Waypoint navigation" style="margin-bottom:12px;border:1px solid #66ebda;border-radius:9px;padding:9px;background:rgba(22,29,78,.78);">
+            <p class="dev-drawer__title" style="margin-bottom:4px;">WAYPOINT NAVIGATION / HOST ROUTE</p>
+            <strong data-hud="waypoint-status">GRAND ATRIUM / DECK 2</strong>
+            <pre data-hud="waypoint-map" style="margin:7px 0;white-space:pre-wrap;color:#bcd0ed;font:12px/1.35 'Barlow Condensed',sans-serif;">${waypointMapMarkup()}</pre>
+            <div class="dev-drawer__buttons" data-waypoint-buttons>${waypointButtonsMarkup()}</div>
+          </section>
           <div class="dev-drawer__buttons">
             <button data-action="turbulence">Turbulence</button>
             <button data-action="drop">Air pocket</button>
@@ -263,6 +279,10 @@ export class CabinMayhemApp {
             this.input.read(),
             this.currentState().cabin.players[this.localPlayerId()],
           );
+      if (this.requestedWaypointId) {
+        setWaypointRequest(command, this.requestedWaypointId);
+        this.requestedWaypointId = undefined;
+      }
       if (this.testNavigationRepairHeld) {
         if (this.currentState().navigation.repair.status === 'fixed')
           this.testNavigationRepairHeld = false;
@@ -368,8 +388,24 @@ export class CabinMayhemApp {
     this.text('[data-hud="objects"]', String(Object.keys(state.cabin.objects).length));
     this.text(
       '[data-hud="interaction"]',
-      this.spectatorPrompt() ?? doorPrompt(player) ?? this.world?.prompt() ?? 'SCAN CABIN',
+      this.spectatorPrompt() ??
+        (player ? waypointPrompt(player) : undefined) ??
+        doorPrompt(player) ??
+        this.world?.prompt() ??
+        'SCAN CABIN',
     );
+    this.text(
+      '[data-hud="waypoint-status"]',
+      player ? waypointStatusText(player) : 'HOST ROUTE OFFLINE',
+    );
+    for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-waypoint-id]')) {
+      const active =
+        waypointTravelFor(player ?? ({} as PlayerState))?.targetId === button.dataset.waypointId;
+      button.setAttribute('aria-pressed', String(active));
+      button.dataset.travelStatus = active
+        ? (waypointTravelFor(player ?? ({} as PlayerState))?.status ?? 'selected')
+        : '';
+    }
     this.text('[data-hud="held"]', held?.toUpperCase() ?? 'EMPTY');
     this.text('[data-hud="panic"]', String(panic));
     this.text(
@@ -484,6 +520,10 @@ export class CabinMayhemApp {
     this.button('navigation-repair', () =>
       this.hostOnly(() => this.session?.teleport('crew-alpha', 'navigation-repair')),
     );
+    for (const waypoint of waypoints)
+      this.button(`waypoint-${waypoint.id}`, () => {
+        this.requestedWaypointId = waypoint.id;
+      });
     this.button('reset', () => this.sailAnotherShift());
     this.button('sail-again', () => this.sailAnotherShift());
   }
@@ -525,6 +565,7 @@ export class CabinMayhemApp {
     this.room = undefined;
     this.spectating = false;
     this.testNavigationRepairHeld = false;
+    this.requestedWaypointId = undefined;
     this.input.setActive(false);
   }
 
@@ -812,6 +853,24 @@ export class CabinMayhemApp {
     const element = this.root.querySelector<HTMLElement>(selector);
     if (element) element.textContent = value;
   }
+}
+
+function waypointButtonsMarkup(): string {
+  return waypoints
+    .map(
+      (waypoint) =>
+        `<button type="button" data-action="waypoint-${waypoint.id}" data-waypoint-id="${waypoint.id}" title="Travel to ${waypoint.label}">D${waypoint.deck} · ${waypoint.label}</button>`,
+    )
+    .join('');
+}
+
+function waypointMapMarkup(): string {
+  const lines = [...waypoints]
+    .filter((waypoint) => waypoint.kind !== 'elevator')
+    .sort((left, right) => right.deck - left.deck || left.label.localeCompare(right.label))
+    .map((waypoint) => `D${waypoint.deck}  ${waypoint.label}`);
+  lines.push('ELEVATOR  GRAND ATRIUM  D2 / D3 / D4 / D5');
+  return lines.join('\n');
 }
 
 function objectiveFor(state: MissionState): Objective {

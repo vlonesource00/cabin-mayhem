@@ -19,15 +19,31 @@ uses `public/assets/characters/cabin-mayhem-characters.glb`, mesh
 Blender character contract rather than introducing runtime-generated character
 art.
 
+Presentation derives one of six stable archetypes from the resident id. Each
+archetype changes the passenger silhouette scale, GLB material palette, hair
+shape, and a small accessory detail while keeping the body mesh and shared GLB
+loading contract intact. Dining and sunbathing use seated authored clips selected
+from deterministic per-activity pools; walking, service, swimming and evacuation
+retain their activity-specific authored clips.
+
+Seated roots use an explicit seat transform contract: the host position remains
+the anchor, the measured `CM_PASSENGER` seated foot contact (`0.357m`) is scaled
+by the archetype height, and the root is lowered to the surface before the
+presentation layer interpolates position and facing. The authored pelvis drop
+(`0.42m`) and surface/yaw offsets stay in the same contract, so seated feet do
+not float while animation variants prevent a shared pose.
+
 ## Evidence
 
 - `tests/unit/ambient-crowd.test.ts` proves deterministic population, movement,
   bounded routes and evacuation transitions.
 - `tests/unit/ambient-crowd-presenter.test.ts` proves every activity resolves to
-  an authored GLB clip.
+  an authored GLB clip, stable archetype variety, seated contact, and activity
+  presentation state selection.
 - host and peer-room tests prove host ownership and strict snapshot validation.
 - the Playwright crowd test renders 12 pool-deck residents and writes
-  `test-results/crowd-evidence/pool-deck-cruise-crowd.png`.
+  `test-results/crowd-evidence/pool-deck-cruise-crowd.png`, plus a settled close
+  framing at `test-results/crowd-evidence/pool-deck-seating-close.png`.
 
 This is the crowd foundation, not a claim that the full resort simulation is
 finished. Cross-compartment schedules, conversations, shopping transactions,
