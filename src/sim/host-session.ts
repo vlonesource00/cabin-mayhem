@@ -43,6 +43,7 @@ import {
   stepBoardingInvasion,
   type BoardingStepResult,
 } from './boarding-invasion';
+import { createAmbientCrowdState, stepAmbientCrowd } from './ambient-crowd';
 import {
   applyCabinIncident,
   createServiceMission,
@@ -90,6 +91,7 @@ export class HostSession {
       repair: createRepairState(),
       navigation: createNavigationIncidentState(),
       invasion: createBoardingInvasionState(),
+      crowd: createAmbientCrowdState(seed),
       network: { ...defaultNetwork },
       networkMetrics: { sent: 0, received: 0, dropped: 0, queued: 0, bytes: 0 },
       events: [],
@@ -144,6 +146,7 @@ export class HostSession {
     }
     const boardingStep = stepBoardingInvasion(this.state.invasion, dt);
     this.state.invasion = boardingStep.invasion;
+    this.state.crowd = stepAmbientCrowd(this.state.crowd, this.state.invasion.phase, dt);
     this.applyBoardingStepConsequences(boardingStep);
     this.resolveBoardingActions();
     this.resolveInteractions();
@@ -281,7 +284,8 @@ export class HostSession {
       | 'bridge'
       | 'navigation-repair'
       | 'boarding-port'
-      | 'boarding-starboard',
+      | 'boarding-starboard'
+      | 'pool-deck',
   ): void {
     const player = this.state.cabin.players[playerId];
     if (!player) return;
@@ -319,6 +323,12 @@ export class HostSession {
         'boarding-starboard': {
           position: { ...boardingInvasionDefinition.links[1]!.position },
           compartmentId: boardingInvasionDefinition.links[1]!.compartmentId,
+        },
+        'pool-deck': {
+          // Clear centre aisle just aft of the authored main pool. From here a
+          // forward-facing camera sees bathers, loungers and the lido bar.
+          position: { x: 17, y: 70 },
+          compartmentId: 'pool-deck',
         },
       };
     const target = targets[station];

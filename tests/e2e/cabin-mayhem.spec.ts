@@ -223,6 +223,22 @@ test('authored pirate invasion renders aboard with warning HUD and animated GLBs
   });
 });
 
+test('pool deck shows the host-owned animated cruise crowd', async ({ page }) => {
+  mkdirSync('test-results/crowd-evidence', { recursive: true });
+  await page.goto('/');
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
+
+  const canvas = page.getByTestId('three-canvas');
+  await expect(canvas).toHaveAttribute('data-crowd-asset', 'glb');
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.showCrowd());
+
+  await expect(canvas).toHaveAttribute('data-local-compartment-id', 'pool-deck');
+  await expect(canvas).toHaveAttribute('data-crowd-residents', '78');
+  await expect(canvas).toHaveAttribute('data-crowd-visible', '12');
+  await expect(canvas).toHaveAttribute('data-crowd-evacuating', 'false');
+  await page.screenshot({ path: 'test-results/crowd-evidence/pool-deck-cruise-crowd.png' });
+});
+
 test('fire is exposed through the compact critical icon', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());

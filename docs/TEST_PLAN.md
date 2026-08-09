@@ -118,7 +118,7 @@ timer by using the host debug trigger:
   the relay repair, restores hydraulics and records the repair score transition;
 - a serialized PeerRoom snapshot validates and exposes the same navigation phase,
   obstacle, damage and repair fields to a second client;
-- protocol-v2 welcome, command and snapshot packets reject mixed versions with an
+- protocol-v3 welcome, command and snapshot packets reject mixed versions with an
   explicit incompatible-version error; malformed navigation nulls, phases,
   non-finite values, nested repair/obstacle bounds and extra keys are rejected.
 - the guest role resolves Crew Bravo as its local render/stream/held-item/target
@@ -137,7 +137,12 @@ timer by using the host debug trigger:
   unit coverage proves authored loading and explicit partial fallback, while the
   browser drives a real boarding snapshot, renders six animated pirates and the
   boarding HUD, and stores evidence under `test-results/invasion-evidence/`.
+- 78 ambient residents are deterministic and host-owned, network snapshots
+  reject malformed crowd subtrees, every activity maps to an authored character
+  GLB clip, and Playwright stores pool-deck evidence under
+  `test-results/crowd-evidence/`.
 
-These checks cover navigation and the first pirate-boarding visual slice. Bomb
-search/disarm, combat AI and hit resolution, autonomous crowds, the complete
-cruise-job catalogue and the full Blender/GLB ship expansion remain later phases.
+These checks cover navigation, the first pirate-boarding visual slice and the
+first autonomous crowd layer. Bomb search/disarm, combat AI and hit resolution,
+advanced crowd schedules/reactions, the complete cruise-job catalogue and the
+full Blender/GLB ship expansion remain later phases.

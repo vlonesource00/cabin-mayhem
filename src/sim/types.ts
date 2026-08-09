@@ -13,6 +13,17 @@ export type BoardingEnemyKind = 'pirate' | 'bomber';
 export type BoardingLinkId = 'port-boarding-board' | 'starboard-gangway';
 export type BoardingLinkStatus = 'approaching' | 'attached' | 'detached';
 export type BoardingDefenseActionKind = 'detach-boarding-board' | 'release-gangway';
+export type AmbientActivity =
+  | 'strolling'
+  | 'chatting'
+  | 'dining'
+  | 'cooking'
+  | 'housekeeping'
+  | 'sightseeing'
+  | 'photography'
+  | 'swimming'
+  | 'sunbathing'
+  | 'evacuating';
 export type InvasionAssetId =
   | 'pirate-boarder-character'
   | 'saboteur-boarder-character'
@@ -176,6 +187,27 @@ export interface ServiceMissionState {
   outcome: 'active' | 'success' | 'failed';
   cart: ServiceCartState;
   passengers: Record<string, PassengerState>;
+}
+
+export interface AmbientResidentState {
+  id: string;
+  name: string;
+  color: string;
+  compartmentId: string;
+  activity: AmbientActivity;
+  homeActivity: Exclude<AmbientActivity, 'evacuating'>;
+  position: Vec2;
+  route: [Vec2, Vec2];
+  routeIndex: 0 | 1;
+  facing: Vec2;
+  moving: boolean;
+  phase: number;
+}
+
+export interface AmbientCrowdState {
+  elapsed: number;
+  residents: Record<string, AmbientResidentState>;
+  evacuating: boolean;
 }
 
 export interface ServiceCartState {
@@ -381,6 +413,7 @@ export interface MissionState {
   repair: RepairState;
   navigation: NavigationIncidentState;
   invasion: BoardingInvasionState;
+  crowd: AmbientCrowdState;
   network: NetworkSettings;
   networkMetrics: NetworkMetrics;
   events: MissionEvent[];

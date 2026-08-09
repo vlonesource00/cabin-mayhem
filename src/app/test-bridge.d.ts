@@ -26,6 +26,7 @@ declare global {
           | 'repair',
       ): void;
       boardInvasion(): void;
+      showCrowd(): void;
       helmNavigation(): void;
       avoidNavigation(): void;
       beginNavigationRepair(): void;

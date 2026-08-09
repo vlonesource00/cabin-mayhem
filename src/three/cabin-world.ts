@@ -30,6 +30,7 @@ import { defaultCompartmentId } from '../data/ship-layout';
 import { feedbackForObjectKind, feedbackForTarget } from './interactable-feedback';
 import { InvasionPresenter } from './invasion-presenter';
 import { NavigationObstaclePresenter } from './navigation-obstacle-presenter';
+import { AmbientCrowdPresenter } from './ambient-crowd-presenter';
 
 const colors = {
   navy: 0x101a28,
@@ -95,6 +96,7 @@ export class CabinWorld {
   private readonly ocean = new OceanSurface();
   private readonly invasion = new InvasionPresenter();
   private readonly navigationObstacle = new NavigationObstaclePresenter();
+  private readonly ambientCrowd = new AmbientCrowdPresenter();
   /**
    * Owns the shell the crew stands in. The occupied compartment's asset source
    * is published on the canvas so the browser tests can tell an authored room
@@ -163,6 +165,7 @@ export class CabinWorld {
     this.cabin.add(this.compartments.group);
     this.cabin.add(this.invasion.group);
     this.cabin.add(this.navigationObstacle.group);
+    this.cabin.add(this.ambientCrowd.group);
     this.galleyFire = this.createGalleyFire();
     this.cabin.add(this.galleyFire);
     this.galleyBreaker = this.createGalleyBreaker();
@@ -241,6 +244,7 @@ export class CabinWorld {
     this.passengerRigs.clear();
     this.compartments.dispose();
     this.invasion.dispose();
+    this.ambientCrowd.dispose();
     this.ocean.dispose();
     this.scene.traverse((entry) => {
       if (entry instanceof THREE.Mesh) {
@@ -267,6 +271,7 @@ export class CabinWorld {
       .then((rig) => {
         if (this.disposed) return;
         this.characterRig = rig;
+        this.ambientCrowd.setRig(rig);
         this.crewBravoRig = instantiate(rig, 'CM_CREW');
         hideProceduralCharacter(this.crewBravo);
         this.crewBravo.add(this.crewBravoRig.root);
@@ -311,6 +316,7 @@ export class CabinWorld {
     this.crewBravoRig?.update(delta);
     this.firstPersonArms?.update(delta);
     for (const rig of this.passengerRigs.values()) rig.update(delta);
+    this.ambientCrowd.update(delta);
   }
 
   private readonly resize = (): void => {
@@ -675,6 +681,11 @@ export class CabinWorld {
     const origin = this.originCompartmentId;
     const heldKind = this.heldKind(state);
     this.invasion.sync(state.invasion, origin, elapsed);
+    this.ambientCrowd.sync(state.crowd, origin);
+    this.canvas.dataset.crowdAsset = this.characterRig ? 'glb' : 'loading';
+    this.canvas.dataset.crowdVisible = String(this.ambientCrowd.visibleCount());
+    this.canvas.dataset.crowdResidents = String(Object.keys(state.crowd.residents).length);
+    this.canvas.dataset.crowdEvacuating = String(state.crowd.evacuating);
     this.canvas.dataset.invasionPhase = state.invasion.phase;
     this.canvas.dataset.invasionVisible = String(this.invasion.group.visible);
     this.canvas.dataset.invasionAsset = this.invasion.assetSource;

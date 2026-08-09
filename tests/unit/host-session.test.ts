@@ -3,6 +3,18 @@ import { HostSession } from '../../src/sim/host-session';
 import { emptyCommand } from '../../src/sim/types';
 
 describe('host session', () => {
+  it('owns and advances a deterministic 78-resident cruise crowd', () => {
+    const session = new HostSession(47);
+    const before = session.snapshot().crowd;
+    expect(Object.keys(before.residents)).toHaveLength(78);
+    session.step(0.05);
+    const after = session.snapshot().crowd;
+    expect(after.elapsed).toBeCloseTo(0.05);
+    expect(after.residents['guest-001']?.position).not.toEqual(
+      before.residents['guest-001']?.position,
+    );
+  });
+
   it('only completes the breaker repair with the host-owned toolbox in range', () => {
     const session = new HostSession(48);
     session.setNetwork({ enabled: false });

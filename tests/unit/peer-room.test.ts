@@ -78,7 +78,7 @@ describe('peer room protocol', () => {
     expect(missionStateHash(session.snapshot())).not.toBe(missionStateHash(first));
   });
 
-  it('validates and delivers the host navigation state in a snapshot packet', () => {
+  it('validates and delivers host navigation and crowd state in a snapshot packet', () => {
     const session = new HostSession(92);
     session.trigger('collision-course');
     const state = session.snapshot();
@@ -95,8 +95,18 @@ describe('peer room protocol', () => {
     } as const;
 
     expect(parseSnapshotPacket(packet)?.state.navigation.phase).toBe('warning');
+    expect(Object.keys(parseSnapshotPacket(packet)!.state.crowd.residents)).toHaveLength(78);
     expect(
       parseSnapshotPacket({ ...packet, state: { ...state, navigation: undefined } }),
+    ).toBeUndefined();
+    expect(
+      parseSnapshotPacket({
+        ...packet,
+        state: {
+          ...state,
+          crowd: { ...state.crowd, residents: { ...state.crowd.residents, forged: {} } },
+        },
+      }),
     ).toBeUndefined();
   });
 

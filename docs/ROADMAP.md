@@ -181,6 +181,9 @@ product north star.
   pressure, link-detachment resolution, score consequences, warning/countdown HUD,
   and a Three.js presenter loading eight validated Blender invasion GLBs with
   authored character, weapon, explosive, link and prop Actions.
+- a host-owned 78-resident ambient crowd across eight cruise areas. The occupied
+  compartment renders Blender-authored passenger rigs performing leisure and
+  work animations, while boarding threats switch the full crowd to evacuation.
 
 ### Planned next phases, not implemented now
 
@@ -192,10 +195,10 @@ product north star.
   chefs, mall/restaurant/bar restocking and consensual guest-request or
   performer photography. The current service loop is not a claim that every job
   exists.
-- **Crowds and ship scale:** dense autonomous passenger behaviours including
-  walking, socializing, dining, shopping, sunbathing, working, reacting,
-  evacuating and enjoying the voyage; further authored decks, exterior and
-  resort spaces remain unfinished.
+- **Crowds and ship scale:** the first 78-resident walking, socializing, dining,
+  cooking, housekeeping, photography, swimming, sunbathing and evacuation layer
+  is delivered. Cross-compartment schedules, shopping, richer reactions, crowd
+  LOD and further authored resort spaces remain unfinished.
 - **Asset expansion:** continue the Blender-source to tracked-GLB pipeline for
   the exterior, stairwells, open decks, infrastructure, crowd spaces and bespoke
   obstacle kinds. The current vessel GLB is validated and shipped; future kinds

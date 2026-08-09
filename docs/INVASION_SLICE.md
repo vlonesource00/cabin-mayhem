@@ -25,4 +25,4 @@ Exact required node and Blender Action names are Zod-validated in `src/data/inva
 
 The visual foundation now satisfies that gate: all eight GLBs exist at the frozen paths, pass asset validation, load through `src/three/invasion-presenter.ts`, validate every required Action/socket, and have player-visible Playwright evidence under ignored `test-results/invasion-evidence/`. This is not a claim that combat, bomber objectives, or every invasion animation transition is complete.
 
-PeerRoom protocol v2 explicitly admits `boardingAction.kind` and `boardingAction.targetId`, rejects extra fields, and keeps phase, compartment, position, distance, damage, and score server-derived. The real two-Windows/two-network gate remains unproven because the live PeerJS smoke stayed in `waiting`.
+PeerRoom protocol v3 explicitly admits `boardingAction.kind` and `boardingAction.targetId`, rejects extra fields, validates the crowd snapshot, and keeps phase, compartment, position, distance, damage, and score server-derived. The real two-Windows/two-network gate remains unproven because the live PeerJS smoke stayed in `waiting`.

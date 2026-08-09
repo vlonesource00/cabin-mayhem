@@ -230,7 +230,7 @@ browser slice is a cruise-ship navigation incident, not the complete product.
   obstacle position, damage, repair location and outcome. HUD captions, the
   warning card and the engine-room relay marker project that state. A debug
   trigger exists for deterministic test and designer iteration.
-- PeerRoom is protocol v2. Navigation and cabin-object subtrees are strict at
+- PeerRoom is protocol v3. Navigation, crowd and cabin-object subtrees are strict at
   the snapshot boundary, while the untouched mission subtrees remain
   passthrough-validated; this is not a claim of full MissionState hardening.
 - The current interaction registry has a central feedback contract in
@@ -245,6 +245,9 @@ browser slice is a cruise-ship navigation incident, not the complete product.
   deterministically stages pirate/saboteur characters, weapons, boarding links
   and gear from the authoritative snapshot. The HUD exposes the invasion warning,
   countdown, hostile count and protection stakes.
+- `HostSession` owns 78 ambient residents distributed across eight cruise areas.
+  The occupied area renders the shared Blender passenger rig with authored
+  activity clips; invasion phases make the entire crowd evacuate.
 
 ### Planned, not implemented in this slice
 
@@ -256,11 +259,10 @@ browser slice is a cruise-ship navigation incident, not the complete product.
   chefs, mall/restaurant/bar restocking, passenger photography framed only as a
   consensual performer or explicit guest-request challenge, plus further resort
   work. These are design targets, not implemented claims here.
-- **Crowds and ship scale:** a massive, highly detailed ship with many
-  passengers visibly walking, socializing, eating, shopping, sunbathing,
-  working, reacting, evacuating and enjoying the voyage. The current authored
-  compartment set is only a foundation; autonomous crowds and the full resort
-  are not implemented.
+- **Crowds and ship scale:** the first autonomous 78-resident layer now visibly
+  walks, socializes, dines, cooks, performs housekeeping, takes photographs,
+  swims, sunbathes and evacuates. The full resort, cross-deck schedules,
+  shopping economy and richer reactions are not implemented yet.
 - **Further map/obstacle expansion:** exterior hull and open decks, additional
   decks and compartments, stairwell routes, and bespoke Blender-authored GLBs for
   drifting containers, reefs, derelicts and other vessels. The current obstacle

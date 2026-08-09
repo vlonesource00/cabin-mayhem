@@ -1,9 +1,10 @@
 import { Peer, type DataConnection, type PeerOptions } from 'peerjs';
 import { z } from 'zod';
+import { ambientActivitySchema } from '../data/ambient-crowd';
 import { navigationIncidentStateSchema } from '../sim/navigation-incident';
 import { emptyCommand, type MissionState, type PlayerCommand } from '../sim/types';
 
-export const protocolVersion = 2 as const;
+export const protocolVersion = 3 as const;
 const roomPrefix = 'cabin-mayhem-';
 const snapshotIntervalMs = 1000 / 15;
 const commandIntervalMs = 1000 / 30;
@@ -52,6 +53,40 @@ const cabinObjectSchema = z
   })
   .strict();
 
+const ambientResidentSchema = z
+  .object({
+    id: z.string().regex(/^guest-\d{3}$/),
+    name: z.string().min(1).max(64),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    compartmentId: z.enum([
+      'atrium',
+      'main-galley',
+      'dining-room',
+      'cabin-deck-four',
+      'promenade',
+      'cabin-deck-seven',
+      'pool-deck',
+      'sun-deck',
+    ]),
+    activity: ambientActivitySchema,
+    homeActivity: ambientActivitySchema.exclude(['evacuating']),
+    position: snapshotPointSchema,
+    route: z.tuple([snapshotPointSchema, snapshotPointSchema]),
+    routeIndex: z.union([z.literal(0), z.literal(1)]),
+    facing: vec2Schema,
+    moving: z.boolean(),
+    phase: finite.min(0).max(1),
+  })
+  .strict();
+
+const ambientCrowdStateSchema = z
+  .object({
+    elapsed: finite.nonnegative(),
+    residents: z.record(ambientResidentSchema),
+    evacuating: z.boolean(),
+  })
+  .strict();
+
 const missionStateSchema = z
   .object({
     seed: finite,
@@ -68,6 +103,8 @@ const missionStateSchema = z
     fire: z.object({}).passthrough(),
     repair: z.object({}).passthrough(),
     navigation: navigationIncidentStateSchema,
+    invasion: z.object({}).passthrough(),
+    crowd: ambientCrowdStateSchema,
     network: z.object({}).passthrough(),
     networkMetrics: z.object({}).passthrough(),
     events: z.array(z.object({}).passthrough()),

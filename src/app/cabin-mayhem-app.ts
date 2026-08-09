@@ -498,6 +498,7 @@ export class CabinMayhemApp {
       advancePhase: () => this.session?.advancePhase(),
       trigger: (kind) => this.session?.trigger(kind),
       boardInvasion: () => this.boardInvasionForTest(),
+      showCrowd: () => this.showCrowdForTest(),
       helmNavigation: () => this.helmNavigationForTest(),
       avoidNavigation: () => this.avoidNavigationForTest(),
       beginNavigationRepair: () => this.beginNavigationRepairForTest(),
@@ -599,6 +600,14 @@ export class CabinMayhemApp {
     for (let tick = 0; tick < 405; tick += 1) this.session.step(0.05);
     this.session.teleport(playerId, 'boarding-port');
     this.controller?.faceHeading(0);
+  }
+
+  private showCrowdForTest(): void {
+    if (!this.session) return;
+    const playerId = this.localPlayerId();
+    this.session.setNetwork({ enabled: false });
+    this.session.teleport(playerId, 'pool-deck');
+    this.controller?.faceHeading(Math.PI);
   }
 
   private helmNavigationForTest(): void {
