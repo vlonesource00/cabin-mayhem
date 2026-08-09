@@ -109,6 +109,33 @@ describe('host session', () => {
     expect(state.cabin.objects['cart-01']!.ownerId).toBe('crew-alpha');
   });
 
+  it('rejects a forged cross-compartment pickup but accepts the authored compartment', () => {
+    const session = new HostSession(49);
+    session.setNetwork({ enabled: false });
+    session.teleport('crew-alpha', 'bridge');
+    session.teleportToObject('crew-alpha', 'toolbox-01');
+    const forged = emptyCommand();
+    forged.interact = true;
+    forged.interactionTargetId = 'toolbox-01';
+    session.submitCommand('crew-alpha', forged);
+    session.step(1 / 60);
+    expect(session.snapshot().cabin.players['crew-alpha']?.heldObjectId).toBeUndefined();
+
+    session.teleport('crew-alpha', 'repair');
+    session.teleportToObject('crew-alpha', 'toolbox-01');
+    const legitimate = emptyCommand();
+    legitimate.interact = true;
+    legitimate.interactionTargetId = 'toolbox-01';
+    session.submitCommand('crew-alpha', legitimate);
+    session.step(1 / 60);
+    const state = session.snapshot();
+    expect(state.cabin.players['crew-alpha']?.heldObjectId).toBe('toolbox-01');
+    expect(state.cabin.objects['toolbox-01']?.compartmentId).toBe('atrium');
+
+    session.teleport('crew-alpha', 'navigation-repair');
+    expect(session.snapshot().cabin.objects['toolbox-01']?.compartmentId).toBe('engine-room');
+  });
+
   it('consumes a held medkit only when delivered to the matching passenger', () => {
     const session = new HostSession(47);
     session.teleport('crew-alpha', 'cabin');
@@ -162,5 +189,41 @@ describe('host session', () => {
     session.step(1 / 60);
     expect(session.snapshot().fire.status).toBe('suppressed');
     expect(session.snapshot().cabin.players['crew-alpha']!.heldObjectId).toBe('extinguisher-01');
+  });
+
+  it('keeps boarding phase, compartment, range, damage, and resolution host-authoritative', () => {
+    const session = new HostSession(93);
+    session.setNetwork({ enabled: false });
+    session.trigger('boarding-invasion-debug');
+    for (let tick = 0; tick < 4; tick += 1) session.step(0.05);
+    expect(session.snapshot().invasion.phase).toBe('boarders-aboard');
+
+    const forged = emptyCommand();
+    forged.boardingAction = {
+      kind: 'detach-boarding-board',
+      targetId: 'port-boarding-board',
+    };
+    session.submitCommand('crew-alpha', forged);
+    session.step(0.05);
+    expect(session.snapshot().invasion.links['port-boarding-board']?.status).toBe('attached');
+    expect(session.snapshot().cabin.players['crew-alpha']?.lastAction).toContain(
+      'outside promenade',
+    );
+
+    session.teleport('crew-alpha', 'boarding-port');
+    session.submitCommand('crew-alpha', forged);
+    session.step(0.05);
+    expect(session.snapshot().invasion.links['port-boarding-board']?.status).toBe('detached');
+
+    const finish = emptyCommand();
+    finish.boardingAction = { kind: 'release-gangway', targetId: 'starboard-gangway' };
+    session.teleport('crew-alpha', 'boarding-starboard');
+    session.submitCommand('crew-alpha', finish);
+    session.step(0.05);
+    const state = session.snapshot();
+    expect(state.invasion.phase).toBe('repelled');
+    expect(state.invasion.hostileCount).toBe(0);
+    expect(state.service.score).toBe(170);
+    expect(JSON.parse(JSON.stringify(state.invasion))).toEqual(state.invasion);
   });
 });

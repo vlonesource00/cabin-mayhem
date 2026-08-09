@@ -94,6 +94,7 @@ function serviceObject(serviceNeed: ServiceNeed, position: Vec2): CabinObject {
     name: `Test ${serviceNeed}`,
     kind: serviceNeed === 'meal' ? 'meal-tray' : serviceNeed === 'medical' ? 'medkit' : 'drink',
     material: 'plastic',
+    compartmentId: 'atrium',
     position,
     velocity: { x: 0, y: 0 },
     radius: 0.25,

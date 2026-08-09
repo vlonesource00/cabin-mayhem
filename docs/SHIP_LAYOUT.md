@@ -153,6 +153,48 @@ decision in [`GAME_DESIGN.md`](GAME_DESIGN.md).
 Every addition pays the same tolls: one build script, one GLB inside budget, a
 symmetric portal pair, and a reason it is not just another empty room.
 
+## Navigation slice stations
+
+The current vertical slice uses two authored compartments and keeps their
+simulation coordinates explicit:
+
+- **Bridge / command center:** `bridge`, deck 9, helm interaction point
+  `{ x: 13, y: 5.5 }`, authored interaction radius `2.1 m`. Rudder input only
+  counts when a player snapshot has `compartmentId: "bridge"` and is inside
+  that radius.
+- **Impact repair:** `engine-room`, deck 0, steering relay point
+  `{ x: 13, y: 22 }`, authored repair radius `1.25 m`. The host requires the
+  player to be in `engine-room`, holding the toolbox, and targeting the relay
+  before progress can advance.
+
+The north-shoal contact is a deterministic moving workboat with a relative start
+position and velocity. The ship remains at local origin; the obstacle moves in
+the incident state and is projected by the host snapshot. The current vessel is
+authored by `assets-src/blender/build_navigation_obstacle.py`, saved as
+`assets-src/blender/navigation-obstacle-vessel.blend`, and exported to
+`public/assets/obstacles/navigation-vessel.glb`. The presenter loads that GLB in
+the normal path, with a documented procedural fallback only when the load fails.
+Distance markers, impact shake and avoidance colour are presentation feedback;
+the host remains authoritative. These points are gameplay stations layered onto
+the existing authored bridge and engine-room assets, not replacements for those
+GLBs. Container, reef, derelict and additional-vessel art remain planned.
+
+The current prop/station feedback contract is enumerated in
+`src/three/interactable-feedback.ts`: every object kind and every target returned
+by the current interaction paths maps to a visible animation/feedback state.
+Existing authored rig clips remain the source for humanoid/first-person actions;
+station and prop states use bounded transforms, materials and lights.
+
+## Full-ship north star status
+
+The current authored set is a foundation, not the finished luxury cruise ship.
+The exterior hull, promenade, pool and sun decks, additional decks, stairwell
+routes, lifeboats, funnels, railings, resort interiors and dense passenger
+population remain planned. Future additions must continue from authored Blender
+sources into tracked GLBs with manifest and loader contracts. Planned security
+incidents, the full resort job set, autonomous passenger activity and the
+massive detailed ship are not implemented by the navigation slice.
+
 ## Portal graph
 
 ```text

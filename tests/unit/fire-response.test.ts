@@ -7,6 +7,7 @@ const extinguisher: CabinObject = {
   name: 'Fire extinguisher',
   kind: 'extinguisher',
   material: 'metal',
+  compartmentId: 'atrium',
   position: { x: 10, y: 12.8 },
   velocity: { x: 0, y: 0 },
   radius: 0.25,

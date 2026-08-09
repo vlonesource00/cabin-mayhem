@@ -17,12 +17,9 @@ Local work snapshot. Phases and exit conditions live in
 - [x] Widen the ship. `CABIN_SCALE = 1` in `src/three/coordinates.ts` now maps a 24 x 46 metre
       playfield onto a 24 m x 46 m atrium, 12.8 m tall, and every compartment, station, prop and
       teleport target was restaged onto it. The fuselage footprint is gone.
-- [ ] Compartment traversal. `cabin-world.ts` calls `setCurrent(defaultCompartmentId)` once at
-      startup and nothing calls it again; the simulation has no notion of which room a player is
-      in, so all four authored rooms are unreachable and the player is locked in the atrium. Needs
-      `compartmentId` on `PlayerState`, positional portal entry validated by `HostSession`, the
-      player remapped into the destination room's local frame, and the streamer driven from the
-      snapshot. Everything below is unverifiable until this lands.
+- [x] Compartment traversal. `PlayerState.compartmentId`, host-owned portal movement and
+      snapshot-driven compartment streaming now connect the authored rooms. The direct bridge and
+      engine-room links remain honest stairwell stand-ins, tracked below.
 - [ ] Author `stairwell-fwd` and `stairwell-aft`. The `atrium` <-> `bridge` and
       `cabin-corridor-a` <-> `engine-room` portals are stand-ins that skip several decks.
 - [ ] Exterior and open decks — the largest gap. Every compartment authored so far is a sealed
@@ -30,8 +27,13 @@ Local work snapshot. Phases and exit conditions live in
       balconies, no railings, funnels, lifeboats or davits, and no glazing you can see the sea
       through. All GLB. Exterior rooms see the ocean, the sky and the rest of the ship at once, so
       state their budgets and LOD tiers in `docs/PERFORMANCE.md` before authoring them.
-- [ ] Helm station with positional input authority.
-- [ ] Collision-course incident end to end: spawn, warning, countdown, host-validated avoidance, consequences either way.
+- [x] Helm station with positional input authority at the authored bridge interaction area.
+- [x] Collision-course incident end to end: deterministic contact, warning, countdown,
+      host-validated avoidance, impact damage, engine-room relay repair and score transitions.
+- [x] Blender 5.1 navigation-vessel source/GLB, manifest validation and normal-path
+      authored obstacle loading with explicit fallback coverage.
+- [x] Current interactable feedback contract: objects, passenger service, fire,
+      toolbox repairs, helm, doors/portals and station feedback.
 
 ## Backlog
 
@@ -82,3 +84,23 @@ Airliner content is superseded by [ADR 0001](docs/adr/0001-cruise-ship-pivot.md)
 and stays in Git history: automatic taxi/takeoff climb, the flight model, the
 landing debrief framing, world-prop animation for the cabin scenario, and the
 manual service-flight playtest that was pending against it.
+
+## Cruise north-star backlog after navigation and boarding slices
+
+- [x] Pirate boarding foundation: warning/approach/aboard phases,
+      passenger/infrastructure pressure, host-validated boarding-link detachment,
+      score outcomes, eight Blender GLBs, authored Actions, HUD and browser proof.
+- [ ] Complete security incidents: bomb threat, bomber search/disarm, combat AI,
+      firearms/melee hit resolution, passenger escort and persistent damage.
+- [ ] Resort jobs: room service, pool cleaning, DJ performance, cooking with
+      chefs, mall/restaurant/bar restocking and consensual guest-request or
+      performer photography.
+- [ ] Dense passenger population: authored social, dining, shopping, work,
+      sunbathing, reaction and evacuation behaviours with host-owned safety state.
+- [ ] Massive ship expansion: exterior, open decks, stairwells, additional
+      compartments and resort infrastructure, all authored in Blender and tracked
+      as validated GLB runtime assets.
+
+Unchecked items are planned slices, not implemented claims. Preserve the current
+exterior and compartment work while each one is built and tested as a
+host-authoritative vertical.

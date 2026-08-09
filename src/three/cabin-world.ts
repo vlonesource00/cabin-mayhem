@@ -1,5 +1,7 @@
 import * as THREE from 'three';
+import { navigationIncidentDefinition } from '../data/emergencies';
 import { needLabel } from '../sim/service-mission';
+import { isAtBridgeHelm } from '../sim/navigation-incident';
 import type {
   CabinObject,
   MissionState,
@@ -25,6 +27,9 @@ import { GesturePlayer, handGestures, passengerPose } from './interaction-animat
 import { OceanSurface } from './ocean-surface';
 import { CompartmentStreamer } from './compartment-streamer';
 import { defaultCompartmentId } from '../data/ship-layout';
+import { feedbackForObjectKind, feedbackForTarget } from './interactable-feedback';
+import { InvasionPresenter } from './invasion-presenter';
+import { NavigationObstaclePresenter } from './navigation-obstacle-presenter';
 
 const colors = {
   navy: 0x101a28,
@@ -38,8 +43,8 @@ const colors = {
   cargo: 0x987143,
 };
 
-/** The camera always follows this crew slot; the peer is rendered as an avatar. */
-const localCrewId = 'crew-alpha';
+/** The camera follows this crew slot; the other crew member is rendered as an avatar. */
+export type CabinCrewId = 'crew-alpha' | 'crew-bravo';
 
 /**
  * The service slice — guests, loose objects, the galley fire and the breaker —
@@ -88,6 +93,8 @@ export class CabinWorld {
   private readonly interactionRoots: THREE.Object3D[] = [];
   private readonly gestures = new GesturePlayer();
   private readonly ocean = new OceanSurface();
+  private readonly invasion = new InvasionPresenter();
+  private readonly navigationObstacle = new NavigationObstaclePresenter();
   /**
    * Owns the shell the crew stands in. The occupied compartment's asset source
    * is published on the canvas so the browser tests can tell an authored room
@@ -105,9 +112,14 @@ export class CabinWorld {
   private readonly crewBravo: THREE.Group;
   private readonly galleyFire: THREE.Group;
   private readonly galleyBreaker: THREE.Group;
+  private readonly steeringRelay: THREE.Group;
+  private readonly helmStation: THREE.Group;
+  private readonly portalFeedback: THREE.Group;
   private interactionPrompt = 'CLICK TO CAPTURE MOUSE';
   private targetObjectId: string | null = null;
   private disposed = false;
+  private fireFeedbackUntil = 0;
+  private portalFeedbackUntil = 0;
   /**
    * The compartment the render origin sits on. Follows the host's snapshot, not
    * startup: the crew walks and the ship streams around them.
@@ -121,13 +133,17 @@ export class CabinWorld {
   private readonly passengerRigs = new Map<string, RigInstance>();
   private lastFrameAt?: number;
 
-  public constructor(private readonly mount: HTMLElement) {
+  public constructor(
+    private readonly mount: HTMLElement,
+    private readonly localCrewId: CabinCrewId = 'crew-alpha',
+  ) {
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: 'high-performance',
     });
     this.canvas = this.renderer.domElement;
     this.canvas.dataset.testid = 'three-canvas';
+    this.canvas.dataset.localPlayerId = this.localCrewId;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -145,10 +161,18 @@ export class CabinWorld {
     // `cabinToWorld` does the rebasing. See src/three/coordinates.ts.
     this.compartments.group.position.set(0, 0, 0);
     this.cabin.add(this.compartments.group);
+    this.cabin.add(this.invasion.group);
+    this.cabin.add(this.navigationObstacle.group);
     this.galleyFire = this.createGalleyFire();
     this.cabin.add(this.galleyFire);
     this.galleyBreaker = this.createGalleyBreaker();
     this.cabin.add(this.galleyBreaker);
+    this.steeringRelay = this.createSteeringRelay();
+    this.cabin.add(this.steeringRelay);
+    this.helmStation = this.createHelmStation();
+    this.cabin.add(this.helmStation);
+    this.portalFeedback = this.createPortalFeedback();
+    this.cabin.add(this.portalFeedback);
     this.crewBravo = this.createCrewAvatar(0x38bdf8);
     this.cabin.add(this.crewBravo);
     this.scene.add(this.cabin);
@@ -165,10 +189,10 @@ export class CabinWorld {
     // tab must not fast-forward every mixer when it comes back.
     const delta = Math.min(elapsed - (this.lastFrameAt ?? elapsed), 0.05);
     this.lastFrameAt = elapsed;
-    this.gestures.push(handGestures(this.previousState, state, localCrewId), elapsed);
+    this.gestures.push(handGestures(this.previousState, state, this.localCrewId), elapsed);
     this.syncRigs(state);
-    this.previousState = state;
     this.syncState(state, elapsed);
+    this.previousState = state;
     // Driven by the authoritative voyage clock, not the render clock, so every
     // client fitted to the same snapshot sees the same wave under the hull.
     this.ocean.sync(state.voyage.sea, state.voyage.hull, state.voyage.clock);
@@ -216,6 +240,7 @@ export class CabinWorld {
     for (const rig of this.passengerRigs.values()) rig.dispose();
     this.passengerRigs.clear();
     this.compartments.dispose();
+    this.invasion.dispose();
     this.ocean.dispose();
     this.scene.traverse((entry) => {
       if (entry instanceof THREE.Mesh) {
@@ -491,8 +516,114 @@ export class CabinWorld {
     return group;
   }
 
+  private createSteeringRelay(): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'steering relay repair panel';
+    group.add(
+      this.box(
+        'relay housing',
+        [1.15, 1.35, 0.24],
+        [0, 0.82, 0],
+        this.material(0x263747, 0.45, 0.7),
+      ),
+    );
+    group.add(
+      this.box(
+        'relay glow',
+        [0.72, 0.72, 0.05],
+        [0, 0.9, -0.15],
+        this.material(0xff4e43, 0.3, 0.2, 0xa81820),
+      ),
+    );
+    group.add(
+      this.box(
+        'relay handle',
+        [0.18, 0.54, 0.12],
+        [0.18, 0.9, -0.24],
+        this.material(0xffcf4f, 0.18, 0.35),
+      ),
+    );
+    const light = new THREE.PointLight(0xff4e43, 2.4, 5, 1.4);
+    light.name = 'relay light';
+    light.position.set(0, 1.18, 0.1);
+    group.add(light);
+    const hitbox = new THREE.Mesh(
+      new THREE.BoxGeometry(2.05, 2.5, 1.45),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+    );
+    hitbox.position.y = 1;
+    group.add(hitbox);
+    group.userData.repairId = 'repair-steering-relay';
+    group.userData.interaction = 'STEERING RELAY - toolbox required';
+    group.visible = false;
+    this.interactionRoots.push(group);
+    return group;
+  }
+
+  private createHelmStation(): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'authored bridge helm feedback';
+    const wheel = new THREE.Mesh(
+      new THREE.TorusGeometry(0.62, 0.09, 10, 28),
+      this.material(0xd8d6cd, 0.32, 0.62),
+    );
+    wheel.name = 'helm wheel';
+    wheel.position.set(0, 1.05, 0);
+    wheel.rotation.x = Math.PI / 2;
+    group.add(wheel);
+    const telegraph = this.box(
+      'helm telegraph',
+      [0.18, 0.82, 0.18],
+      [0.92, 0.74, 0],
+      this.material(0xffcf4f, 0.25, 0.38),
+    );
+    group.add(telegraph);
+    const console = this.box(
+      'helm console',
+      [2.4, 0.55, 0.8],
+      [0, 0.36, 0],
+      this.material(0x263747, 0.42, 0.68),
+    );
+    group.add(console);
+    const light = new THREE.PointLight(0xffb24a, 1.8, 4, 1.4);
+    light.name = 'helm feedback light';
+    light.position.set(0, 1.55, 0.1);
+    group.add(light);
+    const hitbox = new THREE.Mesh(
+      new THREE.BoxGeometry(2.6, 1.9, 1.3),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+    );
+    hitbox.position.y = 0.85;
+    group.add(hitbox);
+    group.userData.helmId = 'bridge-helm';
+    group.userData.feedback = feedbackForTarget('bridge-helm');
+    group.userData.interaction = 'BRIDGE HELM - rudder and telegraph input';
+    this.interactionRoots.push(group);
+    return group;
+  }
+
+  private createPortalFeedback(): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'portal interaction feedback';
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.78, 0.07, 8, 24),
+      new THREE.MeshBasicMaterial({ color: colors.cyan, transparent: true, opacity: 0.82 }),
+    );
+    ring.name = 'portal prompt ring';
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.04;
+    group.add(ring);
+    const light = new THREE.PointLight(colors.cyan, 1.2, 3.5, 1.5);
+    light.name = 'portal prompt light';
+    light.position.y = 0.9;
+    group.add(light);
+    group.userData.feedback = feedbackForTarget('portal');
+    group.visible = false;
+    return group;
+  }
+
   private heldKind(state: MissionState): ObjectKind | undefined {
-    const heldId = state.cabin.players[localCrewId]?.heldObjectId;
+    const heldId = state.cabin.players[this.localCrewId]?.heldObjectId;
     return heldId ? state.cabin.objects[heldId]?.kind : undefined;
   }
 
@@ -507,20 +638,21 @@ export class CabinWorld {
    * here can only ever look wrong.
    */
   private syncRigs(state: MissionState): void {
-    const bravo = state.cabin.players['crew-bravo'];
-    if (this.crewBravoRig && bravo) {
-      const held = this.held(state, 'crew-bravo');
-      this.crewBravoRig.play(crewClips(crewMotion(bravo), crewStance(state, bravo, held)));
-      for (const shot of crewOneShots(this.previousState, state, 'crew-bravo'))
+    const peerCrewId = this.localCrewId === 'crew-alpha' ? 'crew-bravo' : 'crew-alpha';
+    const peer = state.cabin.players[peerCrewId];
+    if (this.crewBravoRig && peer) {
+      const held = this.held(state, peerCrewId);
+      this.crewBravoRig.play(crewClips(crewMotion(peer), crewStance(state, peer, held)));
+      for (const shot of crewOneShots(this.previousState, state, peerCrewId))
         this.crewBravoRig.trigger(crewOneShotClip(shot));
     }
 
-    const alpha = state.cabin.players[localCrewId];
-    if (this.firstPersonArms && alpha) {
+    const local = state.cabin.players[this.localCrewId];
+    if (this.firstPersonArms && local) {
       this.firstPersonArms.play({
-        base: firstPersonClip(state, alpha, this.held(state, localCrewId)),
+        base: firstPersonClip(state, local, this.held(state, this.localCrewId)),
       });
-      for (const shot of crewOneShots(this.previousState, state, localCrewId))
+      for (const shot of crewOneShots(this.previousState, state, this.localCrewId))
         this.firstPersonArms.trigger(firstPersonOneShotClip(shot));
     }
   }
@@ -531,9 +663,10 @@ export class CabinWorld {
    * never decides where the crew is.
    */
   private syncResidency(state: MissionState): void {
-    const occupied = state.cabin.players[localCrewId]?.compartmentId ?? defaultCompartmentId;
+    const occupied = state.cabin.players[this.localCrewId]?.compartmentId ?? defaultCompartmentId;
     if (occupied === this.originCompartmentId) return;
     this.originCompartmentId = occupied;
+    this.canvas.dataset.localCompartmentId = occupied;
     void this.compartments.setCurrent(occupied);
   }
 
@@ -541,6 +674,22 @@ export class CabinWorld {
     this.syncResidency(state);
     const origin = this.originCompartmentId;
     const heldKind = this.heldKind(state);
+    this.invasion.sync(state.invasion, origin, elapsed);
+    this.canvas.dataset.invasionPhase = state.invasion.phase;
+    this.canvas.dataset.invasionVisible = String(this.invasion.group.visible);
+    this.canvas.dataset.invasionAsset = this.invasion.assetSource;
+    this.canvas.dataset.invasionHostiles = String(state.invasion.hostileCount);
+    this.navigationObstacle.sync(state.navigation.obstacle, state.navigation.phase, elapsed);
+    this.canvas.dataset.navigationObstacleVisible = String(this.navigationObstacle.group.visible);
+    this.canvas.dataset.navigationObstacleAsset = this.navigationObstacle.assetSource;
+    this.canvas.dataset.repairFeedback =
+      state.navigation.phase === 'impact' || state.navigation.phase === 'repair'
+        ? state.navigation.repair.status
+        : state.navigation.phase === 'repaired'
+          ? 'fixed'
+          : 'idle';
+    this.syncHelmFeedback(state, elapsed, origin);
+    this.syncPortalFeedback(state, elapsed, origin);
     const pose = this.gestures.pose(
       state,
       heldKind === 'extinguisher' || heldKind === 'toolbox',
@@ -550,7 +699,10 @@ export class CabinWorld {
     for (const object of Object.values(state.cabin.objects)) {
       const asset = this.dynamicObjects.get(object.id) ?? this.createObjectAsset(object);
       this.dynamicObjects.set(object.id, asset);
-      if (object.ownerId === localCrewId) {
+      asset.userData.feedback = feedbackForObjectKind(object.kind);
+      const previousObject = this.previousState?.cabin.objects[object.id];
+      const ownershipChanged = previousObject?.ownerId !== object.ownerId;
+      if (object.ownerId === this.localCrewId) {
         // The gesture only nudges the presentation offset; the host already
         // resolved the interaction that produced it.
         const heldOffset =
@@ -569,7 +721,7 @@ export class CabinWorld {
         const position = cabinToWorld(
           object.position,
           object.radius * 0.34,
-          gameplayCompartmentId,
+          object.compartmentId,
           origin,
         );
         asset.position.lerp(position, object.ownerId ? 0.55 : 0.28);
@@ -579,6 +731,9 @@ export class CabinWorld {
       asset.visible = true;
       const securedRing = asset.getObjectByName('secured ring');
       if (securedRing instanceof THREE.Mesh) securedRing.visible = object.secured;
+      const feedbackScale = ownershipChanged ? 1.14 : object.ownerId ? 1.035 : 1;
+      asset.scale.lerp(new THREE.Vector3(feedbackScale, feedbackScale, feedbackScale), 0.28);
+      if (ownershipChanged) asset.rotation.y += Math.sin(elapsed * 18) * 0.025;
     }
 
     for (const passenger of Object.values(state.service.passengers)) {
@@ -615,6 +770,11 @@ export class CabinWorld {
           );
       }
       avatar.userData.interaction = passengerInteraction(passenger);
+      avatar.userData.feedback = feedbackForTarget('passenger');
+      const previousPassenger = this.previousState?.service.passengers[passenger.id];
+      if (previousPassenger?.requestStatus !== passenger.requestStatus)
+        avatar.scale.setScalar(1.12);
+      avatar.scale.lerp(new THREE.Vector3(1, 1, 1), 0.16);
       const beacon = avatar.getObjectByName('request beacon');
       if (beacon instanceof THREE.Mesh && beacon.material instanceof THREE.MeshBasicMaterial) {
         beacon.visible = passenger.requestStatus === 'active';
@@ -629,10 +789,13 @@ export class CabinWorld {
       }
     }
 
+    if (this.previousState?.fire.status === 'active' && state.fire.status === 'suppressed')
+      this.fireFeedbackUntil = elapsed + 1.2;
     this.galleyFire.position.copy(
       cabinToWorld(state.fire.position, 0, gameplayCompartmentId, origin),
     );
-    this.galleyFire.visible = state.fire.status === 'active';
+    this.galleyFire.userData.feedback = feedbackForTarget('fire-galley');
+    this.galleyFire.visible = state.fire.status === 'active' || elapsed < this.fireFeedbackUntil;
     if (this.galleyFire.visible) {
       const pulse = 0.9 + Math.sin(elapsed * 14) * 0.16;
       this.galleyFire.scale.setScalar(pulse * (0.55 + state.fire.intensity * 0.55));
@@ -645,10 +808,21 @@ export class CabinWorld {
       const fireLight = this.galleyFire.getObjectByName('fire light');
       if (fireLight instanceof THREE.PointLight)
         fireLight.intensity = 3.1 + state.fire.intensity * 3.2 + Math.sin(elapsed * 19) * 0.75;
+      if (state.fire.status === 'suppressed') {
+        this.galleyFire.scale.multiplyScalar(
+          Math.max(0.04, 1 - (this.fireFeedbackUntil - elapsed) / 1.2),
+        );
+        for (const flame of this.galleyFire.children.filter((entry) => entry.name === 'fire flame'))
+          flame.visible = false;
+      } else {
+        for (const flame of this.galleyFire.children.filter((entry) => entry.name === 'fire flame'))
+          flame.visible = true;
+      }
     }
 
+    this.galleyBreaker.userData.feedback = feedbackForTarget('repair-galley-breaker');
     this.galleyBreaker.position.copy(
-      cabinToWorld(state.repair.position, 0, gameplayCompartmentId, origin),
+      cabinToWorld(state.repair.position, 0, state.repair.compartmentId, origin),
     );
     this.galleyBreaker.visible = state.repair.status !== 'dormant';
     if (this.galleyBreaker.visible) {
@@ -679,17 +853,46 @@ export class CabinWorld {
         );
         breakerLight.intensity = state.repair.status === 'fixed' ? 0.55 : 1.6 + pulse * 2;
       }
+      const breakerScale = repairing ? 1.045 + Math.sin(elapsed * 10) * 0.025 : 1;
+      this.galleyBreaker.scale.setScalar(breakerScale);
     }
 
-    const bravo = state.cabin.players['crew-bravo'];
-    if (bravo) {
+    const steeringRepair = state.navigation.repair;
+    this.steeringRelay.userData.feedback = feedbackForTarget('repair-steering-relay');
+    this.steeringRelay.position.copy(
+      cabinToWorld(steeringRepair.position, 0, steeringRepair.compartmentId, origin),
+    );
+    this.steeringRelay.visible = steeringRepair.status !== 'dormant';
+    if (this.steeringRelay.visible) {
+      const repairing = steeringRepair.status === 'repairing';
+      const fixed = steeringRepair.status === 'fixed';
+      const pulse = steeringRepair.status === 'active' ? 0.75 + Math.sin(elapsed * 18) * 0.25 : 0.3;
+      const glow = this.steeringRelay.getObjectByName('relay glow');
+      if (glow instanceof THREE.Mesh && glow.material instanceof THREE.MeshStandardMaterial) {
+        glow.material.color.setHex(fixed ? 0x57edcf : repairing ? 0xffcf4f : 0xff4e43);
+        glow.material.emissive.setHex(fixed ? 0x0e5d55 : repairing ? 0x9d6400 : 0xa81820);
+        glow.material.emissiveIntensity = fixed ? 0.55 : repairing ? 1.1 : pulse;
+      }
+      const relayLight = this.steeringRelay.getObjectByName('relay light');
+      if (relayLight instanceof THREE.PointLight) {
+        relayLight.color.setHex(fixed ? 0x57edcf : repairing ? 0xffcf4f : 0xff4e43);
+        relayLight.intensity = fixed ? 0.7 : 1.5 + pulse * 2;
+      }
+      const handle = this.steeringRelay.getObjectByName('relay handle');
+      if (handle) handle.rotation.z = repairing ? Math.sin(elapsed * 8) * 0.18 : fixed ? 0.34 : 0;
+      this.steeringRelay.scale.setScalar(repairing ? 1.04 + Math.sin(elapsed * 10) * 0.02 : 1);
+    }
+
+    const peerCrewId = this.localCrewId === 'crew-alpha' ? 'crew-bravo' : 'crew-alpha';
+    const peer = state.cabin.players[peerCrewId];
+    if (peer) {
       // The peer may be several decks away, so their avatar is placed through
       // their own compartment and rebased onto ours.
-      this.crewBravo.position.copy(cabinToWorld(bravo.position, 0, bravo.compartmentId, origin));
-      this.crewBravo.rotation.y = Math.atan2(bravo.facing.x, bravo.facing.y);
-      this.crewBravo.rotation.z = bravo.knockdown > 0 ? 1.2 : 0;
+      this.crewBravo.position.copy(cabinToWorld(peer.position, 0, peer.compartmentId, origin));
+      this.crewBravo.rotation.y = Math.atan2(peer.facing.x, peer.facing.y);
+      this.crewBravo.rotation.z = peer.knockdown > 0 ? 1.2 : 0;
       if (!this.crewBravoRig) {
-        const speed = Math.hypot(bravo.velocity.x, bravo.velocity.y);
+        const speed = Math.hypot(peer.velocity.x, peer.velocity.y);
         const stride = Math.min(speed / 2.6, 1);
         const swing = Math.sin(elapsed * (6 + stride * 6)) * stride * 0.7;
         const limbs = proceduralBody(this.crewBravo).filter(
@@ -713,8 +916,68 @@ export class CabinWorld {
     }
   }
 
+  private syncHelmFeedback(state: MissionState, elapsed: number, origin: string): void {
+    const local = state.cabin.players[this.localCrewId];
+    const atBridge = local ? isAtBridgeHelm(local) : false;
+    this.helmStation.position.copy(
+      cabinToWorld(
+        navigationIncidentDefinition.bridge.position,
+        0,
+        navigationIncidentDefinition.bridge.compartmentId,
+        origin,
+      ),
+    );
+    const wheel = this.helmStation.getObjectByName('helm wheel');
+    if (wheel) wheel.rotation.z = state.voyage.rudder * 0.72;
+    const telegraph = this.helmStation.getObjectByName('helm telegraph');
+    if (telegraph) telegraph.rotation.z = state.voyage.telegraph * 0.52;
+    const activeInput =
+      atBridge &&
+      state.navigation.phase === 'warning' &&
+      (Math.abs(state.voyage.rudder) > 0.01 || Math.abs(state.voyage.telegraph) > 0.01);
+    const status =
+      state.navigation.phase === 'avoided'
+        ? 'avoided'
+        : state.navigation.phase === 'impact' || state.navigation.phase === 'repair'
+          ? 'damage'
+          : activeInput
+            ? 'active'
+            : 'idle';
+    this.canvas.dataset.helmFeedback = status;
+    this.helmStation.userData.feedback = feedbackForTarget('bridge-helm');
+    const light = this.helmStation.getObjectByName('helm feedback light');
+    if (light instanceof THREE.PointLight) {
+      light.color.setHex(status === 'avoided' ? 0x57edcf : activeInput ? 0xffcf4f : 0xffb24a);
+      light.intensity = activeInput
+        ? 3 + Math.sin(elapsed * 15) * 0.8
+        : status === 'avoided'
+          ? 1.1
+          : 1.8;
+    }
+  }
+
+  private syncPortalFeedback(state: MissionState, elapsed: number, origin: string): void {
+    const player = state.cabin.players[this.localCrewId];
+    if (!player) return;
+    const previous = this.previousState?.cabin.players[this.localCrewId];
+    if (previous && previous.compartmentId !== player.compartmentId)
+      this.portalFeedbackUntil = elapsed + 1.1;
+    this.portalFeedback.position.copy(
+      cabinToWorld(player.position, 0, player.compartmentId, origin),
+    );
+    const visible = Boolean(player.pendingDoor) || elapsed < this.portalFeedbackUntil;
+    this.portalFeedback.visible = visible;
+    this.canvas.dataset.portalFeedback = visible
+      ? player.pendingDoor
+        ? 'door-prompt'
+        : 'arrival'
+      : 'idle';
+    const ring = this.portalFeedback.getObjectByName('portal prompt ring');
+    if (ring) ring.scale.setScalar(1 + Math.sin(elapsed * 10) * 0.12);
+  }
+
   private updateInteraction(state: MissionState): void {
-    const player = state.cabin.players['crew-alpha'];
+    const player = state.cabin.players[this.localCrewId];
     const held = player?.heldObjectId ? state.cabin.objects[player.heldObjectId] : undefined;
     this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
     let target: THREE.Object3D | null = null;
@@ -737,6 +1000,8 @@ export class CabinWorld {
       target && typeof target.userData.fireId === 'string' ? target.userData.fireId : null;
     const repairId =
       target && typeof target.userData.repairId === 'string' ? target.userData.repairId : null;
+    const helmId =
+      target && typeof target.userData.helmId === 'string' ? target.userData.helmId : null;
     if (held && passengerId) {
       this.targetObjectId = passengerId;
       this.interactionPrompt = `${String(target?.userData.interaction)} - E deliver ${held.name}`;
@@ -758,12 +1023,26 @@ export class CabinWorld {
         this.interactionPrompt = 'GALLEY FIRE TAKES PRIORITY - grab extinguisher';
         return;
       }
+      if (repairId === 'repair-steering-relay') {
+        this.interactionPrompt =
+          held?.kind === 'toolbox'
+            ? `STEERING RELAY - hold E to repair ${Math.round(state.navigation.repair.progress * 100)}%`
+            : held
+              ? `STEERING RELAY - ${held.name} is not a toolbox`
+              : 'STEERING RELAY - grab the red toolbox';
+        return;
+      }
       this.interactionPrompt =
         held?.kind === 'toolbox'
           ? `COFFEE MACHINE MUTINY - hold E to repair ${Math.round(state.repair.progress * 100)}%`
           : held
             ? `COFFEE MACHINE MUTINY - ${held.name} is not a toolbox`
             : 'COFFEE MACHINE MUTINY - grab the red toolbox';
+      return;
+    }
+    if (helmId) {
+      this.targetObjectId = helmId;
+      this.interactionPrompt = 'BRIDGE HELM - rudder and telegraph controls are live here';
       return;
     }
     if (held && objectId === 'cart-01') {
@@ -782,7 +1061,7 @@ export class CabinWorld {
         document.pointerLockElement === this.canvas ? 'SCAN CABIN' : 'CLICK TO CAPTURE MOUSE';
       return;
     }
-    this.targetObjectId = passengerId ?? objectId ?? fireId ?? repairId;
+    this.targetObjectId = passengerId ?? objectId ?? fireId ?? repairId ?? helmId;
     if (objectId === 'cart-01' && player) {
       const need = player.selectedServiceNeed;
       this.interactionPrompt = `Service cart - 1 drink  2 meal  3 medical - E take ${need.toUpperCase()} (${state.service.cart.stock[need]}) - Shift+E move`;

@@ -172,9 +172,9 @@ or a hit succeeds.** Neither does the renderer, the HUD or the audio layer.
 
 ## Current playable boundary
 
-The airliner vertical at `79bb002` is the last thing that ran. The cruise
-premise is designed and documented; none of it is implemented yet. The first
-implementation slice is Phase 5 in [`ROADMAP.md`](ROADMAP.md).
+The airliner vertical at `79bb002` is a historical boundary note. The current
+cruise implementation includes the navigation-incident slice described at the
+end of this document; the rest of the product remains planned.
 
 ## Crew size
 
@@ -202,3 +202,68 @@ on the shared humanoid rig; you never see yourself.
 Weather beyond scripted sea state and fog, autonomous guest pathfinding across
 decks, ports and shore excursions, recorded audio, matchmaking, and any economy
 beyond the voyage payout and cosmetic player unlocks.
+
+## Current product boundary: navigation slice and planned north star
+
+This section supersedes the older airliner-boundary note above. The current
+browser slice is a cruise-ship navigation incident, not the complete product.
+
+### Implemented now
+
+- `HostSession` owns a deterministic collision-course incident with an explicit
+  36-second production warning/countdown (the 3-second debug trigger is test-only).
+  A moving authored contact is represented relative to a ship that stays at local
+  origin. The current vessel is a Blender-authored source/GLB pair
+  (`assets-src/blender/build_navigation_obstacle.py` plus
+  `navigation-obstacle-vessel.blend` → `public/assets/obstacles/navigation-vessel.glb`),
+  loaded by `NavigationObstaclePresenter`; procedural geometry is only an explicit
+  load-failure/future-kind fallback.
+- Avoidance requires a live player to be in the authored `bridge` compartment's
+  helm interaction area. The host rejects rudder, telegraph and emergency-stop
+  intent from a remote or incorrectly located player. A clear track awards the
+  authored +35 avoidance bonus.
+- Missing the contact applies host-owned steering-hydraulics damage and a score
+  loss. The repair objective is the authored `engine-room` relay station;
+  holding the host-validated toolbox in range completes it, restores the damage,
+  awards the repair transition, and records the result.
+- Both solo and PeerRoom snapshots expose the incident phase, countdown,
+  obstacle position, damage, repair location and outcome. HUD captions, the
+  warning card and the engine-room relay marker project that state. A debug
+  trigger exists for deterministic test and designer iteration.
+- PeerRoom is protocol v2. Navigation and cabin-object subtrees are strict at
+  the snapshot boundary, while the untouched mission subtrees remain
+  passthrough-validated; this is not a claim of full MissionState hardening.
+- The current interaction registry has a central feedback contract in
+  `src/three/interactable-feedback.ts`. Objects, passengers, fire, both repair
+  stations, helm and portal prompts all receive bounded visible feedback;
+  authored skeletal clips are used where the existing GLB animation contracts
+  provide them, with transform/material/light feedback for prop/station-only
+  interactions.
+- `HostSession` now owns a bounded pirate boarding flow from warning and approach
+  through boarders aboard, passenger/infrastructure pressure, link detachment,
+  repel or failure. `InvasionPresenter` loads eight validated Blender GLBs and
+  deterministically stages pirate/saboteur characters, weapons, boarding links
+  and gear from the authoritative snapshot. The HUD exposes the invasion warning,
+  countdown, hostile count and protection stakes.
+
+### Planned, not implemented in this slice
+
+- **Remaining invasions and security:** a playable bomb threat with bomber search
+  and disarm, combat AI, firearms/melee hit resolution, passenger escort and
+  persistent post-incident damage. The delivered pirate slice provides boarding,
+  pressure, link detachment and score consequences but not the complete defence game.
+- **Cruise jobs:** room service, pool cleaning, DJ performance, cooking with
+  chefs, mall/restaurant/bar restocking, passenger photography framed only as a
+  consensual performer or explicit guest-request challenge, plus further resort
+  work. These are design targets, not implemented claims here.
+- **Crowds and ship scale:** a massive, highly detailed ship with many
+  passengers visibly walking, socializing, eating, shopping, sunbathing,
+  working, reacting, evacuating and enjoying the voyage. The current authored
+  compartment set is only a foundation; autonomous crowds and the full resort
+  are not implemented.
+- **Further map/obstacle expansion:** exterior hull and open decks, additional
+  decks and compartments, stairwell routes, and bespoke Blender-authored GLBs for
+  drifting containers, reefs, derelicts and other vessels. The current obstacle
+  renderer is extensible, but only the vessel GLB is delivered in this slice.
+  The unfinished exterior and compartment work remains intentionally in scope for
+  later slices.

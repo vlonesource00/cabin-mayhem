@@ -45,4 +45,23 @@ describe('landing debrief', () => {
     });
     expect(state).toEqual(before);
   });
+
+  it('fails the verdict and names the unresolved navigation damage', () => {
+    const state = new HostSession().snapshot();
+    state.service.outcome = 'failed';
+    state.navigation.phase = 'repair';
+    state.navigation.repair.status = 'active';
+    state.navigation.repair.progress = 0.4;
+    state.voyage.hydraulics = 0.35;
+
+    const debrief = buildDebrief(state);
+    expect(debrief).toMatchObject({
+      outcome: 'failed',
+      navigation: {
+        result: 'DAMAGE UNRESOLVED',
+        detail: expect.stringContaining('engine-room'),
+      },
+    });
+    expect(debrief?.verdict).toContain('ENGINE ROOM');
+  });
 });

@@ -7,6 +7,7 @@ const toolbox: CabinObject = {
   name: 'Loose red toolbox',
   kind: 'toolbox',
   material: 'metal',
+  compartmentId: 'atrium',
   position: { x: 5, y: 24 },
   velocity: { x: 0, y: 0 },
   radius: 0.32,

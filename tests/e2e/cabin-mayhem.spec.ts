@@ -1,3 +1,4 @@
+import { mkdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 
 test('menu enters a compact first-person Three.js aircraft UI', async ({ page }) => {
@@ -120,6 +121,106 @@ test('test bridge drives host turbulence and deterministic voyage phases', async
   await expect(page.locator('[data-hud="caption"]')).toContainText('Heavy weather');
   await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.advancePhase());
   await expect(page.locator('[data-hud="phase"]')).toHaveText('PREPARATION');
+});
+
+test('navigation warning requires the bridge and can be avoided by helm input', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.trigger('collision-course-debug'));
+
+  const alert = page.getByTestId('navigation-alert');
+  const canvas = page.getByTestId('three-canvas');
+  await expect(alert).toBeVisible();
+  await expect(canvas).toHaveAttribute('data-navigation-obstacle-asset', 'glb');
+  await expect(canvas).toHaveAttribute('data-navigation-obstacle-visible', 'true');
+  await expect(alert).toContainText('REACH BRIDGE HELM');
+  await expect(page.locator('[data-hud="navigation-alert-detail"]')).toContainText(
+    'rudder input requires bridge station',
+  );
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.helmNavigation());
+  await expect(canvas).toHaveAttribute('data-helm-feedback', 'active');
+  await page.screenshot({ path: 'test-results/navigation-evidence/navigation-helm-active.png' });
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.avoidNavigation());
+  await expect
+    .poll(() => page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.navigation.phase))
+    .toBe('avoided');
+  await expect(alert).toContainText('CONTACT AVOIDED');
+});
+
+test('navigation impact and engine-room repair HUD are visible end to end', async ({ page }) => {
+  test.setTimeout(60_000);
+  mkdirSync('test-results/navigation-evidence', { recursive: true });
+  await page.goto('/');
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.trigger('collision-course-debug'));
+  await expect(page.getByTestId('three-canvas')).toHaveAttribute(
+    'data-navigation-obstacle-asset',
+    'glb',
+  );
+  await page.screenshot({ path: 'test-results/navigation-evidence/navigation-warning.png' });
+
+  await page.evaluate(() => {
+    for (let tick = 0; tick < 70; tick += 1) window.__CABIN_MAYHEM_TEST__?.step(0.05);
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.navigation.phase))
+    .toBe('impact');
+  await expect(page.getByTestId('navigation-alert')).toContainText('HYDRAULICS DAMAGED');
+  await expect(page.locator('[data-hud="navigation-alert-detail"]')).toContainText(
+    'engine-room relay',
+  );
+  await page.screenshot({ path: 'test-results/navigation-evidence/navigation-damage-repair.png' });
+
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.beginNavigationRepair());
+  console.log(
+    await page.evaluate(() => {
+      const state = window.__CABIN_MAYHEM_TEST__?.state();
+      return {
+        phase: state?.navigation.phase,
+        repair: state?.navigation.repair.status,
+        player: state?.cabin.players['crew-alpha'],
+        toolbox: state?.cabin.objects['toolbox-01'],
+      };
+    }),
+  );
+  await expect(page.getByTestId('three-canvas')).toHaveAttribute(
+    'data-repair-feedback',
+    'repairing',
+  );
+  await page.screenshot({ path: 'test-results/navigation-evidence/navigation-repair-active.png' });
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.completeNavigationRepair());
+  expect(await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.state()?.navigation.phase)).toBe(
+    'repaired',
+  );
+  await expect(page.getByTestId('navigation-alert')).toContainText('STEERING RELAY ONLINE');
+});
+
+test('authored pirate invasion renders aboard with warning HUD and animated GLBs', async ({
+  page,
+}) => {
+  mkdirSync('test-results/invasion-evidence', { recursive: true });
+  await page.goto('/');
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
+
+  const canvas = page.getByTestId('three-canvas');
+  await expect(canvas).toHaveAttribute('data-invasion-asset', 'glb');
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.boardInvasion());
+
+  await expect(canvas).toHaveAttribute('data-invasion-phase', 'boarders-aboard');
+  await expect(canvas).toHaveAttribute('data-invasion-visible', 'true');
+  await expect(canvas).toHaveAttribute('data-invasion-hostiles', '6');
+  await expect(page.getByTestId('navigation-alert')).toContainText('6 HOSTILES ABOARD');
+  await expect(page.locator('[data-hud="objective-title"]')).toContainText(
+    '6 hostiles on the promenade',
+  );
+  await expect(page.locator('[data-hud="navigation-alert-detail"]')).toContainText(
+    'Detach both links',
+  );
+  await page.screenshot({
+    path: 'test-results/invasion-evidence/pirates-aboard-promenade.png',
+  });
 });
 
 test('fire is exposed through the compact critical icon', async ({ page }) => {

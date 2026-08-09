@@ -25,6 +25,7 @@ export interface DebriefViewModel {
   missed: number;
   fire: DebriefSystemResult;
   repair: DebriefSystemResult;
+  navigation: DebriefSystemResult;
   reviews: DebriefReview[];
 }
 
@@ -58,7 +59,11 @@ const unresolvedQuotes = [
 
 export function buildDebrief(state: MissionState): DebriefViewModel | undefined {
   if (state.service.outcome === 'active') return undefined;
-  const outcome = state.service.outcome;
+  const navigationUnresolved =
+    state.navigation.phase === 'warning' ||
+    state.navigation.phase === 'impact' ||
+    state.navigation.phase === 'repair';
+  const outcome = state.service.outcome === 'failed' || navigationUnresolved ? 'failed' : 'success';
   const passengers = Object.values(state.service.passengers)
     .sort(
       (left, right) =>
@@ -77,11 +82,18 @@ export function buildDebrief(state: MissionState): DebriefViewModel | undefined 
     missed: state.service.missed,
     fire: fireResult(state),
     repair: repairResult(state),
+    navigation: navigationResult(state),
     reviews: passengers.map(reviewFor),
   };
 }
 
 function verdictFor(state: MissionState): string {
+  if (
+    state.navigation.phase === 'warning' ||
+    state.navigation.phase === 'impact' ||
+    state.navigation.phase === 'repair'
+  )
+    return 'THE HELM MISSED THE CONTACT. THE ENGINE ROOM IS STILL HOLDING THE RECEIPT.';
   if (state.service.outcome === 'success') {
     if (state.service.score >= 500) return 'THE CABIN CLAPPED. LEGALLY, THAT COUNTS AS A PARADE.';
     if (state.fire.status === 'suppressed' && state.repair.status === 'fixed')
@@ -91,6 +103,40 @@ function verdictFor(state: MissionState): string {
   if (state.fire.status === 'active') return 'ONE STAR. THE STAR WAS ALSO ON FIRE.';
   if (state.service.missed >= 4) return 'THE CALL BUTTONS HAVE FORMED A UNION.';
   return 'CUSTOMER SERVICE HAS GONE OVERBOARD.';
+}
+
+function navigationResult(state: MissionState): DebriefSystemResult {
+  if (state.navigation.phase === 'avoided')
+    return {
+      label: 'NAVIGATION / HELM',
+      result: 'CONTACT AVOIDED',
+      detail: 'Bridge input cleared the track. Avoidance bonus awarded and no repair remained.',
+      tone: 'good',
+    };
+  if (state.navigation.phase === 'repaired')
+    return {
+      label: 'NAVIGATION / STEERING',
+      result: 'DAMAGE REPAIRED',
+      detail: 'The engine-room steering relay restored hydraulics before the debrief.',
+      tone: 'good',
+    };
+  if (
+    state.navigation.phase === 'warning' ||
+    state.navigation.phase === 'impact' ||
+    state.navigation.phase === 'repair'
+  )
+    return {
+      label: 'NAVIGATION / STEERING',
+      result: 'DAMAGE UNRESOLVED',
+      detail: `Impact state remains at the ${state.navigation.repair.compartmentId} relay; hydraulics are not cleared.`,
+      tone: 'bad',
+    };
+  return {
+    label: 'NAVIGATION / HELM',
+    result: 'NO INCIDENT',
+    detail: 'No collision-course contact reached the ship.',
+    tone: 'neutral',
+  };
 }
 
 function fireResult(state: MissionState): DebriefSystemResult {

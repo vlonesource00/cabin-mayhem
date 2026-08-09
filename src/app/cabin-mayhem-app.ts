@@ -1,4 +1,5 @@
 import { CabinAudio } from '../audio/cabin-audio';
+import { navigationIncidentDefinition } from '../data/emergencies';
 import { CabinInputController } from '../input/cabin-input';
 import { normalizeRoomCode, PeerRoom, type RoomRole, type RoomStatus } from '../network/peer-room';
 import { HostSession } from '../sim/host-session';
@@ -18,11 +19,15 @@ type Screen = 'menu' | 'voyage';
 type IconName = 'ship' | 'alert' | 'tool' | 'fire' | 'hand' | 'people' | 'dev' | 'mute';
 
 interface Objective {
-  kind: 'service' | 'fire' | 'repair' | 'complete';
+  kind: 'service' | 'fire' | 'repair' | 'navigation' | 'invasion' | 'complete';
   label: string;
   title: string;
   detail: string;
   progress?: number;
+}
+
+export function crewIdForRoomRole(role: RoomRole): 'crew-alpha' | 'crew-bravo' {
+  return role === 'guest' ? 'crew-bravo' : 'crew-alpha';
 }
 
 export class CabinMayhemApp {
@@ -44,6 +49,8 @@ export class CabinMayhemApp {
   private spectating = false;
   /** Where the local crew member was last seen, to catch doorway arrivals. */
   private lastCompartmentId = '';
+  /** Test-only held repair intent; still travels through normal host validation. */
+  private testNavigationRepairHeld = false;
   private readonly freeCamera = new SpectatorCamera();
 
   public constructor(private readonly root: HTMLElement) {}
@@ -147,6 +154,11 @@ export class CabinMayhemApp {
           <p data-hud="objective-detail">Cart is in the aisle. Keep it moving.</p>
           <i class="objective-progress"><span data-hud="objective-progress"></span></i>
         </section>
+        <section class="navigation-alert" data-testid="navigation-alert" hidden aria-live="assertive">
+          <p data-hud="navigation-alert-label">NAVIGATION ALERT</p>
+          <strong data-hud="navigation-alert-title">COLLISION COURSE</strong>
+          <span data-hud="navigation-alert-detail">Reach the bridge helm.</span>
+        </section>
         <section class="radio-caption" data-hud="caption" aria-live="polite">Host ready. Local client connected.</section>
         <aside class="room-chip" data-testid="room-status" aria-live="polite">
           <span data-room="role">SOLO</span>
@@ -174,6 +186,7 @@ export class CabinMayhemApp {
             <div class="debrief__systems">
               <article data-debrief-system="fire"><span data-debrief="fire-label">GALLEY FIRE</span><strong data-debrief="fire-result">NO INCIDENT</strong><p data-debrief="fire-detail"></p></article>
               <article data-debrief-system="repair"><span data-debrief="repair-label">COFFEE MUTINY</span><strong data-debrief="repair-result">NO INCIDENT</strong><p data-debrief="repair-detail"></p></article>
+              <article data-debrief-system="navigation"><span data-debrief="navigation-label">NAVIGATION / HELM</span><strong data-debrief="navigation-result">NO INCIDENT</strong><p data-debrief="navigation-detail"></p></article>
             </div>
             <section class="debrief__reviews" aria-labelledby="reviews-title">
               <div class="debrief__reviews-heading"><h3 id="reviews-title">CABIN REVIEWS</h3><span>Verified passengers. Regrettably.</span></div>
@@ -193,17 +206,19 @@ export class CabinMayhemApp {
             <button data-action="drop">Air pocket</button>
             <button data-action="turn">Sharp turn</button>
             <button data-action="collision">Collision</button>
+            <button data-action="collision-course">Collision course</button>
             <button data-action="fire">Fire alarm</button>
             <button data-action="repair">Coffee mutiny</button>
             <button data-action="damage">Damage system</button>
             <button data-action="spawn">Spawn cargo</button>
             <button data-action="network">Toggle network</button>
             <button data-action="phase">Complete phase</button>
-            <button data-action="cockpit">Cockpit</button>
+            <button data-action="cockpit">Bridge helm</button>
             <button data-action="cabin">Cabin</button>
             <button data-action="galley">Galley</button>
             <button data-action="cargo">Cargo</button>
             <button data-action="repair-bay">Repair bay</button>
+            <button data-action="navigation-repair">Engine relay</button>
             <button data-action="reset">Reset</button>
           </div>
         </aside>
@@ -212,7 +227,7 @@ export class CabinMayhemApp {
 
     const mount = this.root.querySelector<HTMLElement>('[data-world-stage]');
     if (!mount) throw new Error('3D world mount missing');
-    this.world = new CabinWorld(mount);
+    this.world = new CabinWorld(mount, this.localPlayerId());
     this.controller = new FirstPersonController(this.world.canvas);
     this.audio = new CabinAudio();
     // start() runs from a click, but a fallback gesture keeps audio recoverable
@@ -248,10 +263,19 @@ export class CabinMayhemApp {
             this.input.read(),
             this.currentState().cabin.players[this.localPlayerId()],
           );
+      if (this.testNavigationRepairHeld) {
+        if (this.currentState().navigation.repair.status === 'fixed')
+          this.testNavigationRepairHeld = false;
+        else {
+          command.repair = true;
+          command.interactionTargetId = 'repair-steering-relay';
+        }
+      }
       command.interactionTargetId = this.world.interactionTarget();
+      if (this.testNavigationRepairHeld) command.interactionTargetId = 'repair-steering-relay';
       if (this.roomRole === 'guest') this.room?.sendCommand(command, now);
       else {
-        this.session.submitCommand('crew-alpha', command);
+        this.session.submitCommand(this.localPlayerId(), command);
         this.session.submitCommand(
           'crew-bravo',
           this.roomRole === 'host'
@@ -366,6 +390,22 @@ export class CabinMayhemApp {
     this.text('[data-hud="caption"]', caption);
     this.root.dataset.fireStatus = state.fire.status;
     this.root.dataset.repairStatus = state.repair.status;
+    this.root.dataset.navigationPhase = state.navigation.phase;
+    this.root.dataset.invasionPhase = state.invasion.phase;
+    const navigationAlert = this.root.querySelector<HTMLElement>(
+      '[data-testid="navigation-alert"]',
+    );
+    const navigationActive = state.navigation.phase !== 'idle';
+    const invasionActive = state.invasion.phase !== 'idle';
+    if (navigationAlert) {
+      navigationAlert.hidden = !navigationActive && !invasionActive;
+      navigationAlert.dataset.phase = invasionActive
+        ? `invasion-${state.invasion.phase}`
+        : state.navigation.phase;
+    }
+    this.text('[data-hud="navigation-alert-label"]', navigationAlertLabel(state));
+    this.text('[data-hud="navigation-alert-title"]', navigationAlertTitle(state));
+    this.text('[data-hud="navigation-alert-detail"]', navigationAlertDetail(state));
     this.setCritical('fire', state.fire.status === 'active');
     this.setCritical('panic', panic > 0);
     this.setCritical('held', Boolean(held));
@@ -378,9 +418,13 @@ export class CabinMayhemApp {
           ? 'tool'
           : objective.kind === 'fire'
             ? 'fire'
-            : objective.kind === 'service'
-              ? 'alert'
-              : 'ship',
+            : objective.kind === 'invasion'
+              ? 'people'
+              : objective.kind === 'navigation'
+                ? 'ship'
+                : objective.kind === 'service'
+                  ? 'alert'
+                  : 'ship',
       );
     const progress = this.root.querySelector<HTMLElement>('[data-hud="objective-progress"]');
     if (progress) progress.style.width = `${Math.round((objective.progress ?? 0) * 100)}%`;
@@ -413,6 +457,9 @@ export class CabinMayhemApp {
     this.button('drop', () => this.hostOnly(() => this.session?.trigger('air-pocket')));
     this.button('turn', () => this.hostOnly(() => this.session?.trigger('sharp-turn')));
     this.button('collision', () => this.hostOnly(() => this.session?.trigger('collision')));
+    this.button('collision-course', () =>
+      this.hostOnly(() => this.session?.trigger('collision-course-debug')),
+    );
     this.button('fire', () => this.hostOnly(() => this.session?.trigger('fire', 0.82)));
     this.button('repair', () => this.hostOnly(() => this.session?.trigger('repair')));
     this.button('damage', () => this.hostOnly(() => this.session?.damage('electrical')));
@@ -434,6 +481,9 @@ export class CabinMayhemApp {
     this.button('repair-bay', () =>
       this.hostOnly(() => this.session?.teleport('crew-alpha', 'repair')),
     );
+    this.button('navigation-repair', () =>
+      this.hostOnly(() => this.session?.teleport('crew-alpha', 'navigation-repair')),
+    );
     this.button('reset', () => this.sailAnotherShift());
     this.button('sail-again', () => this.sailAnotherShift());
   }
@@ -447,6 +497,11 @@ export class CabinMayhemApp {
       step: (seconds) => this.session?.step(seconds),
       advancePhase: () => this.session?.advancePhase(),
       trigger: (kind) => this.session?.trigger(kind),
+      boardInvasion: () => this.boardInvasionForTest(),
+      helmNavigation: () => this.helmNavigationForTest(),
+      avoidNavigation: () => this.avoidNavigationForTest(),
+      beginNavigationRepair: () => this.beginNavigationRepairForTest(),
+      completeNavigationRepair: () => this.completeNavigationRepairForTest(),
       completeRepair: () => this.completeRepairForTest(),
       completeShift: (outcome) => this.completeShiftForTest(outcome),
       reset: () => this.start(),
@@ -468,6 +523,7 @@ export class CabinMayhemApp {
     this.audio = undefined;
     this.room = undefined;
     this.spectating = false;
+    this.testNavigationRepairHeld = false;
     this.input.setActive(false);
   }
 
@@ -485,7 +541,7 @@ export class CabinMayhemApp {
   }
 
   private localPlayerId(): 'crew-alpha' | 'crew-bravo' {
-    return this.roomRole === 'guest' ? 'crew-bravo' : 'crew-alpha';
+    return crewIdForRoomRole(this.roomRole);
   }
 
   private hostOnly(action: () => void): void {
@@ -495,12 +551,11 @@ export class CabinMayhemApp {
   private updateRoomStatus(status: RoomStatus): void {
     const shell = this.root.querySelector<HTMLElement>('.game-shell');
     if (shell) {
-      if (
-        this.roomRole === 'host' &&
-        shell.dataset.roomPhase === 'connected' &&
-        status.phase === 'waiting'
-      )
+      const wasConnected = shell.dataset.roomPhase === 'connected';
+      if (this.roomRole === 'host' && wasConnected && status.phase === 'waiting')
         this.session?.disconnectPlayer('crew-bravo');
+      if (this.roomRole === 'host' && status.phase === 'connected' && !wasConnected)
+        this.session?.reconnectPlayer('crew-bravo');
       shell.dataset.roomRole = status.role;
       shell.dataset.roomPhase = status.phase;
       shell.dataset.roomCode = status.roomCode;
@@ -522,28 +577,113 @@ export class CabinMayhemApp {
     });
   }
 
-  private completeRepairForTest(): void {
+  private avoidNavigationForTest(): void {
     if (!this.session) return;
+    const playerId = this.localPlayerId();
     this.session.setNetwork({ enabled: false });
-    this.session.teleport('crew-alpha', 'repair');
-    // The repair station stands aft of the toolbox, so aim at it explicitly
-    // rather than inheriting whatever the live camera happened to be facing.
-    // Interactions resolve before the look is applied, so this needs its own tick.
-    const aim = emptyCommand();
-    aim.look = { x: -0.32, y: -0.95 };
-    this.session.submitCommand('crew-alpha', aim);
-    this.session.step(1 / 60);
+    this.session.teleport(playerId, 'bridge');
+    for (let tick = 0; tick < 90; tick += 1) {
+      const command = emptyCommand();
+      command.helm.rudder = 1;
+      this.session.submitCommand(playerId, command);
+      this.session.step(1 / 60);
+      if (this.session.snapshot().navigation.phase === 'avoided') break;
+    }
+  }
+
+  private boardInvasionForTest(): void {
+    if (!this.session) return;
+    const playerId = this.localPlayerId();
+    this.session.setNetwork({ enabled: false });
+    this.session.trigger('boarding-invasion');
+    for (let tick = 0; tick < 405; tick += 1) this.session.step(0.05);
+    this.session.teleport(playerId, 'boarding-port');
+    this.controller?.faceHeading(0);
+  }
+
+  private helmNavigationForTest(): void {
+    if (!this.session) return;
+    const playerId = this.localPlayerId();
+    this.session.setNetwork({ enabled: false });
+    this.session.teleport(playerId, 'bridge');
+    const command = emptyCommand();
+    command.helm.rudder = 1;
+    for (let tick = 0; tick < 3; tick += 1) {
+      this.session.submitCommand(playerId, command);
+      this.session.step(1 / 60);
+    }
+  }
+
+  private completeNavigationRepairForTest(): void {
+    if (!this.session) return;
+    const playerId = this.localPlayerId();
+    this.session.setNetwork({ enabled: false });
+    for (let tick = 0; tick < 90; tick += 1) {
+      if (this.session.snapshot().navigation.phase === 'impact') break;
+      this.session.step(0.05);
+    }
+    this.session.teleport(playerId, 'repair');
+    this.session.teleportToObject(playerId, 'toolbox-01');
     const pickup = emptyCommand();
-    pickup.look = { x: -0.32, y: -0.95 };
     pickup.interact = true;
     pickup.interactionTargetId = 'toolbox-01';
-    this.session.submitCommand('crew-alpha', pickup);
-    this.session.step(1 / 60);
+    this.session.submitCommand(playerId, pickup);
+    this.session.step(0.05);
+    this.session.teleport(playerId, 'navigation-repair');
+    for (let tick = 0; tick < 70; tick += 1) {
+      const repair = emptyCommand();
+      repair.repair = true;
+      repair.interactionTargetId = 'repair-steering-relay';
+      this.session.submitCommand(playerId, repair);
+      this.session.step(0.05);
+      if (this.session.snapshot().navigation.repair.status === 'fixed') break;
+    }
+    this.testNavigationRepairHeld = false;
+  }
+
+  private beginNavigationRepairForTest(): void {
+    if (!this.session) return;
+    const playerId = this.localPlayerId();
+    this.session.setNetwork({ enabled: false });
+    for (let tick = 0; tick < 90; tick += 1) {
+      if (this.session.snapshot().navigation.phase === 'impact') break;
+      this.session.step(0.05);
+    }
+    this.session.teleport(playerId, 'repair');
+    this.session.teleportToObject(playerId, 'toolbox-01');
+    const pickup = emptyCommand();
+    pickup.interact = true;
+    pickup.interactionTargetId = 'toolbox-01';
+    this.session.submitCommand(playerId, pickup);
+    this.session.step(0.05);
+    this.session.teleport(playerId, 'navigation-repair');
+    const repair = emptyCommand();
+    repair.repair = true;
+    repair.interactionTargetId = 'repair-steering-relay';
+    this.session.submitCommand(playerId, repair);
+    this.session.step(0.05);
+    this.testNavigationRepairHeld = true;
+  }
+
+  private completeRepairForTest(): void {
+    if (!this.session) return;
+    const playerId = this.localPlayerId();
+    this.session.setNetwork({ enabled: false });
+    this.session.teleport(playerId, 'repair');
+    // The repair station stands aft of the toolbox. Teleporting to the authored
+    // object point keeps this deterministic while pickup still uses host range,
+    // compartment, facing and ownership validation.
+    this.session.teleportToObject(playerId, 'toolbox-01');
+    const pickup = emptyCommand();
+    pickup.interact = true;
+    pickup.interactionTargetId = 'toolbox-01';
+    this.session.submitCommand(playerId, pickup);
+    this.session.step(0.05);
     for (let tick = 0; tick < 185; tick += 1) {
       const repair = emptyCommand();
       repair.repair = true;
       repair.interactionTargetId = 'repair-galley-breaker';
-      this.session.submitCommand('crew-alpha', repair);
+      this.session.submitCommand(playerId, repair);
       this.session.step(1 / 60);
     }
   }
@@ -604,6 +744,7 @@ export class CabinMayhemApp {
     this.text('[data-debrief="outcome"]', model.outcome.toUpperCase());
     this.updateDebriefSystem('fire', model.fire);
     this.updateDebriefSystem('repair', model.repair);
+    this.updateDebriefSystem('navigation', model.navigation);
     const reviews = this.root.querySelector<HTMLElement>('[data-debrief="reviews"]');
     if (reviews) {
       reviews.replaceChildren(
@@ -638,7 +779,10 @@ export class CabinMayhemApp {
     );
   }
 
-  private updateDebriefSystem(kind: 'fire' | 'repair', result: DebriefSystemResult): void {
+  private updateDebriefSystem(
+    kind: 'fire' | 'repair' | 'navigation',
+    result: DebriefSystemResult,
+  ): void {
     const card = this.root.querySelector<HTMLElement>(`[data-debrief-system="${kind}"]`);
     if (card) card.dataset.tone = result.tone;
     this.text(`[data-debrief="${kind}-label"]`, result.label);
@@ -677,12 +821,87 @@ function objectiveFor(state: MissionState): Objective {
       title: 'Too much cabin chaos',
       detail: 'Reset and give the passengers a better story.',
     };
+  if (state.invasion.phase === 'warning')
+    return {
+      kind: 'invasion',
+      label: 'BOARDING WARNING',
+      title: 'Unknown fast craft closing',
+      detail: `T-${state.invasion.countdown.toFixed(1)}s · reach the promenade and protect the passengers.`,
+      progress: 1 - state.invasion.countdown / state.invasion.warningSeconds,
+    };
+  if (state.invasion.phase === 'approach')
+    return {
+      kind: 'invasion',
+      label: 'PIRATES ALONGSIDE',
+      title: 'Boarding gear incoming',
+      detail: `T-${state.invasion.countdown.toFixed(1)}s · port board and starboard gangway are moving into place.`,
+      progress: 1 - state.invasion.countdown / state.invasion.approachSeconds,
+    };
+  if (state.invasion.phase === 'boarders-aboard')
+    return {
+      kind: 'invasion',
+      label: 'BOARDERS ABOARD',
+      title: `${state.invasion.hostileCount} hostiles on the promenade`,
+      detail: `Detach both boarding links · passengers injured ${state.invasion.passengerProtection.injured}/${state.invasion.passengerProtection.total} · infrastructure ${Math.round(state.invasion.infrastructure.integrity)}%.`,
+      progress: 1 - state.invasion.countdown / state.invasion.maxRaidSeconds,
+    };
+  if (state.invasion.phase === 'repelled')
+    return {
+      kind: 'complete',
+      label: 'INVASION REPELLED',
+      title: 'Pirates forced off the ship',
+      detail: state.invasion.lastOutcome,
+      progress: 1,
+    };
+  if (state.invasion.phase === 'failed')
+    return {
+      kind: 'fire',
+      label: 'BOARDING FAILED',
+      title: 'Pirates overran the promenade',
+      detail: state.invasion.lastOutcome,
+      progress: 1,
+    };
   if (state.fire.status === 'active')
     return {
       kind: 'fire',
       label: 'RED ALERT',
       title: 'Galley fire burning',
       detail: 'Grab the extinguisher. The coffee can wait.',
+    };
+  if (state.navigation.phase === 'warning')
+    return {
+      kind: 'navigation',
+      label: 'NAVIGATION ALERT',
+      title: 'Collision course: reach the bridge',
+      detail: `T-${state.navigation.countdown.toFixed(1)}s · ${state.navigation.obstacle.name} closing · helm input only counts at the bridge station.`,
+      progress: 1 - state.navigation.countdown / state.navigation.warningSeconds,
+    };
+  if (state.navigation.phase === 'impact' || state.navigation.phase === 'repair')
+    return {
+      kind: 'repair',
+      label: 'IMPACT DAMAGE',
+      title: 'Steering hydraulics damaged',
+      detail:
+        state.navigation.repair.status === 'repairing'
+          ? `Hold E at the engine-room relay · ${Math.round(state.navigation.repair.progress * 100)}%`
+          : 'Carry the red toolbox to the engine room relay station.',
+      progress: state.navigation.repair.progress,
+    };
+  if (state.navigation.phase === 'avoided')
+    return {
+      kind: 'navigation',
+      label: 'NAVIGATION CLEAR',
+      title: 'Contact avoided from the bridge',
+      detail: `Track clear. Avoidance bonus +${navigationIncidentDefinition.avoidScore}; ship stays intact.`,
+      progress: 1,
+    };
+  if (state.navigation.phase === 'repaired')
+    return {
+      kind: 'navigation',
+      label: 'DAMAGE RESOLVED',
+      title: 'Steering relay restored',
+      detail: 'Hydraulics back online. The crew can dodge the next contact.',
+      progress: 1,
     };
   if (state.repair.status === 'active' || state.repair.status === 'repairing')
     return {
@@ -713,6 +932,21 @@ function objectiveFor(state: MissionState): Objective {
 }
 
 function captionFor(state: MissionState): string {
+  if (state.invasion.phase === 'warning')
+    return `BOARDING WARNING. T-${state.invasion.countdown.toFixed(1)} SECONDS. REACH THE PROMENADE.`;
+  if (state.invasion.phase === 'approach')
+    return `PIRATES ALONGSIDE. BOARDING GEAR INCOMING IN ${state.invasion.countdown.toFixed(1)} SECONDS.`;
+  if (state.invasion.phase === 'boarders-aboard')
+    return `${state.invasion.hostileCount} BOARDERS ABOARD. PROTECT PASSENGERS AND DETACH BOTH LINKS.`;
+  if (state.invasion.phase === 'repelled') return 'BOARDING REPELLED. BOTH LINKS DETACHED.';
+  if (state.invasion.phase === 'failed') return 'BOARDING FAILED. PIRATES CONTROL THE PROMENADE.';
+  if (state.navigation.phase === 'warning')
+    return `COLLISION COURSE. T-${state.navigation.countdown.toFixed(1)} SECONDS. REACH THE BRIDGE HELM.`;
+  if (state.navigation.phase === 'impact' || state.navigation.phase === 'repair')
+    return state.navigation.repair.activeCaption || 'NAVIGATION IMPACT. REPAIR THE STEERING RELAY.';
+  if (state.navigation.phase === 'avoided') return 'CONTACT AVOIDED. BRIDGE CREW SAVED THE SHIP.';
+  if (state.navigation.phase === 'repaired')
+    return 'STEERING HYDRAULICS RESTORED. NAVIGATION INCIDENT RESOLVED.';
   if (state.fire.status === 'active')
     return 'GALLEY FIRE. EXTINGUISHER FIRST. COFFEE MACHINE CAN WAIT.';
   if (state.repair.activeCaption) return state.repair.activeCaption;
@@ -721,6 +955,52 @@ function captionFor(state: MissionState): string {
       ? 'SHIFT COMPLETE. TAKE A BOW.'
       : 'SHIFT LOST. PASSENGERS ARE WRITING REVIEWS.';
   return state.voyage.warning ?? state.events[0]?.message ?? 'HOST READY. LOCAL CLIENT CONNECTED.';
+}
+
+function navigationAlertLabel(state: MissionState): string {
+  if (state.invasion.phase === 'warning') return 'BOARDING WARNING / COUNTDOWN';
+  if (state.invasion.phase === 'approach') return 'PIRATE APPROACH / COUNTDOWN';
+  if (state.invasion.phase === 'boarders-aboard') return 'SECURITY EMERGENCY';
+  if (state.invasion.phase === 'repelled') return 'INVASION REPELLED';
+  if (state.invasion.phase === 'failed') return 'INVASION FAILED';
+  if (state.navigation.phase === 'warning') return 'COLLISION COURSE / COUNTDOWN';
+  if (state.navigation.phase === 'avoided') return 'NAVIGATION SUCCESS';
+  if (state.navigation.phase === 'repaired') return 'NAVIGATION RESOLVED';
+  return 'SHIP DAMAGE / REPAIR OBJECTIVE';
+}
+
+function navigationAlertTitle(state: MissionState): string {
+  if (state.invasion.phase === 'warning')
+    return `T-${state.invasion.countdown.toFixed(1)}s · REACH PROMENADE`;
+  if (state.invasion.phase === 'approach')
+    return `T-${state.invasion.countdown.toFixed(1)}s · BOARDING GEAR INCOMING`;
+  if (state.invasion.phase === 'boarders-aboard')
+    return `${state.invasion.hostileCount} HOSTILES ABOARD`;
+  if (state.invasion.phase === 'repelled') return 'PIRATES FORCED BACK';
+  if (state.invasion.phase === 'failed') return 'PROMENADE OVERRUN';
+  if (state.navigation.phase === 'warning')
+    return `T-${state.navigation.countdown.toFixed(1)}s · REACH BRIDGE HELM`;
+  if (state.navigation.phase === 'avoided') return 'CONTACT AVOIDED';
+  if (state.navigation.phase === 'repaired') return 'STEERING RELAY ONLINE';
+  return 'IMPACT: HYDRAULICS DAMAGED';
+}
+
+function navigationAlertDetail(state: MissionState): string {
+  if (state.invasion.phase === 'warning')
+    return 'Unknown fast craft closing · protect passengers and ship infrastructure.';
+  if (state.invasion.phase === 'approach')
+    return 'Port boarding board and starboard gangway are approaching the promenade.';
+  if (state.invasion.phase === 'boarders-aboard')
+    return `Detach both links · infrastructure ${Math.round(state.invasion.infrastructure.integrity)}% · injured ${state.invasion.passengerProtection.injured}.`;
+  if (state.invasion.phase === 'repelled' || state.invasion.phase === 'failed')
+    return state.invasion.lastOutcome;
+  if (state.navigation.phase === 'warning')
+    return `${state.navigation.obstacle.name} moving relative to the ship · rudder input requires bridge station.`;
+  if (state.navigation.phase === 'avoided')
+    return `Avoidance bonus +${navigationIncidentDefinition.avoidScore}. Ship track clear.`;
+  if (state.navigation.phase === 'repaired')
+    return 'Engine-room repair accepted by host. Damage cleared.';
+  return `Repair at ${state.navigation.repair.compartmentId} relay · ${Math.round(state.navigation.repair.progress * 100)}% complete.`;
 }
 
 /**

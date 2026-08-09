@@ -46,6 +46,7 @@ const object = (kind: ObjectKind): CabinObject => ({
   name: kind,
   kind,
   material: 'plastic',
+  compartmentId: 'atrium',
   position: { x: 0, y: 0 },
   velocity: { x: 0, y: 0 },
   radius: 0.2,

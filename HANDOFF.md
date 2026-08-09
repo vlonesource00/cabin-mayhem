@@ -260,3 +260,61 @@ untracked `.codex-remote-attachments/` folder and do not stage it.
 `novo-main-stable` is protected: every change lands through a pull request with
 `verify` green and one approval. Do not assume a slice was committed or pushed
 unless Git proves it.
+
+## Current Luna slice: navigation incident
+
+Date: 2026-08-08. Worktree baseline: `b9c6ec7c6d36a7c1fec8f0000f2c8fb342d11aef`.
+This slice is intentionally uncommitted and remains on the detached worktree.
+
+Implemented in the scoped files:
+
+- deterministic collision-course state with warning/countdown and relative
+  north-shoal contact;
+- bridge/command-center presence validation for helm input, including remote
+  rejection and stale disconnected-input protection;
+- host-owned +35 avoidance bonus or impact damage/score loss;
+- authored engine-room steering-relay repair requiring toolbox ownership,
+  compartment, range and hold action; completion restores hydraulics and scores;
+- PeerRoom snapshot validation, HUD/world warning and repair presentation, debug
+  trigger, unit/integration/network/UI coverage;
+- authored Blender 5.1 vessel source/GLB production path, loaded as the normal
+  obstacle renderer with a tested procedural load-failure fallback;
+- centralized current-interactable feedback coverage and honest north-star
+  documentation separating this implemented slice from planned invasions,
+  crowds, jobs and further Blender/GLB map expansion.
+
+Final evidence for this slice: typecheck, lint, data/assets validation, 165 unit
+tests, 4 integration tests, production build and 12 Playwright tests passed;
+the default browser suite has one explicit live-multiplayer skip. The opt-in
+PeerJS smoke was attempted but remained `waiting` through its 20-second connect
+poll in this environment. Ignored screenshots are under
+`test-results/navigation-evidence/`. `git diff --check` is clean and only the
+scoped files are changed. Never commit or touch the parent recovery stash. The
+current relay marker is a presentation/interaction aid; it does not replace the
+authored bridge or engine-room GLBs.
+
+## Current V2 slice: authored boarding invasion presentation
+
+Date: 2026-08-09. The existing host-owned boarding state now reaches the player:
+
+- `src/three/invasion-presenter.ts` loads and contract-checks all eight invasion
+  GLBs, clones skeletal boarders safely, attaches weapons/explosives at authored
+  sockets, stages links and hostiles deterministically in the promenade frame,
+  and drives Blender Actions solely from snapshot phase/status;
+- `CabinWorld` exposes invasion asset source, phase, visibility and hostile count
+  for browser evidence without feeding presentation back into simulation;
+- the shared incident HUD now shows invasion warning/approach timers, hostile
+  count, passenger injuries, infrastructure integrity and link-detachment goal;
+- `boardInvasion()` is a deterministic test-only bridge path that advances the
+  normal bounded host tick cadence and frames the promenade encounter;
+- `tests/unit/invasion-presenter.test.ts` covers the authored production path and
+  explicit partial fallback; Playwright captures
+  `test-results/invasion-evidence/pirates-aboard-promenade.png`.
+
+Fresh combined evidence: typecheck and lint pass; 197 unit and 5 integration
+tests pass; data and 27-asset validation pass; production build passes with the
+existing large-chunk warning; Playwright reports 13 pass and one intentionally
+skipped live-multiplayer case. The opt-in PeerJS smoke still leaves the host in
+`waiting`, so two physical Windows 11 PCs on different networks are not proven.
+Combat AI, hit resolution, bomber search/disarm, crowds, cruise jobs and the full
+massive ship remain future work.

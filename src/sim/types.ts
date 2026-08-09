@@ -4,6 +4,24 @@ export type VoyagePhase =
 export type ServiceNeed = 'drink' | 'meal' | 'medical';
 export type FireStatus = 'dormant' | 'active' | 'suppressed';
 export type RepairStatus = 'dormant' | 'active' | 'repairing' | 'fixed';
+export type NavigationIncidentPhase =
+  'idle' | 'warning' | 'avoided' | 'impact' | 'repair' | 'repaired';
+export type NavigationObstacleKind = 'drifting-container' | 'reef' | 'derelict' | 'vessel';
+export type BoardingInvasionPhase =
+  'idle' | 'warning' | 'approach' | 'boarders-aboard' | 'repelled' | 'failed';
+export type BoardingEnemyKind = 'pirate' | 'bomber';
+export type BoardingLinkId = 'port-boarding-board' | 'starboard-gangway';
+export type BoardingLinkStatus = 'approaching' | 'attached' | 'detached';
+export type BoardingDefenseActionKind = 'detach-boarding-board' | 'release-gangway';
+export type InvasionAssetId =
+  | 'pirate-boarder-character'
+  | 'saboteur-boarder-character'
+  | 'boarding-pistol'
+  | 'boarding-cutlass'
+  | 'satchel-charge'
+  | 'boarding-board'
+  | 'pirate-gangway'
+  | 'pirate-gear-crate';
 export type ObjectKind =
   | 'cart'
   | 'light-case'
@@ -50,6 +68,13 @@ export interface PlayerCommand {
   selectServiceNeed?: ServiceNeed;
   throwItem: boolean;
   helm: HelmInput;
+  /** Intent only. Host derives phase, compartment, and range from its own state. */
+  boardingAction?: BoardingDefenseActionIntent;
+}
+
+export interface BoardingDefenseActionIntent {
+  kind: BoardingDefenseActionKind;
+  targetId: BoardingLinkId;
 }
 
 /**
@@ -110,6 +135,8 @@ export interface CabinObject {
   name: string;
   kind: ObjectKind;
   material: 'metal' | 'plastic' | 'cargo';
+  /** Authored compartment in which an unheld object may be acquired. */
+  compartmentId: string;
   position: Vec2;
   velocity: Vec2;
   radius: number;
@@ -230,15 +257,95 @@ export interface FireState {
 }
 
 export interface RepairState {
-  id: 'repair-galley-breaker';
+  id: 'repair-galley-breaker' | 'repair-steering-relay';
   name: string;
+  compartmentId: string;
   position: Vec2;
   radius: number;
   status: RepairStatus;
   progress: number;
   pressure: number;
   penaltyElapsed: number;
+  repairDuration: number;
+  pressureInterval: number;
+  pressureStep: number;
+  completionCaption: string;
   activeCaption: string;
+}
+
+export interface NavigationObstacleState {
+  id: 'north-shoal-contact';
+  name: string;
+  kind: NavigationObstacleKind;
+  startPosition: Vec2;
+  relativePosition: Vec2;
+  relativeVelocity: Vec2;
+  radius: number;
+  contactDistance: number;
+}
+
+export interface NavigationIncidentState {
+  id: 'collision-course-reef';
+  name: string;
+  phase: NavigationIncidentPhase;
+  /** Snapshot-visible so deterministic debug timing cannot masquerade as production timing. */
+  warningSeconds: number;
+  elapsed: number;
+  countdown: number;
+  helmProgress: number;
+  avoidanceMargin: number;
+  obstacle: NavigationObstacleState;
+  damageSystem: DamageSystem;
+  damageBeforeImpact?: number;
+  repair: RepairState;
+  lastOutcome: string;
+}
+
+export interface BoardingLinkState {
+  id: BoardingLinkId;
+  name: string;
+  kind: 'boarding-board' | 'gangway';
+  compartmentId: string;
+  position: Vec2;
+  interactionRadius: number;
+  detachAction: BoardingDefenseActionKind;
+  assetId: InvasionAssetId;
+  status: BoardingLinkStatus;
+}
+
+export interface PassengerProtectionState {
+  total: number;
+  protected: number;
+  endangered: number;
+  injured: number;
+}
+
+export interface BoardingInfrastructureState {
+  /** Percentage remaining. Host pressure pulses reduce this deterministically. */
+  integrity: number;
+  damageEvents: number;
+}
+
+export interface BoardingInvasionState {
+  id: 'pirate-boarding-alpha';
+  name: string;
+  enemyKind: BoardingEnemyKind;
+  phase: BoardingInvasionPhase;
+  elapsed: number;
+  phaseElapsed: number;
+  countdown: number;
+  warningSeconds: number;
+  approachSeconds: number;
+  maxRaidSeconds: number;
+  pressureInterval: number;
+  nextPressureAt: number;
+  hostileCount: number;
+  links: Partial<Record<BoardingLinkId, BoardingLinkState>>;
+  passengerProtection: PassengerProtectionState;
+  infrastructure: BoardingInfrastructureState;
+  /** Cumulative invasion-only contribution, mirrored into mission score by HostSession. */
+  scoreDelta: number;
+  lastOutcome: string;
 }
 
 export interface NetworkSettings {
@@ -272,6 +379,8 @@ export interface MissionState {
   service: ServiceMissionState;
   fire: FireState;
   repair: RepairState;
+  navigation: NavigationIncidentState;
+  invasion: BoardingInvasionState;
   network: NetworkSettings;
   networkMetrics: NetworkMetrics;
   events: MissionEvent[];
@@ -287,4 +396,5 @@ export const emptyCommand = (): PlayerCommand => ({
   repair: false,
   throwItem: false,
   helm: { rudder: 0, telegraph: 0, emergencyStop: false },
+  boardingAction: undefined,
 });

@@ -97,3 +97,47 @@ checks in the Tauri wrapper.
   starts closed.
 - CI, local tests and builds are green, or documented with the exact failing
   command and a reproducible limitation.
+
+## Navigation incident vertical-slice checks
+
+The following cases are deterministic and run without waiting for the voyage
+timer by using the host debug trigger:
+
+- warning creates the collision-course state, visible countdown and bounded
+  relative obstacle motion;
+- helm input from an active player inside the authored bridge station avoids the
+  contact and awards the authored +35 avoidance bonus;
+- helm input from a remote client outside the bridge is ignored, including a
+  queued command from a client disconnected before delivery; a reactivated guest
+  accepts only fresh commands;
+- contact impact is host-owned, damages steering hydraulics, subtracts score and
+  activates the authored engine-room steering-relay repair;
+- wrong compartment, wrong target, missing toolbox and non-owner toolbox input
+  cannot advance repair;
+- an in-range player in `engine-room` holding the host-owned toolbox completes
+  the relay repair, restores hydraulics and records the repair score transition;
+- a serialized PeerRoom snapshot validates and exposes the same navigation phase,
+  obstacle, damage and repair fields to a second client;
+- protocol-v2 welcome, command and snapshot packets reject mixed versions with an
+  explicit incompatible-version error; malformed navigation nulls, phases,
+  non-finite values, nested repair/obstacle bounds and extra keys are rejected.
+- the guest role resolves Crew Bravo as its local render/stream/held-item/target
+  identity; guest helm and repair commands are tested at the authored stations.
+- the Blender source and GLB exist in the asset manifest, the GLB has the runtime
+  root and vessel meshes, the presenter uses the GLB loader path, and a rejected
+  load records the procedural model as fallback rather than primary art.
+- every current object kind and special interaction target maps to an explicit
+  feedback contract; the browser evidence covers the loaded GLB obstacle plus
+  helm and repair feedback attributes.
+- the app HUD exposes warning/countdown, bridge prompt, avoidance feedback,
+  impact damage, engine-room repair status and resolution. The Playwright slice
+  stores warning/GLB and damage/repair HUD screenshots under ignored
+  `test-results/`.
+- all eight invasion GLBs pass their source/path/node/socket/Action contracts;
+  unit coverage proves authored loading and explicit partial fallback, while the
+  browser drives a real boarding snapshot, renders six animated pirates and the
+  boarding HUD, and stores evidence under `test-results/invasion-evidence/`.
+
+These checks cover navigation and the first pirate-boarding visual slice. Bomb
+search/disarm, combat AI and hit resolution, autonomous crowds, the complete
+cruise-job catalogue and the full Blender/GLB ship expansion remain later phases.

@@ -16,9 +16,33 @@ import {
   updateVoyage,
 } from './ship-model';
 import { activateFire, createFireState, stepFire, suppressFire } from './fire-response';
-import { galleyRepairDefinition } from '../data/emergencies';
+import {
+  galleyRepairDefinition,
+  navigationIncidentDefinition,
+  steeringRepairDefinition,
+} from '../data/emergencies';
+import { defaultCompartmentId } from '../data/ship-layout';
 import { clamp, distance, normalized, scale } from './math';
-import { activateRepair, createRepairState, stepRepair } from './repair-response';
+import {
+  activateNavigationRepair,
+  activateRepair,
+  createRepairState,
+  stepRepair,
+} from './repair-response';
+import {
+  activateNavigationIncident,
+  bridgeHelmCandidate,
+  createNavigationIncidentState,
+  stepNavigation,
+} from './navigation-incident';
+import { boardingInvasionDefinition } from '../data/invasions';
+import {
+  activateBoardingInvasion,
+  createBoardingInvasionState,
+  resolveBoardingDefenseAction,
+  stepBoardingInvasion,
+  type BoardingStepResult,
+} from './boarding-invasion';
 import {
   applyCabinIncident,
   createServiceMission,
@@ -50,6 +74,7 @@ export class HostSession {
   private state: MissionState;
   private readonly transport: SimulatedTransport;
   private commands: Record<string, PlayerCommand> = {};
+  private readonly disconnectedPlayers = new Set<string>();
   private eventId = 0;
   private spawnIndex = 0;
 
@@ -63,6 +88,8 @@ export class HostSession {
       service: createServiceMission(),
       fire: createFireState(),
       repair: createRepairState(),
+      navigation: createNavigationIncidentState(),
+      invasion: createBoardingInvasionState(),
       network: { ...defaultNetwork },
       networkMetrics: { sent: 0, received: 0, dropped: 0, queued: 0, bytes: 0 },
       events: [],
@@ -74,7 +101,7 @@ export class HostSession {
   }
 
   public submitCommand(clientId: string, command: PlayerCommand): void {
-    if (!this.state.cabin.players[clientId]) return;
+    if (!this.state.cabin.players[clientId] || this.disconnectedPlayers.has(clientId)) return;
     if (clientId === this.state.hostId) this.commands[clientId] = structuredClone(command);
     else this.transport.send(this.state.voyage.clock * 1000, clientId, command);
   }
@@ -83,19 +110,48 @@ export class HostSession {
     const dt = clamp(deltaSeconds, 0, 0.05);
     if (dt <= 0) return;
     const now = this.state.voyage.clock * 1000;
-    for (const packet of this.transport.receive(now))
-      this.commands[packet.clientId] = packet.command;
+    for (const packet of this.transport.receive(now)) {
+      if (!this.disconnectedPlayers.has(packet.clientId))
+        this.commands[packet.clientId] = packet.command;
+    }
 
-    const hostCommand = this.commands[this.state.hostId] ?? emptyCommand();
+    this.triggerAutomaticNavigationIncident();
+    this.triggerAutomaticBoardingInvasion();
+    const bridgeHelm = bridgeHelmCandidate(this.state.cabin.players, this.commands);
     const previousPhase = this.state.voyage.phase;
-    this.state.voyage = updateVoyage(this.state.voyage, hostCommand.helm, dt);
+    this.state.voyage = updateVoyage(
+      this.state.voyage,
+      bridgeHelm?.command.helm ?? emptyCommand().helm,
+      dt,
+    );
     if (this.state.voyage.phase !== previousPhase)
       this.log('voyage', `Voyage: ${previousPhase} / ${this.state.voyage.phase}`);
+    const navigationStep = stepNavigation(
+      this.state.navigation,
+      this.state.cabin.players,
+      this.commands,
+      dt,
+    );
+    this.state.navigation = navigationStep.navigation;
+    if (navigationStep.outcome === 'avoided') {
+      this.state.service = {
+        ...this.state.service,
+        score: this.state.service.score + navigationIncidentDefinition.avoidScore,
+      };
+      this.log('voyage', navigationStep.navigation.lastOutcome);
+    } else if (navigationStep.outcome === 'impact') {
+      this.applyNavigationImpact();
+    }
+    const boardingStep = stepBoardingInvasion(this.state.invasion, dt);
+    this.state.invasion = boardingStep.invasion;
+    this.applyBoardingStepConsequences(boardingStep);
+    this.resolveBoardingActions();
     this.resolveInteractions();
     this.state.cabin = stepCabin(this.state.cabin, this.state.voyage, this.commands, dt);
     this.state.fire = stepFire(this.state.fire, dt);
     this.triggerAutomaticRepair();
     this.resolveRepair(dt);
+    this.resolveNavigationRepair(dt);
     const previousOutcome = this.state.service.outcome;
     this.state.service = stepServiceMission(this.state.service, this.state.voyage, dt);
     if (this.state.fire.status === 'active' && this.state.voyage.phase === 'docked')
@@ -127,9 +183,40 @@ export class HostSession {
   }
 
   public trigger(
-    kind: 'turbulence' | 'air-pocket' | 'sharp-turn' | 'collision' | 'fire' | 'repair',
+    kind:
+      | 'turbulence'
+      | 'air-pocket'
+      | 'sharp-turn'
+      | 'collision'
+      | 'collision-course'
+      | 'collision-course-debug'
+      | 'navigation'
+      | 'boarding-invasion'
+      | 'boarding-invasion-debug'
+      | 'invasion'
+      | 'fire'
+      | 'repair',
     severity = 0.72,
   ): void {
+    if (kind === 'boarding-invasion' || kind === 'boarding-invasion-debug' || kind === 'invasion') {
+      const debug = kind === 'boarding-invasion-debug';
+      const activation = activateBoardingInvasion(
+        this.state.invasion,
+        debug ? { warningSeconds: 0.1, approachSeconds: 0.1, maxRaidSeconds: 2 } : {},
+      );
+      this.state.invasion = activation.invasion;
+      this.log('emergency', activation.message);
+      return;
+    }
+    if (kind === 'collision-course' || kind === 'navigation' || kind === 'collision-course-debug') {
+      const activation = activateNavigationIncident(
+        this.state.navigation,
+        kind === 'collision-course-debug' ? 3 : navigationIncidentDefinition.warningSeconds,
+      );
+      this.state.navigation = activation.navigation;
+      this.log('emergency', activation.message);
+      return;
+    }
     if (kind === 'fire') {
       const activation = activateFire(this.state.fire);
       this.state.fire = activation.fire;
@@ -185,7 +272,16 @@ export class HostSession {
 
   public teleport(
     playerId: string,
-    station: 'cockpit' | 'cabin' | 'galley' | 'cargo' | 'repair',
+    station:
+      | 'cockpit'
+      | 'cabin'
+      | 'galley'
+      | 'cargo'
+      | 'repair'
+      | 'bridge'
+      | 'navigation-repair'
+      | 'boarding-port'
+      | 'boarding-starboard',
   ): void {
     const player = this.state.cabin.players[playerId];
     if (!player) return;
@@ -193,20 +289,45 @@ export class HostSession {
     // the crew inside interaction reach of the props that station is about and
     // clear of every box in `cabinFixtures`, so a teleport lands somewhere you
     // can actually work rather than inside the furniture.
-    const targets = {
-      // Forward, just aft of the reception counter.
-      cockpit: { x: 12, y: 6.5 },
-      // The service station: cart ahead, staged trays and kits underfoot.
-      cabin: { x: 10.6, y: 13.9 },
-      // Port side of the bar, within extinguisher range of the galley fire.
-      galley: { x: 8, y: 36.5 },
-      // Aft, between the two lashed crates.
-      cargo: { x: 12, y: 44.2 },
-      // Beside the breaker panel and its toolbox, port aft.
-      repair: { x: 4.2, y: 33.2 },
-    };
-    player.position = { ...targets[station] };
+    const targets: Record<string, { position: { x: number; y: number }; compartmentId?: string }> =
+      {
+        // Forward, just aft of the reception counter.
+        cockpit: {
+          position: { ...navigationIncidentDefinition.bridge.position },
+          compartmentId: navigationIncidentDefinition.bridge.compartmentId,
+        },
+        bridge: {
+          position: { ...navigationIncidentDefinition.bridge.position },
+          compartmentId: navigationIncidentDefinition.bridge.compartmentId,
+        },
+        // The service station: cart ahead, staged trays and kits underfoot.
+        cabin: { position: { x: 10.6, y: 13.9 }, compartmentId: defaultCompartmentId },
+        // Port side of the bar, within extinguisher range of the galley fire.
+        galley: { position: { x: 8, y: 36.5 }, compartmentId: defaultCompartmentId },
+        // Aft, between the two lashed crates.
+        cargo: { position: { x: 12, y: 44.2 }, compartmentId: defaultCompartmentId },
+        // Beside the breaker panel and its toolbox, port aft.
+        repair: { position: { x: 4.2, y: 33.2 }, compartmentId: defaultCompartmentId },
+        'navigation-repair': {
+          position: { ...steeringRepairDefinition.position },
+          compartmentId: steeringRepairDefinition.compartmentId,
+        },
+        'boarding-port': {
+          position: { ...boardingInvasionDefinition.links[0]!.position },
+          compartmentId: boardingInvasionDefinition.links[0]!.compartmentId,
+        },
+        'boarding-starboard': {
+          position: { ...boardingInvasionDefinition.links[1]!.position },
+          compartmentId: boardingInvasionDefinition.links[1]!.compartmentId,
+        },
+      };
+    const target = targets[station];
+    if (!target) return;
+    if (target.compartmentId) player.compartmentId = target.compartmentId;
+    player.position = { ...target.position };
     player.velocity = { x: 0, y: 0 };
+    const held = player.heldObjectId ? this.state.cabin.objects[player.heldObjectId] : undefined;
+    if (held) held.compartmentId = player.compartmentId;
     player.lastAction = `Teleported: ${station}`;
     this.log('system', `${player.name}: ${station}`);
   }
@@ -239,6 +360,8 @@ export class HostSession {
     if (playerId === this.state.hostId) return;
     const player = this.state.cabin.players[playerId];
     if (!player) return;
+    this.disconnectedPlayers.add(playerId);
+    this.transport.clearClient(playerId);
     const held = player.heldObjectId ? this.state.cabin.objects[player.heldObjectId] : undefined;
     if (held) {
       held.ownerId = undefined;
@@ -250,6 +373,21 @@ export class HostSession {
     player.lastAction = 'Disconnected';
     this.commands[playerId] = emptyCommand();
     this.log('network', `${player.name} disconnected. Held item released.`);
+  }
+
+  /** Reactivate a guest connection after PeerJS reports a fresh open channel. */
+  public reconnectPlayer(playerId: string): void {
+    if (playerId === this.state.hostId) return;
+    const player = this.state.cabin.players[playerId];
+    if (!player) return;
+    this.transport.clearClient(playerId);
+    const wasDisconnected = this.disconnectedPlayers.delete(playerId);
+    this.commands[playerId] = emptyCommand();
+    if (wasDisconnected) {
+      player.velocity = { x: 0, y: 0 };
+      player.lastAction = 'Reconnected';
+      this.log('network', `${player.name} reconnected. Fresh commands required.`);
+    }
   }
 
   public snapshot(): MissionState {
@@ -275,6 +413,16 @@ export class HostSession {
         player.lastAction = 'Hold E on the coffee machine breaker';
         continue;
       }
+      if (
+        command.interact &&
+        command.interactionTargetId === this.state.navigation.repair.id &&
+        (this.state.navigation.repair.status === 'active' ||
+          this.state.navigation.repair.status === 'repairing') &&
+        held?.kind === 'toolbox'
+      ) {
+        player.lastAction = 'Hold E on the engine room steering relay';
+        continue;
+      }
       if (command.interact) this.interact(playerId, command.interactionTargetId, command.sprint);
     }
   }
@@ -288,6 +436,93 @@ export class HostSession {
       this.state.fire.status !== 'active'
     )
       this.trigger('repair');
+  }
+
+  private triggerAutomaticNavigationIncident(): void {
+    if (
+      this.state.navigation.phase === 'idle' &&
+      this.state.voyage.phase === 'open-sea' &&
+      this.state.voyage.phaseElapsed >= navigationIncidentDefinition.triggerAfterCruiseSeconds
+    )
+      this.trigger('collision-course');
+  }
+
+  private triggerAutomaticBoardingInvasion(): void {
+    if (
+      this.state.invasion.phase === 'idle' &&
+      this.state.service.outcome === 'active' &&
+      this.state.voyage.phase === 'open-sea' &&
+      this.state.voyage.phaseElapsed >= boardingInvasionDefinition.triggerAfterCruiseSeconds &&
+      (this.state.navigation.phase === 'idle' ||
+        this.state.navigation.phase === 'avoided' ||
+        this.state.navigation.phase === 'repaired')
+    )
+      this.trigger('boarding-invasion');
+  }
+
+  private applyBoardingStepConsequences(result: BoardingStepResult): void {
+    if (result.scoreDelta !== 0)
+      this.state.service = {
+        ...this.state.service,
+        score: this.state.service.score + result.scoreDelta,
+      };
+    if (result.structureDamage > 0)
+      this.state.voyage = {
+        ...this.state.voyage,
+        structure: clamp(this.state.voyage.structure - result.structureDamage, 0, 1),
+        warning: 'BOARDERS DAMAGING SHIP INFRASTRUCTURE',
+      };
+    for (let index = 0; index < result.passengerInjuries; index += 1) {
+      const passenger = Object.values(this.state.service.passengers).sort(
+        (left, right) => left.injury - right.injury || left.id.localeCompare(right.id),
+      )[0];
+      if (!passenger) break;
+      passenger.injury = clamp(passenger.injury + 0.25, 0, 1);
+      passenger.panic = clamp(passenger.panic + 0.2, 0, 1);
+    }
+    if (result.message) this.log('emergency', result.message);
+  }
+
+  private resolveBoardingActions(): void {
+    for (const [playerId, command] of Object.entries(this.commands)) {
+      if (!command.boardingAction) continue;
+      const player = this.state.cabin.players[playerId];
+      const result = resolveBoardingDefenseAction(
+        this.state.invasion,
+        command.boardingAction,
+        player,
+      );
+      this.state.invasion = result.invasion;
+      if (result.scoreDelta !== 0)
+        this.state.service = {
+          ...this.state.service,
+          score: this.state.service.score + result.scoreDelta,
+        };
+      if (player) player.lastAction = result.message;
+      this.log(result.accepted ? 'interaction' : 'network', result.message);
+    }
+  }
+
+  private applyNavigationImpact(): void {
+    const damageBeforeImpact = this.state.voyage.hydraulics;
+    this.state.voyage = triggerCollision(this.state.voyage);
+    this.state.voyage = damageSystem(this.state.voyage, this.state.navigation.damageSystem);
+    this.state.voyage = {
+      ...this.state.voyage,
+      warning: 'NAVIGATION IMPACT: STEERING HYDRAULICS DAMAGED',
+    };
+    const activation = activateNavigationRepair(this.state.navigation.repair);
+    this.state.navigation = {
+      ...this.state.navigation,
+      damageBeforeImpact,
+      repair: activation.repair,
+    };
+    this.state.service = {
+      ...this.state.service,
+      score: this.state.service.score + navigationIncidentDefinition.impactScore,
+    };
+    this.log('emergency', this.state.navigation.lastOutcome);
+    this.log('emergency', activation.message);
   }
 
   private resolveRepair(deltaSeconds: number): void {
@@ -304,6 +539,7 @@ export class HostSession {
         targetId: command?.interactionTargetId,
         playerPosition: player?.position,
         playerId,
+        playerCompartmentId: player?.compartmentId,
         heldObject: held,
         fireStatus: this.state.fire.status,
       },
@@ -314,6 +550,60 @@ export class HostSession {
       this.state.service = applyCabinIncident(this.state.service, 'repair', 0.26);
     if (result.completed)
       this.state.service = { ...this.state.service, score: this.state.service.score + 70 };
+    if (result.message) {
+      if (player) player.lastAction = result.message;
+      this.log('emergency', result.message);
+    }
+  }
+
+  private resolveNavigationRepair(deltaSeconds: number): void {
+    const repair = this.state.navigation.repair;
+    const repairer = Object.entries(this.commands).find(([playerId, command]) => {
+      if (!command.repair || command.interactionTargetId !== repair.id) return false;
+      const player = this.state.cabin.players[playerId];
+      const held = player?.heldObjectId ? this.state.cabin.objects[player.heldObjectId] : undefined;
+      return (
+        Boolean(player) &&
+        player?.compartmentId === repair.compartmentId &&
+        held?.kind === 'toolbox' &&
+        held.ownerId === playerId &&
+        Boolean(player.position) &&
+        distance(player.position, repair.position) <= repair.radius + 1.8
+      );
+    });
+    const [playerId, command] = repairer ?? [];
+    const player = playerId ? this.state.cabin.players[playerId] : undefined;
+    const held = player?.heldObjectId ? this.state.cabin.objects[player.heldObjectId] : undefined;
+    const result = stepRepair(
+      repair,
+      {
+        holding: Boolean(command?.repair),
+        targetId: command?.interactionTargetId,
+        playerPosition: player?.position,
+        playerId,
+        playerCompartmentId: player?.compartmentId,
+        heldObject: held,
+        fireStatus: this.state.fire.status,
+      },
+      deltaSeconds,
+    );
+    this.state.navigation = { ...this.state.navigation, repair: result.repair };
+    if (result.accepted && this.state.navigation.phase === 'impact')
+      this.state.navigation = { ...this.state.navigation, phase: 'repair' };
+    if (result.completed) {
+      this.state.navigation = { ...this.state.navigation, phase: 'repaired' };
+      this.state.voyage = {
+        ...this.state.voyage,
+        hydraulics: this.state.navigation.damageBeforeImpact ?? 1,
+        warning: 'STEERING HYDRAULICS RESTORED: NAVIGATION INCIDENT RESOLVED',
+      };
+      this.state.service = {
+        ...this.state.service,
+        score: this.state.service.score + navigationIncidentDefinition.repairScore,
+      };
+    }
+    if (result.pressurePulse)
+      this.log('emergency', 'Steering relay pressure rising. Engine room response required.');
     if (result.message) {
       if (player) player.lastAction = result.message;
       this.log('emergency', result.message);
@@ -388,6 +678,7 @@ export class HostSession {
       const object = this.state.cabin.objects[player.heldObjectId];
       if (!object) return;
       object.ownerId = undefined;
+      object.compartmentId = player.compartmentId;
       object.velocity = scale(player.facing, 0.45);
       player.heldObjectId = undefined;
       player.lastAction = `Placed ${object.name}`;
@@ -416,6 +707,7 @@ export class HostSession {
       return;
     }
     target.ownerId = playerId;
+    target.compartmentId = player.compartmentId;
     target.velocity = { x: 0, y: 0 };
     player.heldObjectId = target.id;
     player.lastAction = `Holding ${target.name}`;
@@ -427,6 +719,7 @@ export class HostSession {
     const object = player?.heldObjectId ? this.state.cabin.objects[player.heldObjectId] : undefined;
     if (!player || !object) return;
     object.ownerId = undefined;
+    object.compartmentId = player.compartmentId;
     object.velocity = scale(normalized(player.facing), 7.5);
     player.heldObjectId = undefined;
     player.lastAction = `Threw ${object.name}`;
@@ -440,6 +733,7 @@ export class HostSession {
         interact: false,
         selectServiceNeed: undefined,
         throwItem: false,
+        boardingAction: undefined,
       };
     }
   }

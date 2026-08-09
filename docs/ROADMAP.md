@@ -153,6 +153,55 @@ because it depends on snapshot delta compression, which is real engineering, not
 a toggle. Combat sits before progression because upgrades need something to
 upgrade.
 
+## 2026-08 navigation incident slice status
+
+The first substantial cruise-ship gameplay slice is now implemented and is the
+current Phase 5/Navigation checkpoint. It is deliberately smaller than the
+product north star.
+
+### Implemented now: Phase 5 navigation checkpoint
+
+- deterministic collision-course warning, countdown and authored relative sea
+  contact, with a 36-second production travel window and a separate 3-second
+  debug trigger;
+- host-validated bridge/command-center presence before helm input counts;
+- avoidance success with the authored +35 score bonus;
+- impact with steering-hydraulics damage, score loss and a repair objective at
+  the authored engine-room relay station;
+- host-validated toolbox, compartment, range and held-object repair resolution;
+- authoritative snapshots, PeerRoom validation, disconnect-safe input, HUD
+  warning/damage/resolution states, authored relay presentation and a debug
+  trigger;
+- Blender 5.1 authored vessel source/GLB loaded as the obstacle production path;
+  procedural obstacle geometry is only an explicit load-failure or future-kind
+  fallback;
+- a centralized current-interactable feedback contract covering objects,
+  passengers, fire, repair stations, helm and portals.
+- a host-owned pirate boarding state machine with passenger/infrastructure
+  pressure, link-detachment resolution, score consequences, warning/countdown HUD,
+  and a Three.js presenter loading eight validated Blender invasion GLBs with
+  authored character, weapon, explosive, link and prop Actions.
+
+### Planned next phases, not implemented now
+
+- **Remaining invasions/security:** bomb threat and bomber search/disarm, combat
+  AI, firearms/melee hit resolution, passenger escort, and persistent damage.
+  Pirate approach, boarding pressure, defeat, link detachment and score effects
+  now have a first host-authoritative visual slice.
+- **Resort jobs:** room service, pool cleaning, DJ performance, cooking with
+  chefs, mall/restaurant/bar restocking and consensual guest-request or
+  performer photography. The current service loop is not a claim that every job
+  exists.
+- **Crowds and ship scale:** dense autonomous passenger behaviours including
+  walking, socializing, dining, shopping, sunbathing, working, reacting,
+  evacuating and enjoying the voyage; further authored decks, exterior and
+  resort spaces remain unfinished.
+- **Asset expansion:** continue the Blender-source to tracked-GLB pipeline for
+  the exterior, stairwells, open decks, infrastructure, crowd spaces and bespoke
+  obstacle kinds. The current vessel GLB is validated and shipped; future kinds
+  still need their own authored source/GLB contracts. Do not replace authored
+  assets with procedural placeholders.
+
 ## Initial scope
 
 The first playable target, matching the revised plan's recommendation: one ship,

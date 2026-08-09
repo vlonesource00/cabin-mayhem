@@ -11,8 +11,25 @@ declare global {
       step(seconds: number): void;
       advancePhase(): void;
       trigger(
-        kind: 'turbulence' | 'air-pocket' | 'sharp-turn' | 'collision' | 'fire' | 'repair',
+        kind:
+          | 'turbulence'
+          | 'air-pocket'
+          | 'sharp-turn'
+          | 'collision'
+          | 'collision-course'
+          | 'collision-course-debug'
+          | 'navigation'
+          | 'boarding-invasion'
+          | 'boarding-invasion-debug'
+          | 'invasion'
+          | 'fire'
+          | 'repair',
       ): void;
+      boardInvasion(): void;
+      helmNavigation(): void;
+      avoidNavigation(): void;
+      beginNavigationRepair(): void;
+      completeNavigationRepair(): void;
       completeRepair(): void;
       completeShift(outcome: 'success' | 'failed'): void;
       reset(): void;

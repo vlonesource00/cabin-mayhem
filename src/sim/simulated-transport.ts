@@ -49,6 +49,12 @@ export class SimulatedTransport {
     return ready.map(({ clientId, command }) => ({ clientId, command }));
   }
 
+  /** Drop every in-flight packet from a connection that has gone away. */
+  public clearClient(clientId: string): void {
+    this.packets = this.packets.filter((packet) => packet.clientId !== clientId);
+    this.metrics.queued = this.packets.length;
+  }
+
   public snapshot(): NetworkMetrics {
     return { ...this.metrics, queued: this.packets.length };
   }

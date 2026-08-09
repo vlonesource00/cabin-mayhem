@@ -71,6 +71,7 @@ function objectFromDefinition(
     definition.name,
     definition.kind,
     definition.material,
+    definition.compartmentId,
     definition.position,
     definition.radius,
     definition.mass,
@@ -110,6 +111,7 @@ export function stepCabin(
     }
     const holder = object.ownerId ? players[object.ownerId] : undefined;
     if (holder) {
+      object.compartmentId = holder.compartmentId;
       const reach = scale(holder.facing, 0.9);
       object.position = clampPosition(add(holder.position, reach), object.radius, current);
       object.velocity = { ...holder.velocity };
@@ -168,6 +170,7 @@ export function closestInteractable(
   requestedId?: string | null,
 ): CabinObject | undefined {
   const candidates = Object.values(cabin.objects)
+    .filter((entry) => entry.compartmentId === player.compartmentId || entry.ownerId === player.id)
     .filter((entry) => !entry.ownerId || entry.ownerId === player.id)
     .filter((entry) => distance(entry.position, player.position) <= 1.8);
 
@@ -205,6 +208,7 @@ export function makeSpawnObject(index: number): CabinObject {
     'Spawned light case',
     'light-case',
     'plastic',
+    defaultCompartmentId,
     { x: 12, y: 30 },
     0.48,
     5,
@@ -242,6 +246,7 @@ function object(
   name: string,
   kind: CabinObject['kind'],
   material: CabinObject['material'],
+  compartmentId: string,
   position: Vec2,
   radius: number,
   mass: number,
@@ -254,6 +259,7 @@ function object(
     name,
     kind,
     material,
+    compartmentId,
     position,
     velocity: { x: 0, y: 0 },
     radius,

@@ -73,6 +73,7 @@ export function takeServiceCartItem(
       name: template.name,
       kind: template.kind,
       material: template.material,
+      compartmentId: 'atrium',
       position: { ...position },
       velocity: { x: 0, y: 0 },
       radius: template.radius,

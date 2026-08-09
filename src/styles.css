@@ -400,6 +400,17 @@ button {
   border-color: #ffbe37;
   background: rgba(89, 20, 49, 0.94);
 }
+.objective-card[data-kind='navigation'] {
+  border-color: #78d9ff;
+  background: rgba(20, 39, 88, 0.95);
+}
+.objective-card[data-kind='invasion'] {
+  border-color: #ffcf4f;
+  background: rgba(83, 19, 37, 0.96);
+  box-shadow:
+    5px 5px 0 #ff4e43,
+    8px 8px 0 rgba(255, 207, 79, 0.62);
+}
 .objective-card[data-kind='complete'] {
   border-color: #78ffbf;
   background: rgba(15, 86, 66, 0.94);
@@ -443,6 +454,75 @@ button {
   background: linear-gradient(90deg, #c8ff32, #42e4d2);
   box-shadow: 0 0 10px #c8ff32;
   transition: width 120ms linear;
+}
+
+.navigation-alert {
+  position: absolute;
+  top: 78px;
+  left: 50%;
+  z-index: 2;
+  display: grid;
+  gap: 2px;
+  width: min(430px, calc(100vw - 34px));
+  padding: 9px 14px 10px;
+  transform: translateX(-50%) rotate(0.35deg);
+  border: 2px solid #ffcf4f;
+  border-radius: 10px;
+  background: rgba(73, 24, 45, 0.95);
+  box-shadow: 4px 4px 0 #ff4e43;
+  color: #fff7d6;
+  pointer-events: none;
+  text-align: center;
+}
+.navigation-alert[data-phase='warning'] {
+  animation: navigation-alert-pulse 0.75s ease-in-out infinite alternate;
+}
+.navigation-alert[data-phase^='invasion-'] {
+  border-color: #ffcf4f;
+  background: rgba(83, 19, 37, 0.96);
+  box-shadow: 4px 4px 0 #ff4e43;
+}
+.navigation-alert[data-phase='invasion-warning'],
+.navigation-alert[data-phase='invasion-approach'],
+.navigation-alert[data-phase='invasion-boarders-aboard'] {
+  animation: navigation-alert-pulse 0.62s ease-in-out infinite alternate;
+}
+.navigation-alert[data-phase='invasion-repelled'] {
+  border-color: #78ffbf;
+  background: rgba(15, 86, 66, 0.95);
+  box-shadow: 4px 4px 0 #42daca;
+}
+.navigation-alert[data-phase='avoided'],
+.navigation-alert[data-phase='repaired'] {
+  border-color: #78ffbf;
+  background: rgba(15, 86, 66, 0.95);
+  box-shadow: 4px 4px 0 #42daca;
+}
+.navigation-alert p {
+  margin: 0;
+  color: #ffcf4f;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+.navigation-alert strong {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 20px;
+  letter-spacing: 0.04em;
+}
+.navigation-alert span {
+  color: #d8e2ff;
+  font-size: 12px;
+}
+
+@keyframes navigation-alert-pulse {
+  from {
+    transform: translateX(-50%) rotate(0.35deg) scale(1);
+  }
+  to {
+    transform: translateX(-50%) rotate(-0.35deg) scale(1.02);
+  }
 }
 
 .radio-caption {
@@ -951,6 +1031,10 @@ button {
     top: 103px;
     max-width: calc(100vw - 26px);
     font-size: 14px;
+  }
+  .navigation-alert {
+    top: 139px;
+    width: calc(100vw - 26px);
   }
   .interaction-pill {
     bottom: 126px;
