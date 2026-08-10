@@ -170,7 +170,9 @@ describe('CompartmentStreamer', () => {
 
   it('keeps the silhouette but drops the dressing through a window', async () => {
     const streamer = new CompartmentStreamer({ loader: stubLoader(), baseUrl: '/' });
-    await streamer.setCurrent('bridge');
+    // A cabin window, not the wheelhouse: the bridge is panoramic and pays for
+    // the whole ship, which is the case the tier test covers.
+    await streamer.setCurrent('cabin-deck-four');
     await settle();
 
     const hull = streamer.group.children.find((child) => child.getObjectByName(exteriorRootName))!;

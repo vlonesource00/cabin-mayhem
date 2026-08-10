@@ -1,24 +1,51 @@
-# Waypoint navigation
+# Physical portal-pad navigation
 
-Cabin Mayhem now exposes named, host-routed destinations across the existing cruise layout:
+Named destinations remain data for stable labels and Grand Atrium elevator
+stops. They are not a global travel chart. `src/data/waypoints.ts` validates
+the elevator's D2/D3/D4/D5 stops and the authored destination metadata.
 
-- engine room / steering relay, crew corridor, galley, Grand Atrium, dining room;
-- cabin decks four and seven, promenade, pool deck, sun deck, and bridge;
-- Grand Atrium elevator stops on decks 2, 3, 4, and 5.
+`portalPadDefinitionsFor(compartmentId)` derives one small floor ring from each
+authored portal in the occupied compartment. The Grand Atrium adds one ring at
+the authored elevator position. `WaypointPadPresenter` renders these rings at
+their pad positions; it never creates a player-relative marker or authorizes a
+transfer.
 
-`src/data/waypoints.ts` is the typed source of truth. Zod validation checks unique IDs, known
-compartments, deck bounds, walkable waypoint positions, and elevator stop coverage. The route
-planner uses existing portals, stairwell landings, and the parsed Grand Atrium elevator. Its
-neighbour order is fixed, so equal inputs produce equal routes.
+The host recomputes the nearby pad from authoritative compartment and position
+and publishes `DoorPrompt` with a stable pad id and deterministic option order.
+A single-option pad accepts `E` immediately. A multi-option pad keeps wheel
+selection local to `CabinInputController`; the compact HUD lists every option,
+selected row, and deck. `E` sends the selected option through the existing
+`interactionTargetId` command field.
 
-The waypoint request is only a destination intent. `stepCabin` admits it on the host, checks
-authority, door cooldowns, portal blocks, and walkable fixture segments, then advances a bounded
-state machine of walking, door, and elevator legs. Compartments change only when a door leg
-completes; elevator movement changes deck state only when its timed leg completes. Existing WASD
-movement, normal door interaction, collision handling, debug/test teleports, and the multiplayer
-command shape remain compatible. A direct debug teleport cancels any stale route on the next host
-step.
+`stepPortalPad` validates the target against the currently reachable pad,
+cooldown, destination, and position on the host. A valid door uses the
+authored arrival position and heading. An elevator updates its persistent
+`waypointDeck` and position atomically, zeros velocity, sets the short
+cooldown, and clears the prompt. Invalid or stale ids do not move a player.
+There is no client teleport, route timer, walking leg, or progress state.
+Existing object interaction precedence, debug teleports, multiplayer command
+shape, and F1 Chaos Lab controls remain intact; the F1 waypoint chart and
+buttons are gone.
 
-Focused coverage lives in `tests/unit/waypoint-travel.test.ts` and
-`tests/e2e/waypoint-navigation.spec.ts`. The e2e test captures the runtime waypoint chart and
-Grand Atrium elevator panel under `test-results/navigation-evidence/` when Playwright runs.
+Runtime seams are written to the canvas:
+
+- `data-portal-pad-visible`
+- `data-portal-pad-options`
+- `data-portal-pad-selected`
+- `data-portal-pad-id`
+
+An authored stairwell portal is a junction rather than an empty destination.
+Its pad options are the reciprocal real-compartment portals from that
+stairwell, excluding the compartment the player is leaving; confirmation
+arrives directly at the selected compartment's authored arrival position and
+heading. Ring geometry uses normal depth testing with transparent depth writes
+disabled, so a wall occludes a pad instead of turning it into an always-on-top
+HUD marker.
+
+Focused proof is in `tests/unit/waypoint-travel.test.ts`,
+`tests/unit/cabin-input.test.ts`, and
+`tests/e2e/waypoint-navigation.spec.ts`. The e2e test proves wrapped wheel
+selection, page-scroll suppression, host-validated elevator selection, and
+writes the line-of-sight, wall-occluded, stair-destination-picker, and
+main-galley-arrival correction evidence under
+`test-results/correction-evidence/`.

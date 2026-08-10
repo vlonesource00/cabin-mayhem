@@ -1102,3 +1102,106 @@ button {
     animation: none;
   }
 }
+
+/* --- deck plan -------------------------------------------------------------
+ * Held open while the player asks for it, over a dimmed voyage. It is a chart,
+ * not a minimap: it takes the whole screen for the two seconds it is up, so a
+ * 290 m ship is legible rather than a smear in a corner.
+ */
+.deck-plan {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  padding: 4vh 3vw;
+  background: rgba(4, 8, 22, 0.86);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 110ms ease;
+}
+.game-shell[data-plan-open='true'] .deck-plan {
+  opacity: 1;
+}
+.deck-plan__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  color: #d3cbff;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.deck-plan__head strong {
+  color: #fff7d6;
+  font-size: 22px;
+}
+.deck-plan__sheet {
+  width: 100%;
+  max-height: 74vh;
+  border: 2px solid #8c79ff;
+  border-radius: 12px;
+  background: rgba(13, 16, 47, 0.95);
+  box-shadow: 5px 5px 0 #f352ae;
+}
+.deck-plan__caption {
+  fill: #8fa6c8;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+}
+.deck-plan__hull {
+  fill: rgba(32, 46, 88, 0.55);
+  stroke: #6f8ec4;
+  stroke-width: 1.5;
+}
+.deck-plan__waterline {
+  stroke: #2fd6c4;
+  stroke-width: 1.5;
+  stroke-dasharray: 9 5;
+}
+.deck-plan__centreline,
+.deck-plan__deckline {
+  stroke: rgba(143, 166, 200, 0.28);
+  stroke-width: 1;
+  stroke-dasharray: 3 5;
+}
+.deck-plan__deckno {
+  fill: #8fa6c8;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  text-anchor: end;
+}
+.deck-plan__door {
+  fill: #ffb44d;
+}
+.deck-plan__room rect {
+  fill: rgba(140, 121, 255, 0.22);
+  stroke: #8c79ff;
+  stroke-width: 1.2;
+}
+.deck-plan__room text {
+  fill: #cbd8ef;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+.deck-plan__room[data-state='weather'] rect {
+  fill: rgba(47, 214, 196, 0.12);
+  stroke: #2fd6c4;
+}
+.deck-plan__room[data-state='current'] rect {
+  fill: rgba(243, 82, 174, 0.34);
+  stroke: #ff8fd0;
+  stroke-width: 2;
+}
+.deck-plan__room[data-state='current'] text {
+  fill: #fff7d6;
+  font-weight: 700;
+}

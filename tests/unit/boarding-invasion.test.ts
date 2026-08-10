@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { boardingInvasionDefinition } from '../../src/data/invasions';
+import { boardingEventCatalog, boardingInvasionDefinition } from '../../src/data/invasions';
 import { createCabinState } from '../../src/sim/cabin-simulation';
 import {
   activateBoardingInvasion,
   createBoardingInvasionState,
   resolveBoardingDefenseAction,
   stepBoardingInvasion,
+  triggerBoardingEvent,
 } from '../../src/sim/boarding-invasion';
 
 function advanceToBoarders() {
@@ -19,6 +20,100 @@ function advanceToBoarders() {
 }
 
 describe('boarding invasion', () => {
+  it('publishes deterministic pirate and saboteur schedules with safe trigger gates', () => {
+    expect(boardingEventCatalog).toMatchObject([
+      {
+        id: 'pirate-boarding-alpha',
+        enemyKind: 'pirate',
+        schedule: {
+          voyagePhase: 'open-sea',
+          triggerAfterCruiseSeconds: boardingInvasionDefinition.triggerAfterCruiseSeconds,
+          requiresActiveService: true,
+          requiresClearNavigation: true,
+        },
+      },
+      {
+        id: 'saboteur-boarding-alpha',
+        enemyKind: 'bomber',
+        schedule: { voyagePhase: 'open-sea', triggerAfterCruiseSeconds: 110 },
+      },
+    ]);
+
+    const initial = createBoardingInvasionState();
+    const freshStart = triggerBoardingEvent(
+      initial,
+      { mode: 'scheduled' },
+      {
+        voyagePhase: 'moored',
+        cruiseSeconds: 0,
+        serviceActive: false,
+        navigationClear: true,
+        explicit: false,
+      },
+    );
+    expect(freshStart.accepted).toBe(false);
+    expect(freshStart.message).toContain('outside open-sea');
+
+    const implicitDebug = triggerBoardingEvent(
+      initial,
+      { mode: 'debug', warningSeconds: 0.1, approachSeconds: 0.1 },
+      {
+        voyagePhase: 'moored',
+        cruiseSeconds: 0,
+        serviceActive: false,
+        navigationClear: true,
+        explicit: false,
+      },
+    );
+    expect(implicitDebug.accepted).toBe(false);
+    expect(implicitDebug.message).toContain('non-explicit');
+
+    const pirate = triggerBoardingEvent(
+      initial,
+      { mode: 'scheduled' },
+      {
+        voyagePhase: 'open-sea',
+        cruiseSeconds: boardingInvasionDefinition.triggerAfterCruiseSeconds,
+        serviceActive: true,
+        navigationClear: true,
+        explicit: false,
+      },
+    );
+    expect(pirate).toMatchObject({
+      accepted: true,
+      eventId: 'pirate-boarding-alpha',
+      mode: 'scheduled',
+      invasion: { phase: 'warning', enemyKind: 'pirate' },
+    });
+
+    const saboteur = triggerBoardingEvent(
+      initial,
+      {
+        eventId: 'saboteur-boarding-alpha',
+        mode: 'debug',
+        warningSeconds: 0.1,
+        approachSeconds: 0.1,
+      },
+      {
+        voyagePhase: 'moored',
+        cruiseSeconds: 0,
+        serviceActive: false,
+        navigationClear: true,
+        explicit: true,
+      },
+    );
+    expect(saboteur).toMatchObject({
+      accepted: true,
+      eventId: 'saboteur-boarding-alpha',
+      mode: 'debug',
+      invasion: {
+        name: 'Blackwake saboteur boarding',
+        enemyKind: 'bomber',
+        phase: 'warning',
+      },
+    });
+  });
+
   it('advances through authored warning, approach, and aboard phases', () => {
     const initial = createBoardingInvasionState();
     expect(JSON.parse(JSON.stringify(initial))).toEqual(initial);
@@ -120,6 +215,46 @@ describe('boarding invasion', () => {
     expect(starboard.scoreDelta).toBe(
       boardingInvasionDefinition.detachScore + boardingInvasionDefinition.resolutionScore,
     );
+
+    const stale = resolveBoardingDefenseAction(
+      starboard.invasion,
+      { kind: 'detach-boarding-board', targetId: 'port-boarding-board' },
+      player,
+    );
+    expect(stale.accepted).toBe(false);
+    expect(stale.message).toContain('during repelled');
+  });
+
+  it('runs saboteur variant through warning, approach, aboard, and failure phases', () => {
+    let invasion = triggerBoardingEvent(
+      createBoardingInvasionState(),
+      {
+        eventId: 'saboteur-boarding-alpha',
+        mode: 'debug',
+        warningSeconds: 0.1,
+        approachSeconds: 0.1,
+        maxRaidSeconds: 0.2,
+      },
+      {
+        voyagePhase: 'moored',
+        cruiseSeconds: 0,
+        serviceActive: false,
+        navigationClear: true,
+        explicit: true,
+      },
+    ).invasion;
+    expect(invasion.phase).toBe('warning');
+    invasion = stepBoardingInvasion(invasion, 0.1).invasion;
+    expect(invasion.phase).toBe('approach');
+    invasion = stepBoardingInvasion(invasion, 0.1).invasion;
+    expect(invasion).toMatchObject({
+      phase: 'boarders-aboard',
+      enemyKind: 'bomber',
+      hostileCount: 6,
+    });
+    const failed = stepBoardingInvasion(invasion, 0.2);
+    expect(failed.invasion.phase).toBe('failed');
+    expect(failed.message).toContain('SABOTEURS');
   });
 
   it('applies bounded deterministic protection and infrastructure pressure', () => {

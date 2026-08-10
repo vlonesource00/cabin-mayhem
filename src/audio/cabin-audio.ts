@@ -7,36 +7,11 @@ import {
   type AudioBusName,
   type AudioBusVolumes,
 } from './audio-mix';
-import {
-  missionCues,
-  missionMix,
-  type AudioCue,
-  type AudioCueKind,
-  type AudioMix,
-} from './mission-audio';
-import { soundscapeForState, type SoundscapeFrame, type SoundscapeZone } from './soundscape';
+import { missionCues, type AudioCue, type AudioCueKind, type AudioPosition } from './mission-audio';
+import { soundscapeForState } from './soundscape';
 import type { MissionState } from '../sim/types';
 
 type AudioContextConstructor = new () => AudioContext;
-type BedName = 'engine' | 'wind' | 'rumble' | 'fire';
-
-interface NoiseBed {
-  name: BedName;
-  bus: AudioBusName;
-  filter: BiquadFilterNode;
-  gain: GainNode;
-  source?: AudioBufferSourceNode;
-  target: number;
-}
-
-interface ZoneBed {
-  zone?: SoundscapeZone;
-  filter: BiquadFilterNode;
-  panner: PannerNode;
-  gain: GainNode;
-  source?: AudioBufferSourceNode;
-  target: number;
-}
 
 interface Voice {
   context: AudioContext;
@@ -47,13 +22,6 @@ interface Voice {
 
 const maxCuesPerUpdate = 4;
 const maxVoices = 14;
-const minimumBedLevel = 0.001;
-const noiseBedCeilings: Record<BedName, number> = {
-  engine: 0.14,
-  wind: 0.1,
-  rumble: 0.12,
-  fire: 0.13,
-};
 
 const cueCooldowns: Partial<Record<AudioCueKind, number>> = {
   'movement-start': 0.18,
@@ -91,11 +59,8 @@ export class CabinAudio {
   private context?: AudioContext;
   private master?: GainNode;
   private ambienceDuck?: GainNode;
-  private noise?: AudioBuffer;
   private readonly buses = new Map<AudioBusName, GainNode>();
   private readonly busVolumes: AudioBusVolumes = { ...defaultAudioBusVolumes };
-  private readonly beds = new Map<BedName, NoiseBed>();
-  private zoneBed?: ZoneBed;
   private previous?: MissionState;
   private enabled = true;
   private masterVolume = 0.68;
@@ -119,6 +84,11 @@ export class CabinAudio {
 
   public volume(): number {
     return this.masterVolume;
+  }
+
+  /** Ambient playback is intentionally empty; only short event voices exist. */
+  public continuousSourceCount(): number {
+    return 0;
   }
 
   /** Safe 0..1 master volume control. Does not create or resume audio. */
@@ -164,31 +134,40 @@ export class CabinAudio {
     this.previous = state;
     if (!this.context || !this.enabled) return;
 
-    const mix = missionMix(state);
-    const frame = soundscapeForState(state, localPlayerId);
-    this.updateListener(frame);
-    this.syncZone(frame);
-    this.syncMissionBeds(mix, frame);
-    this.syncAlarm(mix.alarm);
+    this.updateListener(soundscapeForState(state, localPlayerId).listenerPosition);
+    const alarmActive =
+      state.fire.status === 'active' ||
+      state.repair.status === 'active' ||
+      ['warning', 'impact', 'repair'].includes(state.navigation.phase) ||
+      ['warning', 'approach', 'boarders-aboard'].includes(state.invasion.phase);
+    this.syncAlarm(alarmActive ? 1 : 0);
     for (const cue of cues.slice(0, maxCuesPerUpdate)) this.playCue(cue);
   }
 
   public dispose(): void {
     this.previous = undefined;
     this.cueLastPlayed.clear();
-    this.stopNoiseSource(this.zoneBed?.source);
-    for (const bed of this.beds.values()) this.stopNoiseSource(bed.source);
-    this.beds.clear();
     this.buses.clear();
-    this.zoneBed = undefined;
     this.master = undefined;
     this.ambienceDuck = undefined;
-    this.noise = undefined;
     this.alarmActive = false;
     this.nextAlarmAt = 0;
     const context = this.context;
     this.context = undefined;
     void context?.close().catch(() => undefined);
+  }
+
+  private updateListener(position: AudioPosition): void {
+    const context = this.context;
+    if (!context) return;
+    const listener = context.listener;
+    if (typeof listener.positionX?.setTargetAtTime === 'function') {
+      listener.positionX.setTargetAtTime(position.x, context.currentTime, 0.05);
+      listener.positionY.setTargetAtTime(position.y, context.currentTime, 0.05);
+      listener.positionZ.setTargetAtTime(position.z, context.currentTime, 0.05);
+    } else {
+      listener.setPosition(position.x, position.y, position.z);
+    }
   }
 
   private build(): void {
@@ -230,114 +209,6 @@ export class CabinAudio {
       gain.connect(bus === 'ambience' ? ambienceDuck : master);
       this.buses.set(bus, gain);
     }
-
-    this.noise = this.createNoise(context);
-    this.createNoiseBed(context, 'engine', 'lowpass', 190, 0.75, 'ambience');
-    this.createNoiseBed(context, 'wind', 'bandpass', 900, 0.45, 'ambience');
-    this.createNoiseBed(context, 'rumble', 'lowpass', 125, 1, 'effects');
-    this.createNoiseBed(context, 'fire', 'bandpass', 1450, 0.65, 'events');
-  }
-
-  private createNoise(context: AudioContext): AudioBuffer {
-    const frames = Math.floor(context.sampleRate * 2);
-    const buffer = context.createBuffer(1, frames, context.sampleRate);
-    const channel = buffer.getChannelData(0);
-    let seed = 0x9e3779b9;
-    for (let index = 0; index < frames; index += 1) {
-      seed = (seed * 1664525 + 1013904223) >>> 0;
-      channel[index] = (seed / 0xffffffff) * 2 - 1;
-    }
-    return buffer;
-  }
-
-  private createNoiseBed(
-    context: AudioContext,
-    name: BedName,
-    type: BiquadFilterType,
-    frequency: number,
-    quality: number,
-    bus: AudioBusName,
-  ): void {
-    const busNode = this.buses.get(bus);
-    if (!busNode) return;
-    const filter = context.createBiquadFilter();
-    filter.type = type;
-    filter.frequency.value = frequency;
-    filter.Q.value = quality;
-    const gain = context.createGain();
-    gain.gain.value = 0.0001;
-    filter.connect(gain);
-    gain.connect(busNode);
-    this.beds.set(name, { name, bus, filter, gain, target: 0 });
-  }
-
-  private syncMissionBeds(mix: AudioMix, frame: SoundscapeFrame): void {
-    const exterior = frame.zone === 'exterior' || frame.zone === 'pool';
-    this.setBedLevel('engine', mix.engine * noiseBedCeilings.engine);
-    this.setBedLevel('wind', mix.wind * (exterior ? noiseBedCeilings.wind : 0.035));
-    this.setBedLevel('rumble', mix.rumble * noiseBedCeilings.rumble);
-    this.setBedLevel('fire', mix.fire * noiseBedCeilings.fire);
-  }
-
-  private setBedLevel(name: BedName, level: number): void {
-    const bed = this.beds.get(name);
-    const context = this.context;
-    if (!bed || !context) return;
-    const target = clampAudioVolume(level);
-    if (Math.abs(target - bed.target) < 0.002) return;
-    bed.target = target;
-    const now = context.currentTime;
-    bed.gain.gain.setTargetAtTime(Math.max(target, 0.0001), now, 0.22);
-    if (target > minimumBedLevel) this.startNoiseSource(bed);
-    else if (bed.source) {
-      const source = bed.source;
-      bed.source = undefined;
-      try {
-        source.stop(now + 0.4);
-      } catch {
-        // A source can already be ending after a rapid state transition.
-      }
-    }
-  }
-
-  private syncZone(frame: SoundscapeFrame): void {
-    const context = this.context;
-    const ambienceBus = this.buses.get('ambience');
-    if (!context || !ambienceBus || !this.noise) return;
-    if (!this.zoneBed) {
-      const filter = context.createBiquadFilter();
-      const panner = context.createPanner();
-      const gain = context.createGain();
-      filter.connect(panner);
-      panner.connect(gain);
-      gain.connect(ambienceBus);
-      this.zoneBed = { filter, panner, gain, target: 0 };
-      this.configurePanner(panner, frame.profile);
-      this.startNoiseSource(this.zoneBed);
-    }
-
-    const bed = this.zoneBed;
-    const changed = bed.zone !== frame.zone;
-    if (changed) {
-      bed.gain.gain.setTargetAtTime(0.0001, context.currentTime, 0.06);
-      this.duckAmbience(0.72, 0.22);
-      bed.zone = frame.zone;
-      bed.filter.type = frame.profile.filter;
-      bed.filter.frequency.setTargetAtTime(
-        frame.profile.frequency,
-        context.currentTime + 0.08,
-        0.12,
-      );
-      bed.filter.Q.setTargetAtTime(frame.profile.quality, context.currentTime + 0.08, 0.12);
-      this.configurePanner(bed.panner, frame.profile);
-      bed.target = frame.level;
-      bed.gain.gain.setTargetAtTime(frame.level, context.currentTime + 0.1, 0.18);
-    } else if (Math.abs(frame.level - bed.target) >= 0.002) {
-      bed.target = frame.level;
-      bed.gain.gain.setTargetAtTime(frame.level, context.currentTime, 0.22);
-    }
-
-    this.setPannerPosition(bed.panner, frame.listenerPosition);
   }
 
   private syncAlarm(level: number): void {
@@ -362,35 +233,6 @@ export class CabinAudio {
     this.duckAmbience(0.46, 0.38);
   }
 
-  private updateListener(frame: SoundscapeFrame): void {
-    const context = this.context;
-    if (!context) return;
-    const listener = context.listener;
-    const position = frame.listenerPosition;
-    if (typeof listener.positionX?.setTargetAtTime === 'function') {
-      listener.positionX.setTargetAtTime(position.x, context.currentTime, 0.05);
-      listener.positionY.setTargetAtTime(position.y, context.currentTime, 0.05);
-      listener.positionZ.setTargetAtTime(position.z, context.currentTime, 0.05);
-    } else {
-      listener.setPosition(position.x, position.y, position.z);
-    }
-  }
-
-  private configurePanner(
-    panner: PannerNode,
-    profile: Pick<
-      SoundscapeFrame['profile'],
-      'refDistance' | 'maxDistance' | 'rolloffFactor' | 'sourcePosition'
-    >,
-  ): void {
-    panner.panningModel = 'equalpower';
-    panner.distanceModel = 'inverse';
-    panner.refDistance = profile.refDistance;
-    panner.maxDistance = profile.maxDistance;
-    panner.rolloffFactor = profile.rolloffFactor;
-    this.setPannerPosition(panner, profile.sourcePosition);
-  }
-
   private setPannerPosition(
     panner: PannerNode,
     position: { x: number; y: number; z: number },
@@ -403,26 +245,6 @@ export class CabinAudio {
       panner.positionZ.setTargetAtTime(position.z, context.currentTime, 0.05);
     } else {
       panner.setPosition(position.x, position.y, position.z);
-    }
-  }
-
-  private startNoiseSource(bed: NoiseBed | ZoneBed): void {
-    const context = this.context;
-    if (!context || !this.noise || bed.source) return;
-    const source = context.createBufferSource();
-    source.buffer = this.noise;
-    source.loop = true;
-    source.connect(bed.filter);
-    source.start();
-    bed.source = source;
-  }
-
-  private stopNoiseSource(source: AudioBufferSourceNode | undefined): void {
-    if (!source) return;
-    try {
-      source.stop();
-    } catch {
-      // Dispose can race a scheduled source stop.
     }
   }
 
@@ -642,25 +464,13 @@ export class CabinAudio {
 
   private burst(
     duration: number,
-    type: BiquadFilterType,
+    _type: BiquadFilterType,
     frequency: number,
     peak: number,
     bus: AudioBusName,
     position?: AudioCue['position'],
     delay = 0,
   ): void {
-    const voice = this.voice(delay, bus, position);
-    if (!voice || !this.noise) return;
-    const source = voice.context.createBufferSource();
-    source.buffer = this.noise;
-    const filter = voice.context.createBiquadFilter();
-    filter.type = type;
-    filter.frequency.value = frequency;
-    source.connect(filter);
-    filter.connect(voice.gain);
-    this.envelope(voice.gain, voice.start, duration, peak);
-    source.onended = voice.complete;
-    source.start(voice.start);
-    source.stop(voice.start + duration + 0.05);
+    this.tone(frequency, duration, 'sine', peak, bus, delay, position);
   }
 }

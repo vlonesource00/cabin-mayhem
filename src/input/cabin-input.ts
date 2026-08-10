@@ -19,15 +19,30 @@ export class CabinInputController {
   private readonly pressed = new Set<string>();
   private readonly triggered = new Set<string>();
   private active = false;
+  private portalPromptActive = false;
+  private wheelDelta = 0;
 
   public constructor(private readonly target: Window = window) {
     target.addEventListener('keydown', this.onKeyDown);
     target.addEventListener('keyup', this.onKeyUp);
+    target.addEventListener('wheel', this.onWheel, { passive: false });
   }
 
   public setActive(active: boolean): void {
     this.active = active;
     if (!active) this.clear();
+  }
+
+  /** Wheel selection is local presentation input, never a PlayerCommand field. */
+  public setPortalPromptActive(active: boolean): void {
+    this.portalPromptActive = active;
+    if (!active) this.wheelDelta = 0;
+  }
+
+  public consumeWheelDelta(): number {
+    const delta = this.wheelDelta;
+    this.wheelDelta = 0;
+    return delta;
   }
 
   public read(): PlayerCommand {
@@ -83,6 +98,7 @@ export class CabinInputController {
   public destroy(): void {
     this.target.removeEventListener('keydown', this.onKeyDown);
     this.target.removeEventListener('keyup', this.onKeyUp);
+    this.target.removeEventListener('wheel', this.onWheel);
   }
 
   private keyboardCommand(): PlayerCommand {
@@ -126,6 +142,12 @@ export class CabinInputController {
     this.pressed.delete(event.code);
   };
 
+  private readonly onWheel = (event: WheelEvent): void => {
+    if (!this.active || !this.portalPromptActive || isTypingTarget(event.target)) return;
+    this.wheelDelta += Math.sign(event.deltaY);
+    event.preventDefault();
+  };
+
   private consume(code: string): boolean {
     const result = this.triggered.has(code);
     this.triggered.delete(code);
@@ -144,6 +166,7 @@ export class CabinInputController {
   private clear(): void {
     this.pressed.clear();
     this.triggered.clear();
+    this.wheelDelta = 0;
   }
 }
 

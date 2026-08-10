@@ -32,7 +32,7 @@ describe('contextual ship soundscape', () => {
     expect(soundscapeTransition(next, next, 'crew-alpha')).toBeUndefined();
   });
 
-  it('lowers public ambience during evacuation without silencing the ship', () => {
+  it('keeps public ambience silent during evacuation and ordinary cruise', () => {
     const normal = new HostSession().snapshot();
     const evacuated = clone(normal);
     const player = evacuated.cabin.players['crew-alpha'];
@@ -40,9 +40,8 @@ describe('contextual ship soundscape', () => {
     player.compartmentId = 'atrium';
     evacuated.crowd.evacuating = true;
 
-    expect(soundscapeForState(evacuated, 'crew-alpha').level).toBeLessThan(
-      soundscapeForState(normal, 'crew-alpha').level,
-    );
-    expect(soundscapeForState(evacuated, 'crew-alpha').level).toBeGreaterThan(0);
+    expect(soundscapeForState(evacuated, 'crew-alpha').level).toBe(0);
+    expect(soundscapeForState(normal, 'crew-alpha').level).toBe(0);
+    expect(soundscapeForState(evacuated, 'crew-alpha').profile.level).toBe(0);
   });
 });

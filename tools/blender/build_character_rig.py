@@ -500,12 +500,14 @@ def seated_clips():
     """Passenger clips. The seated base pose is folded into every keyframe so a
     crossfade between two seated clips never straightens the legs."""
     seat = {
-        "thigh.L": (86.0, 0.0, 2.0),
-        "thigh.R": (86.0, 0.0, -2.0),
-        "shin.L": (-84.0, 0.0, 0.0),
-        "shin.R": (-84.0, 0.0, 0.0),
-        "foot.L": (-4.0, 0.0, 0.0),
-        "foot.R": (-4.0, 0.0, 0.0),
+        # Hip-to-knee travels forward with a visible bend; the shins then
+        # return down to the floor instead of folding behind the pelvis.
+        "thigh.L": (72.0, 0.0, 2.0),
+        "thigh.R": (72.0, 0.0, -2.0),
+        "shin.L": (-78.0, 0.0, 0.0),
+        "shin.R": (-78.0, 0.0, 0.0),
+        "foot.L": (-2.0, 0.0, 0.0),
+        "foot.R": (-2.0, 0.0, 0.0),
         "hips": {"t": (0.0, 0.0, -0.42)},
     }
 
@@ -533,6 +535,62 @@ def seated_clips():
             ),
         )
     clips.append(idle)
+
+    chat = Clip("seat_chat", 54)
+    for frame, turn in [(1, 0.0), (14, 9.0), (27, -7.0), (40, 8.0), (54, 0.0)]:
+        chat.keys_at(
+            frame,
+            seated(
+                {
+                    "spine": (-1.0, 0.0, turn * 0.12),
+                    "chest": (1.2, 0.0, turn * 0.08),
+                    "head": (-3.0, turn, 0.0),
+                    "upperArm.L": (-66.0, 0.0, -12.0),
+                    "upperArm.R": (-62.0, 0.0, 12.0),
+                    "forearm.L": (-48.0, 0.0, -turn * 0.4),
+                    "forearm.R": (-44.0, 0.0, turn * 0.35),
+                    "hand.L": (turn * 0.2, 0.0, 0.0),
+                    "hand.R": (-turn * 0.2, 0.0, 0.0),
+                }
+            ),
+        )
+    clips.append(chat)
+
+    look = Clip("seat_look", 60)
+    for frame, look_side in [(1, 0.0), (15, -18.0), (30, 15.0), (45, 20.0), (60, 0.0)]:
+        look.keys_at(
+            frame,
+            seated(
+                {
+                    "spine": (2.0, 0.0, look_side * 0.08),
+                    "chest": (1.0, 0.0, look_side * 0.05),
+                    "head": (-5.0, look_side, 0.0),
+                    "upperArm.L": (-70.0, 0.0, -10.0),
+                    "upperArm.R": (-70.0, 0.0, 10.0),
+                    "forearm.L": (-54.0, 0.0, 0.0),
+                    "forearm.R": (-54.0, 0.0, 0.0),
+                }
+            ),
+        )
+    clips.append(look)
+
+    relaxed = Clip("seat_relaxed", 66)
+    for frame, breathe in [(1, 0.0), (18, 1.6), (33, 0.5), (48, 1.2), (66, 0.0)]:
+        relaxed.keys_at(
+            frame,
+            seated(
+                {
+                    "spine": (-3.0 + breathe, 0.0, 0.0),
+                    "chest": (breathe * 0.8, 0.0, 0.0),
+                    "head": (breathe * 0.4, -breathe * 1.5, 0.0),
+                    "upperArm.L": (-60.0, 0.0, -8.0),
+                    "upperArm.R": (-60.0, 0.0, 8.0),
+                    "forearm.L": (-42.0, 0.0, 0.0),
+                    "forearm.R": (-42.0, 0.0, 0.0),
+                }
+            ),
+        )
+    clips.append(relaxed)
 
     wave = Clip("seat_wave", 40)
     for frame, swing in [(1, 0.0), (8, 22.0), (16, -18.0), (24, 22.0), (32, -14.0), (40, 0.0)]:

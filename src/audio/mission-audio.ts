@@ -55,41 +55,13 @@ export interface AudioMix {
 
 const unit = (value: number): number => clamp(value, 0, 1);
 
-// Moored and docked ships do not need an audible motor drone. Underway levels
-// drive filtered noise only; no continuous oscillator is used.
-const phaseEngine: Record<MissionState['voyage']['phase'], number> = {
-  moored: 0,
-  preparation: 0.08,
-  departure: 0.78,
-  'open-sea': 0.5,
-  approach: 0.42,
-  docked: 0.06,
-  foundered: 0,
-};
-
 /**
- * Continuous audio levels for one mission snapshot. Pure projection: a guest
- * holding only host snapshots derives the same mix as the host.
+ * Continuous audio is intentionally silent. The mix shape remains compatible
+ * for callers and tests; meaningful sound is emitted only as short cues.
  */
 export function missionMix(state: MissionState): AudioMix {
-  const { voyage, fire, repair, navigation, invasion } = state;
-  const engineFloor = phaseEngine[voyage.phase];
-  const engine = unit(
-    engineFloor * 0.55 + unit(Math.abs(voyage.telegraph)) * 0.45 * (engineFloor > 0 ? 1 : 0),
-  );
-  const wind = unit(Math.abs(voyage.speed) / 22) * (voyage.phase === 'foundered' ? 0 : 1);
-  const rumble = unit(voyage.turbulence * 0.8 + Math.abs(voyage.airPocket) * 0.5);
-  const fireLevel = fire.status === 'active' ? unit(fire.intensity) : 0;
-  const alarm =
-    fire.status === 'active' ||
-    repair.status === 'active' ||
-    navigation.phase === 'warning' ||
-    invasion.phase === 'warning' ||
-    invasion.phase === 'approach' ||
-    invasion.phase === 'boarders-aboard'
-      ? 1
-      : 0;
-  return { engine, wind, rumble, fire: fireLevel, alarm };
+  void state;
+  return { engine: 0, wind: 0, rumble: 0, fire: 0, alarm: 0 };
 }
 
 const positionOf = (player: PlayerState | undefined): AudioPosition | undefined =>

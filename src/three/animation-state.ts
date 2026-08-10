@@ -167,8 +167,17 @@ const passengerClips: Record<PassengerAnimationState, string> = {
   turbulence: 'seat_turbulence',
 };
 
-export function passengerClip(state: PassengerAnimationState): string {
-  return passengerClips[state];
+export const neutralPassengerClips = [
+  'seat_idle',
+  'seat_chat',
+  'seat_look',
+  'seat_relaxed',
+] as const;
+
+export function passengerClip(state: PassengerAnimationState, neutralVariant = 0): string {
+  if (state !== 'idle') return passengerClips[state];
+  const normalized = Number.isFinite(neutralVariant) ? Math.max(0, Math.floor(neutralVariant)) : 0;
+  return neutralPassengerClips[normalized % neutralPassengerClips.length]!;
 }
 
 /** Carried categories the first-person arms hold at distinct heights. */

@@ -1,26 +1,12 @@
 import { phaseOneCabinDefinition, type PhaseOneObjectDefinition } from '../data/phase-one';
 import { serviceSliceDefinition, type ServiceObjectDefinition } from '../data/service';
-import {
-  DECK_PITCH,
-  DECK_ZERO_Y,
-  compartmentById,
-  defaultCompartmentId,
-  type CompartmentDefinition,
-  type PortalDefinition,
-} from '../data/ship-layout';
-import {
-  arrivalHeading,
-  arrivalPosition,
-  playfieldFor,
-  portalSimPosition,
-  type Playfield,
-} from './compartment-space';
-import { stepWaypointTravel } from './waypoint-travel';
+import { compartmentById, defaultCompartmentId } from '../data/ship-layout';
+import { playfieldFor, type Playfield } from './compartment-space';
+import { stepPortalPad } from './waypoint-travel';
 import { add, clamp, distance, length, normalized, scale } from './math';
 import type {
   CabinObject,
   CabinState,
-  DoorPrompt,
   VoyageState,
   PlayerCommand,
   PlayerState,
@@ -35,8 +21,6 @@ const playerRadius = 0.58;
  * beyond that because reaching a door no longer means going through it — the
  * radius only decides where the prompt appears.
  */
-const portalReach = 2.2;
-
 export function createCabinState(): CabinState {
   const objects = [
     ...phaseOneCabinDefinition.objects.map(objectFromDefinition),
@@ -230,6 +214,7 @@ function player(
     name,
     color,
     compartmentId,
+    waypointDeck: compartmentById(compartmentId)?.deck ?? 0,
     portalCooldown: 0,
     position,
     velocity: { x: 0, y: 0 },
@@ -280,12 +265,6 @@ function stepPlayer(
   cabin: CabinState,
   dt: number,
 ): PlayerState {
-  const waypointStep = stepWaypointTravel(player, command, dt, {
-    authority: 'host',
-    canWalk: waypointWalkClear,
-  });
-  if (waypointStep.handled) return waypointStep.player;
-
   const input = command ?? {
     move: { x: 0, y: 0 },
     look: player.facing,
@@ -336,10 +315,7 @@ function stepPlayer(
     portalCooldown: Math.max(0, player.portalCooldown - dt),
     lastAction: input.brace ? 'Braced' : forcedKnockdown > 0 ? 'Recovering' : player.lastAction,
   };
-  // The same key serves doors and everything else the crew can reach. A doorway
-  // in range wins the press: standing in one is unambiguous, and a fixture close
-  // enough to compete with it is close enough to step away from.
-  return stepPortalTransit(walked, command?.interact === true);
+  return stepPortalPad(walked, command);
 }
 
 /**
@@ -357,67 +333,8 @@ function stepPlayer(
  * layout's own portal pair, which validation has already proven meets in ship
  * space.
  */
-function stepPortalTransit(player: PlayerState, useDoor: boolean): PlayerState {
-  const compartment = compartmentById(player.compartmentId);
-  if (!compartment) return player;
-
-  // Doors on a stair landing sit within a few metres of each other, so the
-  // nearest one wins rather than the first one authored: a prompt that flickers
-  // between two destinations is worse than no prompt.
-  let nearest: { portal: PortalDefinition; range: number } | undefined;
-  for (const portal of compartment.portals) {
-    const range = distance(player.position, portalSimPosition(compartment, portal));
-    if (range > portalReach) continue;
-    if (!nearest || range < nearest.range) nearest = { portal, range };
-  }
-
-  if (!nearest) return player.pendingDoor ? { ...player, pendingDoor: undefined } : player;
-  const destination = compartmentById(nearest.portal.target);
-  if (!destination) return player;
-
-  const from = portalDeck(compartment, nearest.portal);
-  const to = portalDeck(destination, reciprocal(destination, compartment.id));
-  const prompt: DoorPrompt = {
-    target: destination.id,
-    label: destination.label,
-    deck: to,
-    direction: to > from ? 'up' : to < from ? 'down' : 'level',
-  };
-  if (!useDoor || player.portalCooldown > 0) return { ...player, pendingDoor: prompt };
-
-  return {
-    ...player,
-    compartmentId: destination.id,
-    position: arrivalPosition(destination, compartment.id),
-    arrivalYaw: arrivalHeading(destination, compartment.id),
-    velocity: { x: 0, y: 0 },
-    portalCooldown: 0.6,
-    pendingDoor: undefined,
-    lastAction: `Entered ${destination.label}`,
-  };
-}
-
-/**
- * Which deck a doorway stands on. A room has one, but a stair tower spans as
- * many as ten, so the tower's own `deck` field says only where the shaft starts.
- * The door's height above the tower's anchor is what tells you which landing it
- * opens off, and therefore whether using it is a climb or a descent.
- */
-function portalDeck(
-  compartment: CompartmentDefinition,
-  portal: PortalDefinition | undefined,
-): number {
-  if (!portal) return compartment.deck;
-  return Math.round((compartment.anchor.y + portal.position.y - DECK_ZERO_Y) / DECK_PITCH);
-}
-
-/** The far half of a doorway. Validation has already proven every pair exists. */
-function reciprocal(
-  destination: CompartmentDefinition,
-  from: string,
-): PortalDefinition | undefined {
-  return destination.portals.find((portal) => portal.target === from);
-}
+// Portal-pad resolution lives in waypoint-travel.ts so the simulation and the
+// renderer share the same authored pad identifiers.
 
 function clampToPlayfield(position: Vec2, radius: number, field: Playfield): Vec2 {
   return {
@@ -472,30 +389,6 @@ export const cabinFixtures: CabinFixture[] = [
       : { minX: 18.6, maxX: 20.2, minY: seatY - 1.4, maxY: seatY + 1.4 },
   ),
 ];
-
-function waypointWalkClear(compartmentId: string, from: Vec2, to: Vec2): boolean {
-  if (compartmentId !== defaultCompartmentId) return true;
-  const samples = Math.max(2, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / 0.45));
-  for (let index = 0; index <= samples; index += 1) {
-    const progress = index / samples;
-    const position = {
-      x: from.x + (to.x - from.x) * progress,
-      y: from.y + (to.y - from.y) * progress,
-    };
-    if (
-      cabinFixtures.some((fixture) =>
-        inside(position, {
-          minX: fixture.minX - playerRadius,
-          maxX: fixture.maxX + playerRadius,
-          minY: fixture.minY - playerRadius,
-          maxY: fixture.maxY + playerRadius,
-        }),
-      )
-    )
-      return false;
-  }
-  return true;
-}
 
 function resolveCabinFixtures(position: Vec2, previous: Vec2, radius: number): Vec2 {
   let resolved = { ...position };

@@ -39,6 +39,32 @@ test('authored character and first-person rigs load and animate', async ({ page 
   await expect(canvas).toHaveAttribute('data-arms-rig', 'glb');
 });
 
+test('service passengers show six authored styles and desynchronized seated loops', async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  mkdirSync('test-results/correction-evidence', { recursive: true });
+  await page.goto(process.env.CABIN_TEST_BASE_URL ?? '/');
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
+
+  const canvas = page.getByTestId('three-canvas');
+  await expect(canvas).toHaveAttribute('data-character-rig', 'glb');
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.showServicePassengers('front'));
+  await expect(canvas).toHaveAttribute('data-service-passenger-style-count', '6');
+  await expect
+    .poll(() => canvas.getAttribute('data-service-passenger-styles'))
+    .toMatch(/^harbor-cap\|sunset-bob\|seafoam-bun\|violet-crop\|canary-visor\|coral-earbuds/);
+  await expect
+    .poll(() => canvas.getAttribute('data-service-passenger-phase-offsets'))
+    .not.toBe('0.0000|0.0000|0.0000|0.0000|0.0000|0.0000|0.0000|0.0000');
+  await expect(canvas).toHaveAttribute('data-service-passenger-clips', /seat_(chat|look|relaxed)/);
+  await page.screenshot({ path: 'test-results/correction-evidence/service-passengers-front.png' });
+
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.showServicePassengers('side'));
+  await expect(canvas).toHaveAttribute('data-service-passenger-style-count', '6');
+  await page.screenshot({ path: 'test-results/correction-evidence/service-passengers-side.png' });
+});
+
 test('cabin keeps its procedural animation when a rig GLB fails', async ({ page }) => {
   await page.route('**/assets/characters/*.glb', (route) => route.abort());
   await page.goto('/');
@@ -224,7 +250,9 @@ test('authored pirate invasion renders aboard with warning HUD and animated GLBs
 });
 
 test('pool deck shows the host-owned animated cruise crowd', async ({ page }) => {
+  test.setTimeout(60_000);
   mkdirSync('test-results/crowd-evidence', { recursive: true });
+  mkdirSync('test-results/correction-evidence', { recursive: true });
   await page.goto('/');
   await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
 
@@ -237,7 +265,89 @@ test('pool deck shows the host-owned animated cruise crowd', async ({ page }) =>
   await expect(canvas).toHaveAttribute('data-crowd-visible', '12');
   await expect(canvas).toHaveAttribute('data-crowd-evacuating', 'false');
   await page.waitForTimeout(700);
+  await expect(canvas).toHaveAttribute('data-crowd-floating-count', '0');
+  await expect(canvas).not.toHaveAttribute('data-crowd-contact-max', 'NaN');
+  await expect(canvas).toHaveAttribute(
+    'data-crowd-contact-measurement',
+    'posed-bounds-post-correction',
+  );
+  await expect
+    .poll(async () => Number((await canvas.getAttribute('data-crowd-contact-max')) ?? '1'))
+    .toBeLessThanOrEqual(0.03);
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const canvas = document.querySelector('[data-testid="three-canvas"]');
+        const states = Object.values(
+          JSON.parse(canvas?.getAttribute('data-crowd-clip-states') ?? '{}'),
+        ) as Array<{
+          mode?: string;
+          clip?: string;
+        }>;
+        const errors = Object.values(
+          JSON.parse(canvas?.getAttribute('data-crowd-contact-errors') ?? '{}'),
+        ) as Array<number | string>;
+        return (
+          states.some((state) => state.mode === 'standing') &&
+          states.some((state) => state.mode === 'seated') &&
+          errors.every((error) => typeof error === 'number' && error <= 0.03)
+        );
+      }),
+    )
+    .toBe(true);
+  await page.screenshot({ path: 'test-results/correction-evidence/grounded-crowd.png' });
   await page.screenshot({ path: 'test-results/crowd-evidence/pool-deck-cruise-crowd.png' });
+
+  await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.trigger('boarding-invasion-debug'));
+  await page.evaluate(() => {
+    for (let tick = 0; tick < 12; tick += 1) window.__CABIN_MAYHEM_TEST__?.step(0.05);
+  });
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const canvas = document.querySelector('[data-testid="three-canvas"]');
+        const states = Object.values(
+          JSON.parse(canvas?.getAttribute('data-crowd-clip-states') ?? '{}'),
+        ) as Array<{
+          mode?: string;
+          clip?: string;
+        }>;
+        return (
+          states.length > 0 &&
+          states.every((state) => state.mode === 'standing') &&
+          states.some((state) => state.clip === 'sprint')
+        );
+      }),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: 'test-results/correction-evidence/grounded-crowd-standing-transition.png',
+  });
+
+  await page.evaluate(() => {
+    for (let tick = 0; tick < 70; tick += 1) window.__CABIN_MAYHEM_TEST__?.step(0.05);
+  });
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const canvas = document.querySelector('[data-testid="three-canvas"]');
+        const states = Object.values(
+          JSON.parse(canvas?.getAttribute('data-crowd-clip-states') ?? '{}'),
+        ) as Array<{
+          mode?: string;
+          clip?: string;
+        }>;
+        return (
+          states.some((state) => state.mode === 'seated') &&
+          states.some((state) => state.mode === 'standing')
+        );
+      }),
+    )
+    .toBe(true);
+  await expect(canvas).toHaveAttribute('data-crowd-floating-count', '0');
+  await page.screenshot({
+    path: 'test-results/correction-evidence/grounded-crowd-seated-recovered.png',
+  });
 
   await page.mouse.click(640, 360);
   await page.keyboard.down('w');

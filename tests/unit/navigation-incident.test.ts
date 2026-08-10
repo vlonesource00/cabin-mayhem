@@ -20,6 +20,7 @@ describe('navigation collision-course incident', () => {
     expect(state.navigation.warningSeconds).toBeGreaterThanOrEqual(30);
     expect(state.navigation.warningSeconds).toBeLessThanOrEqual(45);
     expect(state.navigation.phase).toBe('warning');
+    expect(Math.abs(state.navigation.obstacle.relativeVelocity.y)).toBeLessThan(2);
     session.step(0.05);
     expect(session.snapshot().navigation.phase).toBe('warning');
     expect(session.snapshot().navigation.countdown).toBeLessThan(state.navigation.countdown);

@@ -44,6 +44,16 @@ export type WaypointId = WaypointDefinition['id'];
 
 type WaypointMapInput = z.input<typeof waypointMapSchema>;
 
+// One authored coordinate source for the atrium lift. The named D2 waypoint
+// below is derived from this stop; simulation and presentation consume the
+// parsed elevator definition rather than maintaining another lift position.
+const grandAtriumElevatorStops = [
+  { deck: 2, label: 'Main Lobby / Deck 2', position: { x: 12, y: 4.8 } },
+  { deck: 3, label: 'Gallery / Deck 3', position: { x: 12, y: 4.8 } },
+  { deck: 4, label: 'Gallery / Deck 4', position: { x: 12, y: 4.8 } },
+  { deck: 5, label: 'Gallery / Deck 5', position: { x: 12, y: 4.8 } },
+] as const;
+
 const waypointMapInput = {
   waypoints: [
     {
@@ -75,7 +85,7 @@ const waypointMapInput = {
       label: 'Grand Atrium / Main Gallery',
       compartmentId: 'atrium',
       deck: 2,
-      position: { x: 12, y: 31 },
+      position: { x: 12, y: 4.8 },
       kind: 'destination',
     },
     {
@@ -155,7 +165,7 @@ const waypointMapInput = {
       label: 'Grand Atrium Elevator / Main Lobby',
       compartmentId: 'atrium',
       deck: 2,
-      position: { x: 12, y: 31 },
+      position: grandAtriumElevatorStops[0].position,
       kind: 'elevator',
     },
   ],
@@ -164,13 +174,8 @@ const waypointMapInput = {
       id: 'grand-atrium-elevator',
       label: 'Grand Atrium Elevator',
       compartmentId: 'atrium',
-      servicedDecks: [2, 3, 4, 5],
-      stops: [
-        { deck: 2, label: 'Main Lobby / Deck 2', position: { x: 12, y: 31 } },
-        { deck: 3, label: 'Gallery / Deck 3', position: { x: 12, y: 31 } },
-        { deck: 4, label: 'Gallery / Deck 4', position: { x: 12, y: 31 } },
-        { deck: 5, label: 'Gallery / Deck 5', position: { x: 12, y: 31 } },
-      ],
+      servicedDecks: grandAtriumElevatorStops.map((stop) => stop.deck),
+      stops: [...grandAtriumElevatorStops],
     },
   ],
 } as const satisfies WaypointMapInput;
@@ -200,6 +205,18 @@ export function validateWaypointMap(input: unknown): WaypointMap {
 
   const elevator = parsed.elevators[0];
   if (!elevator) throw new Error('Grand Atrium elevator is missing');
+  const elevatorWaypoint = parsed.waypoints.find(
+    (waypoint) => waypoint.id === elevator.id && waypoint.kind === 'elevator',
+  );
+  const d2Stop = elevator.stops.find((stop) => stop.deck === 2);
+  if (!elevatorWaypoint || !d2Stop)
+    throw new Error('Grand Atrium D2 elevator coordinate is missing');
+  if (
+    elevatorWaypoint.position.x !== d2Stop.position.x ||
+    elevatorWaypoint.position.y !== d2Stop.position.y
+  ) {
+    throw new Error('Grand Atrium elevator waypoint must derive from its D2 stop');
+  }
   if (new Set(elevator.servicedDecks).size !== elevator.servicedDecks.length)
     throw new Error('Grand Atrium elevator serviced decks must be unique');
   if (elevator.servicedDecks.length !== elevator.stops.length)

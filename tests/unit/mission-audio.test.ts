@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { CabinAudio } from '../../src/audio/cabin-audio';
 import { missionCues, missionMix } from '../../src/audio/mission-audio';
 import { HostSession } from '../../src/sim/host-session';
 import type { MissionState } from '../../src/sim/types';
@@ -8,22 +9,85 @@ const kinds = (state: MissionState, next: MissionState): string[] =>
   missionCues(state, next, 'crew-alpha').map((cue) => cue.kind);
 
 describe('mission audio projection', () => {
-  it('keeps the moored bed quiet and lifts the engine on departure', () => {
+  it('builds no ambient buffers or continuous sources after resume', () => {
+    let bufferCalls = 0;
+    let bufferSourceCalls = 0;
+    const listener = {
+      positionX: { setTargetAtTime: vi.fn() },
+      positionY: { setTargetAtTime: vi.fn() },
+      positionZ: { setTargetAtTime: vi.fn() },
+      setPosition: vi.fn(),
+    };
+    class SilentAudioContext {
+      public readonly currentTime = 0;
+      public readonly destination = {};
+      public readonly listener = listener;
+      public createGain(): unknown {
+        return {
+          connect: vi.fn(),
+          gain: { value: 0, setTargetAtTime: vi.fn() },
+        };
+      }
+      public createDynamicsCompressor(): unknown {
+        return {
+          connect: vi.fn(),
+          threshold: { value: 0 },
+          knee: { value: 0 },
+          ratio: { value: 0 },
+          attack: { value: 0 },
+          release: { value: 0 },
+        };
+      }
+      public createBuffer(): never {
+        bufferCalls += 1;
+        throw new Error('ambient buffers are forbidden');
+      }
+      public createBufferSource(): never {
+        bufferSourceCalls += 1;
+        throw new Error('ambient buffer sources are forbidden');
+      }
+      public resume(): Promise<void> {
+        return Promise.resolve();
+      }
+      public close(): Promise<void> {
+        return Promise.resolve();
+      }
+    }
+
+    vi.stubGlobal('AudioContext', SilentAudioContext);
+    const audio = new CabinAudio();
+    const state = new HostSession().snapshot();
+    const localPlayer = state.cabin.players['crew-alpha'];
+    if (!localPlayer) throw new Error('local player missing from test snapshot');
+    localPlayer.position = { x: 12.5, y: -7.25 };
+    audio.resume();
+    audio.update(state, 'crew-alpha');
+
+    expect(bufferCalls).toBe(0);
+    expect(bufferSourceCalls).toBe(0);
+    expect(audio.continuousSourceCount()).toBe(0);
+    expect(listener.positionX.setTargetAtTime).toHaveBeenLastCalledWith(12.5, 0, 0.05);
+    expect(listener.positionY.setTargetAtTime).toHaveBeenLastCalledWith(1.6, 0, 0.05);
+    expect(listener.positionZ.setTargetAtTime).toHaveBeenLastCalledWith(-7.25, 0, 0.05);
+    expect(listener.setPosition).not.toHaveBeenCalled();
+    audio.dispose();
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps every continuous mission bed silent in every voyage phase', () => {
     const session = new HostSession();
     const moored = missionMix(session.snapshot());
-    expect(moored.engine).toBeLessThan(0.2);
-    expect(moored.alarm).toBe(0);
 
     const state = clone(session.snapshot());
     state.voyage.phase = 'departure';
     state.voyage.telegraph = 1;
     state.voyage.speed = 24;
     const under = missionMix(state);
-    expect(under.engine).toBeGreaterThan(moored.engine);
-    expect(under.wind).toBeCloseTo(1, 5);
+    expect(Object.values(moored)).toEqual([0, 0, 0, 0, 0]);
+    expect(Object.values(under)).toEqual([0, 0, 0, 0, 0]);
   });
 
-  it('clamps every bed to 0..1 under extreme voyage values', () => {
+  it('keeps the compatibility mix shape bounded under extreme voyage values', () => {
     const state = clone(new HostSession().snapshot());
     state.voyage.speed = 4000;
     state.voyage.telegraph = 12;
@@ -36,13 +100,14 @@ describe('mission audio projection', () => {
       expect(level).toBeGreaterThanOrEqual(0);
       expect(level).toBeLessThanOrEqual(1);
     }
+    expect(mix).toEqual({ engine: 0, wind: 0, rumble: 0, fire: 0, alarm: 0 });
   });
 
-  it('raises the alarm bed while an emergency is unresolved', () => {
+  it('does not turn alarms into a continuous bed', () => {
     const state = clone(new HostSession().snapshot());
     expect(missionMix(state).alarm).toBe(0);
     state.repair.status = 'active';
-    expect(missionMix(state).alarm).toBe(1);
+    expect(missionMix(state).alarm).toBe(0);
     state.repair.status = 'fixed';
     expect(missionMix(state).alarm).toBe(0);
   });
@@ -132,10 +197,10 @@ describe('mission audio projection', () => {
     const state = clone(new HostSession().snapshot());
     expect(missionMix(state).alarm).toBe(0);
     state.navigation.phase = 'warning';
-    expect(missionMix(state).alarm).toBe(1);
+    expect(missionMix(state).alarm).toBe(0);
     state.navigation.phase = 'idle';
     state.invasion.phase = 'approach';
-    expect(missionMix(state).alarm).toBe(1);
+    expect(missionMix(state).alarm).toBe(0);
   });
 
   it('derives movement, door, interaction, navigation and boarding cues from state deltas', () => {

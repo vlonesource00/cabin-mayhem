@@ -90,6 +90,16 @@ export const compartmentSchema = z.object({
    */
   glazed: z.boolean(),
   /**
+   * Whether that glazing looks *along* the ship rather than only abeam of it.
+   *
+   * A cabin window frames the sea and a few metres of the ship's side, which is
+   * the case X1 is built for: hide the deck furniture nobody in there can see.
+   * A wheelhouse looks down the whole foredeck, so the same trick strips the
+   * masts and winches out of the one view the room exists to have. Rooms like
+   * that stay at X0 and pay for the ship in full.
+   */
+  panoramic: z.boolean().optional(),
+  /**
    * How many decks the compartment occupies. One for an ordinary room, more for
    * an atrium void or a stair tower. `size.y` must agree with it.
    */
@@ -350,6 +360,9 @@ export const shipLayout = {
       exposure: 'interior',
       // Glass on three sides — the one interior room built to be looked out of.
       glazed: true,
+      // And looked out of forward, over 190 m of the ship's own foredeck, so it
+      // is the room that cannot afford X1's dressing cull.
+      panoramic: true,
       decksTall: 1,
       // The declared extent is the wheelhouse. The bridge wings that overhang
       // the ship's side are exterior geometry hung off it, as they are aboard.
@@ -500,11 +513,14 @@ export type ExteriorTier = 'X0' | 'X1' | 'X2';
  * what it costs: on an open deck it is the view (X0); through a window it is a
  * silhouette and the crew cannot see the deck furniture anyway (X1); in a
  * sealed room nothing can see it at all (X2). An unknown compartment gets X0,
- * because failing to draw the ship is worse than drawing it too well.
+ * because failing to draw the ship is worse than drawing it too well — and so
+ * does a `panoramic` room, whose glazing is pointed down the ship at the very
+ * dressing X1 would take away.
  */
 export function exteriorTier(origin: string): ExteriorTier {
   const compartment = compartmentById(origin);
   if (!compartment) return 'X0';
   if (compartment.exposure === 'exterior') return 'X0';
-  return compartment.glazed ? 'X1' : 'X2';
+  if (!compartment.glazed) return 'X2';
+  return compartment.panoramic ? 'X0' : 'X1';
 }

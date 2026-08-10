@@ -1,6 +1,5 @@
 import type { MissionState, Vec2 } from '../sim/types';
 import type { AudioPosition } from './mission-audio';
-import { clampAudioVolume } from './audio-mix';
 
 export type SoundscapeZone =
   | 'engine-room'
@@ -45,7 +44,7 @@ const profiles: Record<SoundscapeZone, SoundscapeProfile> = {
     filter: 'lowpass',
     frequency: 220,
     quality: 0.8,
-    level: 0.18,
+    level: 0,
     sourcePosition: { x: 0, y: 1.4, z: -2 },
     refDistance: 2.5,
     maxDistance: 28,
@@ -56,7 +55,7 @@ const profiles: Record<SoundscapeZone, SoundscapeProfile> = {
     filter: 'bandpass',
     frequency: 460,
     quality: 0.55,
-    level: 0.08,
+    level: 0,
     sourcePosition: { x: 0, y: 1.6, z: 6 },
     refDistance: 3,
     maxDistance: 32,
@@ -67,7 +66,7 @@ const profiles: Record<SoundscapeZone, SoundscapeProfile> = {
     filter: 'bandpass',
     frequency: 720,
     quality: 0.7,
-    level: 0.13,
+    level: 0,
     sourcePosition: { x: 0, y: 1.5, z: 4 },
     refDistance: 3,
     maxDistance: 24,
@@ -78,7 +77,7 @@ const profiles: Record<SoundscapeZone, SoundscapeProfile> = {
     filter: 'bandpass',
     frequency: 520,
     quality: 0.45,
-    level: 0.1,
+    level: 0,
     sourcePosition: { x: 0, y: 2.4, z: 0 },
     refDistance: 5,
     maxDistance: 42,
@@ -89,7 +88,7 @@ const profiles: Record<SoundscapeZone, SoundscapeProfile> = {
     filter: 'bandpass',
     frequency: 640,
     quality: 0.6,
-    level: 0.12,
+    level: 0,
     sourcePosition: { x: 0, y: 1.8, z: 2 },
     refDistance: 4,
     maxDistance: 30,
@@ -100,7 +99,7 @@ const profiles: Record<SoundscapeZone, SoundscapeProfile> = {
     filter: 'lowpass',
     frequency: 330,
     quality: 0.5,
-    level: 0.06,
+    level: 0,
     sourcePosition: { x: 0, y: 1.4, z: 0 },
     refDistance: 3,
     maxDistance: 22,
@@ -111,7 +110,7 @@ const profiles: Record<SoundscapeZone, SoundscapeProfile> = {
     filter: 'bandpass',
     frequency: 820,
     quality: 0.45,
-    level: 0.11,
+    level: 0,
     sourcePosition: { x: -4, y: 1.8, z: 8 },
     refDistance: 5,
     maxDistance: 46,
@@ -122,7 +121,7 @@ const profiles: Record<SoundscapeZone, SoundscapeProfile> = {
     filter: 'bandpass',
     frequency: 1180,
     quality: 0.35,
-    level: 0.14,
+    level: 0,
     sourcePosition: { x: 4, y: 1.8, z: 5 },
     refDistance: 5,
     maxDistance: 48,
@@ -133,7 +132,7 @@ const profiles: Record<SoundscapeZone, SoundscapeProfile> = {
     filter: 'bandpass',
     frequency: 980,
     quality: 0.65,
-    level: 0.09,
+    level: 0,
     sourcePosition: { x: 0, y: 1.7, z: 2 },
     refDistance: 3,
     maxDistance: 26,
@@ -144,7 +143,7 @@ const profiles: Record<SoundscapeZone, SoundscapeProfile> = {
     filter: 'lowpass',
     frequency: 280,
     quality: 0.7,
-    level: 0.07,
+    level: 0,
     sourcePosition: { x: 0, y: 2, z: 0 },
     refDistance: 3,
     maxDistance: 30,
@@ -155,7 +154,7 @@ const profiles: Record<SoundscapeZone, SoundscapeProfile> = {
     filter: 'bandpass',
     frequency: 1450,
     quality: 0.3,
-    level: 0.16,
+    level: 0,
     sourcePosition: { x: 0, y: 2, z: 12 },
     refDistance: 6,
     maxDistance: 60,
@@ -208,13 +207,13 @@ export function soundscapeForState(state: MissionState, localPlayerId: string): 
   const zone = zoneForCompartment(player?.compartmentId);
   const profile = soundscapeProfile(zone);
   const listenerPosition = audioPosition(player?.position ?? { x: 0, y: 0 });
-  const voyageFactor = state.voyage.phase === 'foundered' ? 0.55 : 1;
-  const crowdFactor = state.crowd.evacuating && publicZones.has(zone) ? 0.68 : 1;
+  void state;
+  void publicZones;
   return {
     zone,
     profile,
     listenerPosition,
-    level: clampAudioVolume(profile.level * voyageFactor * crowdFactor),
+    level: 0,
   };
 }
 

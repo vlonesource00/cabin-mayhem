@@ -64,12 +64,24 @@ SHEER = 8.8  # Deck 5: the promenade, and the top of the shell plating.
 # underside and leaves the walking surface with a single owner.
 PLATE = 0.14
 
-# Stations, close together where the plan is changing fastest.
-STATIONS = [
+# The atrium's void, in ship space. `atrium` in src/data/ship-layout.ts is
+# anchored at z 14 and its galleries ring a well x -7..7, z -17..17 in the
+# room's own coordinates, which lands here. The weather deck is opened over
+# exactly this, so the four-deck void is a four-deck void.
+WELL_X = 7.0
+WELL_Z = (-3.0, 31.0)
+# How far outside the well the deck closes back up. The rake this leaves is
+# under the fore and aft galleries, which are plated, so it is never seen.
+WELL_RAKE = 0.2
+
+# Stations, close together where the plan is changing fastest. The four either
+# side of the atrium well are there to give the opening a square end.
+STATIONS = sorted([
     -145.0, -142.0, -138.0, -132.0, -124.0, -114.0, -102.0, -88.0, -72.0,
     -56.0, -40.0, -24.0, -8.0, 8.0, 24.0, 40.0, 56.0, 72.0, 88.0, 102.0,
     114.0, 124.0, 132.0, 138.0, 141.0, 143.0, 144.5, 145.0,
-]
+    WELL_Z[0] - WELL_RAKE, WELL_Z[0], WELL_Z[1], WELL_Z[1] + WELL_RAKE,
+])
 
 # Where each feature line of a section sits, as a fraction of keel-to-sheer, and
 # how far out it stands as a fraction of the half-beam. Together they are the
@@ -119,16 +131,31 @@ def half_beam_at(z):
     return max(0.16, beam)
 
 
-def hull_ring(z):
-    """One transverse section as a closed ring, keel up to starboard and back.
+def well_half_x(z):
+    """Half the width of the hole in the weather deck at this station."""
+    return WELL_X if WELL_Z[0] <= z <= WELL_Z[1] else 0.0
 
-    Closing the ring across the top gives the weather deck for free, so the hull
-    is a solid from every angle. That closing surface is dropped `PLATE` below
-    the sheer: the promenade lays its own planking with its top face exactly at
-    the sheer, and two decks at one height is a seam the player walks along.
+
+def hull_ring(z):
+    """One transverse section, port sheer down to the keel and up to starboard.
+
+    Carrying the section across the top gives the weather deck for free, so the
+    hull is a solid from every angle. That closing surface is dropped `PLATE`
+    below the sheer: the promenade lays its own planking with its top face
+    exactly at the sheer, and two decks at one height is a seam the player walks
+    along.
+
+    The ring is *open* rather than closed, and the strip `loft` therefore leaves
+    out — the one from the last vertex back to the first — is the atrium well.
+    Everywhere else the two ends meet on the centreline, so the deck reads as
+    one unbroken plate; over the well they stand `WELL_X` apart and it is a
+    four-deck hole with the atrium's own galleries railed around it. Doing it
+    this way keeps the ring the same length at every station, which is the one
+    thing `loft` insists on.
     """
     beam = half_beam_at(z)
     keel, sheer = keel_y(z), sheer_y(z)
+    gap = well_half_x(z)
 
     def point(index, sign):
         return (
@@ -137,9 +164,15 @@ def hull_ring(z):
             z,
         )
 
-    starboard = [point(index, 1) for index in range(7)]
-    port = [point(index, -1) for index in range(5, 0, -1)]
-    return starboard + [(0.0, sheer - PLATE, z), point(6, -1)] + port
+    port = [point(index, -1) for index in range(6, 0, -1)]
+    starboard = [point(index, 1) for index in range(1, 7)]
+    return (
+        [(-gap, sheer - PLATE, z)]
+        + port
+        + [point(0, 1)]
+        + starboard
+        + [(gap, sheer - PLATE, z)]
+    )
 
 
 def side_strip(name, low, high, mat, outset=0.05):
@@ -177,7 +210,8 @@ def outside(z, span):
 
 
 def build_hull(mats):
-    loft("hull_shell", [hull_ring(z) for z in STATIONS], mats["hull"])
+    loft("hull_shell", [hull_ring(z) for z in STATIONS], mats["hull"],
+         closed=False, cap=True)
     # Antifouling up to the boot top, and the white strake under the sheer.
     side_strip("boot_top", 0.31, 0.53, mats["boot"])
     side_strip("sheer_strake", 0.955, 1.0, mats["bulkhead"])

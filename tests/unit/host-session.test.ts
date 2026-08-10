@@ -55,6 +55,19 @@ describe('host session', () => {
     expect(state.cabin.players['crew-bravo']!.position.y).toBeLessThan(start);
   });
 
+  it('updates the waypoint deck when a test teleport changes compartment', () => {
+    const session = new HostSession(95);
+    session.teleport('crew-bravo', 'pool-deck');
+    let player = session.snapshot().cabin.players['crew-bravo']!;
+    expect(player.compartmentId).toBe('pool-deck');
+    expect(player.waypointDeck).toBe(8);
+
+    session.teleport('crew-bravo', 'bridge');
+    player = session.snapshot().cabin.players['crew-bravo']!;
+    expect(player.compartmentId).toBe('bridge');
+    expect(player.waypointDeck).toBe(9);
+  });
+
   it('stops disconnected client input and releases its held object', () => {
     const session = new HostSession(92);
     session.setNetwork({ enabled: false });

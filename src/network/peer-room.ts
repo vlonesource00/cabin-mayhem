@@ -4,7 +4,7 @@ import { ambientActivitySchema } from '../data/ambient-crowd';
 import { navigationIncidentStateSchema } from '../sim/navigation-incident';
 import { emptyCommand, type MissionState, type PlayerCommand } from '../sim/types';
 
-export const protocolVersion = 3 as const;
+export const protocolVersion = 4 as const;
 const roomPrefix = 'cabin-mayhem-';
 const snapshotIntervalMs = 1000 / 15;
 const commandIntervalMs = 1000 / 30;
@@ -567,7 +567,7 @@ export class PeerRoom {
       message: this.guestWasConnected ? 'Rejoining cabin...' : 'Joining cabin...',
     });
     const connection = peer.connect(`${roomPrefix}${roomCode.toLowerCase()}`, {
-      label: 'cabin-mayhem-v2',
+      label: 'cabin-mayhem-v4',
       metadata: { protocol: protocolVersion, role: 'crew-bravo', roomCode },
       reliable: true,
       serialization: 'json',

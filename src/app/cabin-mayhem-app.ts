@@ -1,6 +1,5 @@
 import { CabinAudio } from '../audio/cabin-audio';
 import { navigationIncidentDefinition } from '../data/emergencies';
-import { waypoints } from '../data/waypoints';
 import { CabinInputController } from '../input/cabin-input';
 import { normalizeRoomCode, PeerRoom, type RoomRole, type RoomStatus } from '../network/peer-room';
 import { HostSession } from '../sim/host-session';
@@ -11,12 +10,7 @@ import {
   type PlayerCommand,
   type PlayerState,
 } from '../sim/types';
-import {
-  setWaypointRequest,
-  waypointPrompt,
-  waypointStatusText,
-  waypointTravelFor,
-} from '../sim/waypoint-travel';
+import { portalPadDefinitionsFor, selectedDoorOption } from '../sim/waypoint-travel';
 import { CabinWorld } from '../three/cabin-world';
 import { FirstPersonController } from '../three/first-person-controller';
 import { SpectatorCamera } from '../three/spectator-camera';
@@ -58,8 +52,9 @@ export class CabinMayhemApp {
   private lastCompartmentId = '';
   /** Test-only held repair intent; still travels through normal host validation. */
   private testNavigationRepairHeld = false;
-  /** One-shot destination intent; host consumes it through the normal command path. */
-  private requestedWaypointId?: string;
+  /** Local-only wheel selection for the currently active physical pad. */
+  private portalPadId?: string;
+  private portalOptionIndex = 0;
   private readonly freeCamera = new SpectatorCamera();
 
   public constructor(private readonly root: HTMLElement) {}
@@ -139,7 +134,8 @@ export class CabinMayhemApp {
     this.room = new PeerRoom();
     this.devOpen = false;
     this.debriefVisible = false;
-    this.requestedWaypointId = undefined;
+    this.portalPadId = undefined;
+    this.portalOptionIndex = 0;
     this.root.innerHTML = `
       <main class="game-shell" data-testid="technical-test-scene" data-debug-open="false" data-audio="on" data-room-role="${role}" data-room-phase="idle">
         <section class="world-stage" data-world-stage></section>
@@ -211,12 +207,6 @@ export class CabinMayhemApp {
         <aside class="dev-drawer" aria-label="Development controls" aria-hidden="true">
           <p class="dev-drawer__title">CHAOS LAB / F1</p>
           <div class="dev-readout"><span>Telemetry</span><span data-hud="speed">0 kt</span><span>Heading</span><span data-hud="heading">000</span><span>Stock</span><span data-hud="cart-stock">D 3 / M 3 / MED 2</span><span>Objects</span><span data-hud="objects">0</span></div>
-          <section data-testid="waypoint-panel" aria-label="Waypoint navigation" style="margin-bottom:12px;border:1px solid #66ebda;border-radius:9px;padding:9px;background:rgba(22,29,78,.78);">
-            <p class="dev-drawer__title" style="margin-bottom:4px;">WAYPOINT NAVIGATION / HOST ROUTE</p>
-            <strong data-hud="waypoint-status">GRAND ATRIUM / DECK 2</strong>
-            <pre data-hud="waypoint-map" style="margin:7px 0;white-space:pre-wrap;color:#bcd0ed;font:12px/1.35 'Barlow Condensed',sans-serif;">${waypointMapMarkup()}</pre>
-            <div class="dev-drawer__buttons" data-waypoint-buttons>${waypointButtonsMarkup()}</div>
-          </section>
           <div class="dev-drawer__buttons">
             <button data-action="turbulence">Turbulence</button>
             <button data-action="drop">Air pocket</button>
@@ -273,16 +263,11 @@ export class CabinMayhemApp {
       // A spectating player's body stands still. The voyage keeps running —
       // this is a camera, not a pause — but the crew member is not walked
       // around by the same keys that are flying the camera.
+      const playerBeforeInput = this.currentState().cabin.players[this.localPlayerId()];
+      this.syncPortalSelection(playerBeforeInput);
       const command = this.spectating
         ? emptyCommand()
-        : this.controller.transform(
-            this.input.read(),
-            this.currentState().cabin.players[this.localPlayerId()],
-          );
-      if (this.requestedWaypointId) {
-        setWaypointRequest(command, this.requestedWaypointId);
-        this.requestedWaypointId = undefined;
-      }
+        : this.controller.transform(this.input.read(), playerBeforeInput);
       if (this.testNavigationRepairHeld) {
         if (this.currentState().navigation.repair.status === 'fixed')
           this.testNavigationRepairHeld = false;
@@ -291,7 +276,10 @@ export class CabinMayhemApp {
           command.interactionTargetId = 'repair-steering-relay';
         }
       }
-      command.interactionTargetId = this.world.interactionTarget();
+      const objectTarget = this.world.interactionTarget();
+      command.interactionTargetId = objectTarget;
+      if (command.interact && !objectTarget && playerBeforeInput?.pendingDoor)
+        command.interactionTargetId = this.portalOptionId(playerBeforeInput);
       if (this.testNavigationRepairHeld) command.interactionTargetId = 'repair-steering-relay';
       if (this.roomRole === 'guest') this.room?.sendCommand(command, now);
       else {
@@ -328,7 +316,7 @@ export class CabinMayhemApp {
       );
     } else if (player)
       this.controller.updateCamera(this.world.camera, player, state.voyage, this.world.elapsed());
-    this.world.render(state);
+    this.world.render(state, this.portalOptionId(player));
     this.audio?.update(state, this.localPlayerId());
     if (now - this.lastHudUpdate >= 80) {
       this.updateHud(state);
@@ -336,6 +324,35 @@ export class CabinMayhemApp {
     }
     this.frame = requestAnimationFrame(this.loop);
   };
+
+  private syncPortalSelection(player: PlayerState | undefined): void {
+    const prompt = player?.pendingDoor;
+    const options = prompt?.options ?? [];
+    this.input.setPortalPromptActive(options.length > 1);
+    if (!prompt || options.length === 0) {
+      this.portalPadId = undefined;
+      this.portalOptionIndex = 0;
+      return;
+    }
+    if (this.portalPadId !== prompt.padId) {
+      this.portalPadId = prompt.padId;
+      this.portalOptionIndex = Math.max(
+        0,
+        options.findIndex((option) => option.id === prompt.selectedOptionId),
+      );
+    }
+    if (options.length < 2) return;
+    const wheel = this.input.consumeWheelDelta();
+    if (!wheel) return;
+    this.portalOptionIndex = (this.portalOptionIndex + wheel) % options.length;
+    if (this.portalOptionIndex < 0) this.portalOptionIndex += options.length;
+  }
+
+  private portalOptionId(player: PlayerState | undefined): string | undefined {
+    const prompt = player?.pendingDoor;
+    if (!prompt || prompt.options.length === 0) return undefined;
+    return prompt.options[this.portalOptionIndex]?.id ?? prompt.defaultOptionId;
+  }
 
   /**
    * Detach or re-attach the camera from the crew member.
@@ -389,23 +406,10 @@ export class CabinMayhemApp {
     this.text(
       '[data-hud="interaction"]',
       this.spectatorPrompt() ??
-        (player ? waypointPrompt(player) : undefined) ??
-        doorPrompt(player) ??
+        doorPrompt(player, this.portalOptionId(player)) ??
         this.world?.prompt() ??
         'SCAN CABIN',
     );
-    this.text(
-      '[data-hud="waypoint-status"]',
-      player ? waypointStatusText(player) : 'HOST ROUTE OFFLINE',
-    );
-    for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-waypoint-id]')) {
-      const active =
-        waypointTravelFor(player ?? ({} as PlayerState))?.targetId === button.dataset.waypointId;
-      button.setAttribute('aria-pressed', String(active));
-      button.dataset.travelStatus = active
-        ? (waypointTravelFor(player ?? ({} as PlayerState))?.status ?? 'selected')
-        : '';
-    }
     this.text('[data-hud="held"]', held?.toUpperCase() ?? 'EMPTY');
     this.text('[data-hud="panic"]', String(panic));
     this.text(
@@ -520,10 +524,6 @@ export class CabinMayhemApp {
     this.button('navigation-repair', () =>
       this.hostOnly(() => this.session?.teleport('crew-alpha', 'navigation-repair')),
     );
-    for (const waypoint of waypoints)
-      this.button(`waypoint-${waypoint.id}`, () => {
-        this.requestedWaypointId = waypoint.id;
-      });
     this.button('reset', () => this.sailAnotherShift());
     this.button('sail-again', () => this.sailAnotherShift());
   }
@@ -539,6 +539,10 @@ export class CabinMayhemApp {
       trigger: (kind) => this.session?.trigger(kind),
       boardInvasion: () => this.boardInvasionForTest(),
       showCrowd: () => this.showCrowdForTest(),
+      showServicePassengers: (view) => this.showServicePassengersForTest(view),
+      showPortalPad: () => this.showPortalPadForTest(),
+      showAftStair: () => this.showAftStairForTest(),
+      showPortalOccluded: () => this.showPortalOccludedForTest(),
       helmNavigation: () => this.helmNavigationForTest(),
       avoidNavigation: () => this.avoidNavigationForTest(),
       beginNavigationRepair: () => this.beginNavigationRepairForTest(),
@@ -565,7 +569,8 @@ export class CabinMayhemApp {
     this.room = undefined;
     this.spectating = false;
     this.testNavigationRepairHeld = false;
-    this.requestedWaypointId = undefined;
+    this.portalPadId = undefined;
+    this.portalOptionIndex = 0;
     this.input.setActive(false);
   }
 
@@ -649,6 +654,124 @@ export class CabinMayhemApp {
     this.session.setNetwork({ enabled: false });
     this.session.teleport(playerId, 'pool-deck');
     this.controller?.faceHeading(Math.PI);
+  }
+
+  private showServicePassengersForTest(view: 'front' | 'side' = 'front'): void {
+    if (!this.session) return;
+    const playerId = this.localPlayerId();
+    this.session.setNetwork({ enabled: false });
+    this.session.teleport(playerId, 'cabin');
+    const target = view === 'side' ? { x: 4.3, y: 20.8 } : { x: 12, y: 6.2 };
+    const look = view === 'side' ? { x: 1, y: 0 } : { x: 0, y: 1 };
+    for (let tick = 0; tick < 900; tick += 1) {
+      const player = this.session.snapshot().cabin.players[playerId];
+      if (!player) break;
+      const dx = target.x - player.position.x;
+      const dy = target.y - player.position.y;
+      const length = Math.hypot(dx, dy);
+      if (length <= 0.18) break;
+      const command = emptyCommand();
+      command.move = { x: dx / length, y: dy / length };
+      command.look = look;
+      this.session.submitCommand(playerId, command);
+      this.session.step(1 / 60);
+    }
+    const face = emptyCommand();
+    face.look = look;
+    this.session.submitCommand(playerId, face);
+    this.session.step(1 / 60);
+    this.controller?.faceHeading(view === 'side' ? Math.PI / 2 : Math.PI, -0.12);
+  }
+
+  private showPortalPadForTest(): void {
+    if (!this.session) return;
+    const playerId = this.localPlayerId();
+    this.session.setNetwork({ enabled: false });
+    this.session.teleport(playerId, 'cabin');
+    const elevator = portalPadDefinitionsFor('atrium').find((pad) => pad.kind === 'elevator');
+    if (!elevator) return;
+    const cameraSpot = { x: elevator.position.x, y: elevator.position.y - 2 };
+    for (let tick = 0; tick < 1_200; tick += 1) {
+      const player = this.session.snapshot().cabin.players[playerId];
+      if (
+        player &&
+        Math.hypot(cameraSpot.x - player.position.x, cameraSpot.y - player.position.y) <= 0.18
+      )
+        break;
+      if (!player) break;
+      // Approach the south vestibule around the lift trunk, then cross in front
+      // of the doors. A straight centreline path would walk through the car.
+      const approach = player.position.y > 5.2 ? { x: 15.5, y: 4.8 } : cameraSpot;
+      const x = approach.x - player.position.x;
+      const y = approach.y - player.position.y;
+      const length = Math.hypot(x, y) || 1;
+      const command = emptyCommand();
+      command.move = { x: x / length, y: y / length };
+      command.look = { ...command.move };
+      this.session.submitCommand(playerId, command);
+      this.session.step(1 / 60);
+    }
+    const faceDoors = emptyCommand();
+    faceDoors.look = { x: 0, y: 1 };
+    this.session.submitCommand(playerId, faceDoors);
+    this.session.step(1 / 60);
+    this.controller?.faceHeading(Math.PI, -0.25);
+  }
+
+  private showAftStairForTest(): void {
+    if (!this.session) return;
+    const playerId = this.localPlayerId();
+    this.session.setNetwork({ enabled: false });
+    this.session.teleport(playerId, 'cabin');
+    const stairPad = portalPadDefinitionsFor('atrium').find(
+      (pad) => pad.id === 'door-pad:atrium:stairwell-aft:0',
+    );
+    if (!stairPad) return;
+    const target = stairPad.position;
+    for (let tick = 0; tick < 1_200; tick += 1) {
+      const player = this.session.snapshot().cabin.players[playerId];
+      if (!player) break;
+      const dx = target.x - player.position.x;
+      const dy = target.y - player.position.y;
+      const length = Math.hypot(dx, dy);
+      if (length <= 0.18) break;
+      const command = emptyCommand();
+      command.move = { x: dx / length, y: dy / length };
+      command.look = { x: dx / (length || 1), y: dy / (length || 1) };
+      this.session.submitCommand(playerId, command);
+      this.session.step(1 / 60);
+    }
+    const faceDoors = emptyCommand();
+    faceDoors.look = { x: 0, y: 1 };
+    this.session.submitCommand(playerId, faceDoors);
+    this.session.step(1 / 60);
+    this.controller?.faceHeading(Math.PI, -0.16);
+  }
+
+  private showPortalOccludedForTest(): void {
+    if (!this.session) return;
+    const playerId = this.localPlayerId();
+    this.session.setNetwork({ enabled: false });
+    this.session.teleport(playerId, 'cabin');
+    const target = { x: 4.2, y: 4.2 };
+    for (let tick = 0; tick < 900; tick += 1) {
+      const player = this.session.snapshot().cabin.players[playerId];
+      if (!player) break;
+      const dx = target.x - player.position.x;
+      const dy = target.y - player.position.y;
+      const length = Math.hypot(dx, dy);
+      if (length <= 0.18) break;
+      const command = emptyCommand();
+      command.move = { x: dx / length, y: dy / length };
+      command.look = { x: 0, y: 1 };
+      this.session.submitCommand(playerId, command);
+      this.session.step(1 / 60);
+    }
+    const faceWall = emptyCommand();
+    faceWall.look = { x: 0, y: 1 };
+    this.session.submitCommand(playerId, faceWall);
+    this.session.step(1 / 60);
+    this.controller?.faceHeading(Math.PI, -0.12);
   }
 
   private helmNavigationForTest(): void {
@@ -855,24 +978,6 @@ export class CabinMayhemApp {
   }
 }
 
-function waypointButtonsMarkup(): string {
-  return waypoints
-    .map(
-      (waypoint) =>
-        `<button type="button" data-action="waypoint-${waypoint.id}" data-waypoint-id="${waypoint.id}" title="Travel to ${waypoint.label}">D${waypoint.deck} · ${waypoint.label}</button>`,
-    )
-    .join('');
-}
-
-function waypointMapMarkup(): string {
-  const lines = [...waypoints]
-    .filter((waypoint) => waypoint.kind !== 'elevator')
-    .sort((left, right) => right.deck - left.deck || left.label.localeCompare(right.label))
-    .map((waypoint) => `D${waypoint.deck}  ${waypoint.label}`);
-  lines.push('ELEVATOR  GRAND ATRIUM  D2 / D3 / D4 / D5');
-  return lines.join('\n');
-}
-
 function objectiveFor(state: MissionState): Objective {
   if (state.service.outcome === 'success')
     return {
@@ -1077,11 +1182,21 @@ function navigationAlertDetail(state: MissionState): string {
  * merely near, and knowing where a door goes before opening it is the whole
  * point of a ship this size.
  */
-function doorPrompt(player: PlayerState | undefined): string | undefined {
+function doorPrompt(player: PlayerState | undefined, selectedId?: string): string | undefined {
   const door = player?.pendingDoor;
   if (!door) return undefined;
-  const arrow = door.direction === 'up' ? '▲' : door.direction === 'down' ? '▼' : '▶';
-  return `E · ${door.label.toUpperCase()}  ${arrow} DECK ${door.deck}`;
+  const selected = selectedDoorOption(door, selectedId ?? door.selectedOptionId) ?? door.options[0];
+  if (!selected) return undefined;
+  if (door.options.length < 2) return `E / ${selected.label.toUpperCase()} / DECK ${selected.deck}`;
+  const index = Math.max(
+    0,
+    door.options.findIndex((option) => option.id === selected.id),
+  );
+  const label = selected.label
+    .replace(/^Grand Atrium \/ /, '')
+    .replace(/ \/ Deck /, ' D')
+    .toUpperCase();
+  return `E / ELEVATOR / ${index + 1} OF ${door.options.length} / > ${label} / WHEEL SELECT`;
 }
 
 /** Compass heading as the three-digit form a bridge readout uses: 007, 082, 359. */

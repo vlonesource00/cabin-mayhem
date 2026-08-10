@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { compartmentById } from '../data/ship-layout';
 import { playfieldHeading } from '../sim/compartment-space';
+import { waypointDeckRenderOffset } from '../sim/waypoint-travel';
 import type { VoyageState, PlayerCommand, PlayerState, Vec2 } from '../sim/types';
 import { cabinToWorld } from './coordinates';
 
@@ -108,8 +109,9 @@ export class FirstPersonController {
    * member changes compartment, so they step out of a stair tower looking into
    * the room rather than back at the door.
    */
-  public faceHeading(yaw: number): void {
+  public faceHeading(yaw: number, pitch = this.pitch): void {
     this.yaw = yaw;
+    this.pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
   }
 
   public updateCamera(
@@ -130,7 +132,9 @@ export class FirstPersonController {
 
     camera.position.set(
       position.x + shakeX,
-      position.y + (player.crouched ? 1.12 : 1.68 + bob + shakeY),
+      position.y +
+        waypointDeckRenderOffset(player) +
+        (player.crouched ? 1.12 : 1.68 + bob + shakeY),
       position.z,
     );
     camera.rotation.order = 'YXZ';

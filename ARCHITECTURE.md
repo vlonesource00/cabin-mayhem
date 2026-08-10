@@ -5,24 +5,34 @@
 Web/Tauri architecture for Cabin Mayhem under the cruise-ship premise
 ([ADR 0001](docs/adr/0001-cruise-ship-pivot.md)). Vite/browser is the
 intentional platform choice; Tauri packages the same static web application.
-Systems marked **planned** are designed and budgeted but not implemented; the
-shipped code is still the airliner vertical at `79bb002`.
+Systems marked **planned** are designed and budgeted but not implemented.
+
+The pivot is done. The ship is authored — fourteen compartments plus the
+exterior, streamed against a portal graph, described in
+[docs/SHIP_LAYOUT.md](docs/SHIP_LAYOUT.md) and decided in
+[ADR 0003](docs/adr/0003-ship-layout-redesign.md) and
+[ADR 0004](docs/adr/0004-stair-tower-traversal.md). What remains from the
+airliner build is the part that was always vehicle-agnostic: fixed-step host
+authority, crew kinematics, loose-object physics and the interaction contract.
 
 ## Folder layout
 
 ```text
   src/
-  app/       menu, 3D game shell, HUD, debug UI, test bridge
+  app/       menu, 3D game shell, HUD, deck plan, debug UI, test bridge
   audio/     procedural Web Audio beds and cues projected from mission state
   input/     keyboard/gamepad intent collection
   sim/       host authority, ship model, cabin physics, job/hazard rules, simulated transport
   network/   optional PeerJS/WebRTC room transport
   three/     Three.js world, GLB streaming, procedural fallback, characters, FPS camera, coordinates
-  data/      validated compartment, guest, job, incident, obstacle and upgrade definitions
-assets-src/  tracked Blender source assets and generators
-public/      runtime assets and asset manifest
+  data/      validated ship layout, guest, job, incident, obstacle and upgrade definitions
+tools/
+  blender/   deterministic headless build scripts for the exterior and every compartment
+assets-src/  tracked Blender source assets from the airliner build
+public/      runtime assets (one GLB per compartment, plus the exterior) and the manifest
 tests/       unit, integration and browser journeys
 docs/        design, layout, performance, network, authoring, test and roadmap records
+docs/adr/    numbered architecture decisions
 src-tauri/   optional Rust native shell
 ```
 
@@ -50,8 +60,24 @@ Existing, carried over:
 - `CabinWorld`: Three.js world, lighting, GLB/procedural visuals, prop
   synchronisation, interaction raycast.
 - `compartment-loader` / `CompartmentStreamer`: validate and load the authored
-  compartment GLBs and keep the right rooms resident, falling back to greybox
-  on failure.
+  compartment GLBs, keep the right rooms resident against the portal graph,
+  apply the reduced-detail and exterior tiers, and fall back to greybox on
+  failure. `dressLoadedMesh` is where transparency is made safe (see
+  [docs/PERFORMANCE.md](docs/PERFORMANCE.md) §7).
+- `ship-layout` (`src/data/`): the fourteen compartments, their extents,
+  anchors, portals, glazing flags and budgets. Zod-validated, the single source
+  of ship truth, and read by the streamer, the deck plan, the Blender build
+  scripts' expectations and the validators alike.
+- `deck-plan` (`src/app/`): a pure function from the layout data to an SVG
+  string — ship in section, current deck in plan, occupied room marked. Held
+  open with **N** during a voyage. It touches no DOM and no loaded GLB, which is
+  what makes it testable in a suite with neither.
+- `ocean` / `ocean-surface`: the summed-wave sea, evaluated on the simulation
+  side for hull motion and in the vertex shader for the visible surface.
+- `waypoint-travel` / `navigation-incident` / `navigation-obstacle-presenter`:
+  the voyage's route, its scheduled hazards and their presentation.
+- `ambient-crowd` / `boarding-invasion` and their presenters: host-authoritative
+  guest and boarder populations, rendered through the character LOD tiers.
 - `FirstPersonController`, `interaction-animation`, `animated-rig`,
   `animation-contract`, `animation-state`: unchanged. The `CM_HUMANOID` skeleton
   and arms rig survive the pivot intact.
@@ -65,15 +91,11 @@ Renamed:
 
 Planned:
 
-- `ocean`: shader-displaced sea plane plus the matching simulation-side wave
-  function that produces hull pitch, roll and heave.
-- `helm`: bridge station, rudder and telegraph authority, obstacle avoidance
-  validation.
-- `obstacle-field`: authored and scheduled hazards on collision bearings, with
-  time-to-impact, warnings and countdowns.
-- `compartment-streaming`: portal-graph residency, async load, pre-warm, unload.
+- `helm`: bridge station with rudder and telegraph authority, and host-validated
+  obstacle avoidance. Today the bridge is a place; it is not yet a station.
 - `job-economy`: stock outlets, restocking, cleaning, housekeeping, medical.
-- `defence`: boarder AI, deck weapon mounts, host-validated hits.
+- `defence`: deck weapon mounts and host-validated hits on top of the existing
+  boarder population.
 - `upgrades`: persisted currency and authored modifiers read by existing systems.
 
 ## Data flow
@@ -113,5 +135,13 @@ desktop shell: Tauri v2, Rust and WebView2.
 - Rendering, animation, audio and debrief projection cannot mutate simulation
   state. The host alone resolves dodges, hazards, hits, score, outcome and
   replay reset.
+- **Local view state never enters `PlayerCommand`.** Everything in that type is
+  replicated to the other client and validated by the host, so a purely local
+  affordance — the spectator camera, the dev drawer, the deck plan — lives on
+  the app instead. Adding a field there to hold a UI toggle would spend
+  bandwidth per tick and hand the host a rule it has no business enforcing.
+- The exterior owns the shell and everything permanently outboard of or above a
+  compartment; a compartment owns what stands on its own deck. Nothing is
+  authored twice ([ADR 0003](docs/adr/0003-ship-layout-redesign.md)).
 - Performance budgets in [docs/PERFORMANCE.md](docs/PERFORMANCE.md) are gates,
   not guidance. Content that breaks them does not merge.

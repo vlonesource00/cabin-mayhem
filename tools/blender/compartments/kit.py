@@ -71,7 +71,15 @@ PALETTE = {
     "steel": ((0.58, 0.62, 0.68), 0.80, 0.38),
     "teal": ((0.09, 0.62, 0.65), 0.0, 0.48),
     "coral": ((0.94, 0.36, 0.42), 0.0, 0.52),
+    # Two glasses, because a window has two jobs and they conflict. `glass` is
+    # the pane seen from outside — a tinted, opaque reflection, which is what a
+    # window on a ship's side actually looks like from the water and which stops
+    # a distant viewer seeing into a superstructure that is hollow until its
+    # rooms stream in. `glass_clear` is the pane you stand behind, and it is
+    # genuinely see-through, because the whole point of putting the player on a
+    # ship is that they can look at the sea.
     "glass": ((0.42, 0.72, 0.86), 0.0, 0.14),
+    "glass_clear": ((0.62, 0.82, 0.90), 0.0, 0.05),
     # Exterior-only, but shared so a balcony rail inside a cabin and the same
     # rail seen from the water batch together.
     "hull": ((0.05, 0.10, 0.21), 0.10, 0.42),
@@ -80,6 +88,10 @@ PALETTE = {
     "canvas": ((0.94, 0.92, 0.86), 0.00, 0.85),
     "water": ((0.10, 0.55, 0.72), 0.00, 0.12),
 }
+
+# Palette entries that are not solid, and how much of what is behind them comes
+# through. Kept apart from `PALETTE` so the common case stays a three-tuple.
+TRANSPARENT = {"glass_clear": 0.17}
 
 # Emissive accents. Signage and instrument glow are how a low-poly room reads as
 # alive without spending meshes on it.
@@ -128,13 +140,24 @@ def superstructure_half_beam(z, inset=1.6):
 def build_materials():
     mats = {}
     for name, (color, metallic, roughness) in PALETTE.items():
+        alpha = TRANSPARENT.get(name, 1.0)
         mat = bpy.data.materials.new(name)
-        mat.diffuse_color = (*color, 1.0)
+        mat.diffuse_color = (*color, alpha)
         mat.use_nodes = True
         bsdf = mat.node_tree.nodes.get("Principled BSDF")
-        bsdf.inputs["Base Color"].default_value = (*color, 1.0)
+        bsdf.inputs["Base Color"].default_value = (*color, alpha)
         bsdf.inputs["Metallic"].default_value = metallic
         bsdf.inputs["Roughness"].default_value = roughness
+        if alpha < 1.0:
+            # The glTF exporter takes alphaMode from the material's blend
+            # setting, and which property carries that moved between the 4.x
+            # series and 5.0. Set whichever this build has rather than pinning
+            # one and silently exporting an opaque pane.
+            bsdf.inputs["Alpha"].default_value = alpha
+            if hasattr(mat, "blend_method"):
+                mat.blend_method = "BLEND"
+            if hasattr(mat, "surface_render_method"):
+                mat.surface_render_method = "BLENDED"
         mats[name] = mat
     for name, (color, emission, strength) in EMISSIVE.items():
         mat = bpy.data.materials.new(name)
@@ -327,10 +350,13 @@ def railing(mats, name, points, y, height=1.12, spacing=2.4, mat="steel"):
             )
 
 
-def window_band(mats, name, span, y, sill, head, fixed, vertical, thickness=0.08, mullion=2.6):
+def window_band(mats, name, span, y, sill, head, fixed, vertical, thickness=0.08,
+                mullion=2.6, glass="glass"):
     """A run of glazing with mullions, used by `shell` and by the exterior.
 
     `span` is (start, end) along the wall; `fixed` is the wall's other axis.
+    `glass` picks which pane: `glass_clear` for a wall the crew stands behind,
+    the default tinted `glass` for one they only ever see from outside.
     """
     start, end = span
     extent = end - start
@@ -339,9 +365,9 @@ def window_band(mats, name, span, y, sill, head, fixed, vertical, thickness=0.08
     mid = (start + end) / 2
     centre = (head + sill) / 2
     if vertical:
-        cube(f"{name}_glass", (thickness, head - sill, extent), (fixed, y + centre, mid), mats["glass"], 0.0)
+        cube(f"{name}_glass", (thickness, head - sill, extent), (fixed, y + centre, mid), mats[glass], 0.0)
     else:
-        cube(f"{name}_glass", (extent, head - sill, thickness), (mid, y + centre, fixed), mats["glass"], 0.0)
+        cube(f"{name}_glass", (extent, head - sill, thickness), (mid, y + centre, fixed), mats[glass], 0.0)
     bays = max(1, int(round(extent / mullion)))
     for bay in range(bays + 1):
         at = start + extent * bay / bays
@@ -426,6 +452,7 @@ def shell(mats, size, portals, carpet="carpet", glaze=None, open_sides=(), deckh
                     head,
                     fixed,
                     vertical,
+                    glass="glass_clear",
                 )
             for band_index, (low, high) in enumerate(bands):
                 if high - low < 0.05:

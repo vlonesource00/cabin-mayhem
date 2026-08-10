@@ -88,9 +88,18 @@ describe('cabin simulation', () => {
     // Standing in a doorway names where it goes and which way through the ship
     // it leads — the atrium is deck 2, the tower's landing there is the same
     // deck, so this one is level.
-    expect(waiting.pendingDoor?.target).toBe('stairwell-aft');
-    expect(waiting.pendingDoor?.direction).toBe('level');
-    expect(waiting.pendingDoor?.deck).toBe(2);
+    expect(waiting.pendingDoor?.target).toBe('engine-room');
+    expect(waiting.pendingDoor?.direction).toBe('down');
+    expect(waiting.pendingDoor?.deck).toBe(0);
+    expect(waiting.pendingDoor?.options.map((option) => option.target)).toEqual([
+      'engine-room',
+      'crew-corridor',
+      'main-galley',
+      'cabin-deck-four',
+      'promenade',
+      'pool-deck',
+      'sun-deck',
+    ]);
     // And it stays offered. Proximity alone must never move anybody.
     expect(waiting.compartmentId).toBe('atrium');
     let held = state;
@@ -106,15 +115,25 @@ describe('cabin simulation', () => {
 
   it('walks the crew through a doorway when they ask to use it', () => {
     const voyage = createVoyageState();
+    const waiting = walkToTheAfterDoor(voyage);
     const state = stepCabin(
-      walkToTheAfterDoor(voyage),
+      waiting,
       createVoyageState(),
-      { 'crew-alpha': { ...emptyCommand(), interact: true }, 'crew-bravo': emptyCommand() },
+      {
+        'crew-alpha': {
+          ...emptyCommand(),
+          interact: true,
+          interactionTargetId: waiting.players['crew-alpha']!.pendingDoor?.options.find(
+            (option) => option.target === 'main-galley',
+          )?.id,
+        },
+        'crew-bravo': emptyCommand(),
+      },
       1 / 60,
     );
 
     const arrived = state.players['crew-alpha']!;
-    expect(arrived.compartmentId).toBe('stairwell-aft');
+    expect(arrived.compartmentId).toBe('main-galley');
     expect(arrived.lastAction).toContain('Entered');
     // Arriving turns the view into the tower rather than back at the door.
     expect(arrived.arrivalYaw).toBeTypeOf('number');
@@ -128,6 +147,6 @@ describe('cabin simulation', () => {
       { 'crew-alpha': { ...emptyCommand(), interact: true }, 'crew-bravo': emptyCommand() },
       1 / 60,
     );
-    expect(back.players['crew-alpha']!.compartmentId).toBe('stairwell-aft');
+    expect(back.players['crew-alpha']!.compartmentId).toBe('main-galley');
   });
 });

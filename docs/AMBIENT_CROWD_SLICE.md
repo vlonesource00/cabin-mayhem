@@ -1,51 +1,52 @@
 # Ambient cruise crowd slice
 
-The ship now carries 78 deterministic ambient residents across the atrium,
-galley, dining room, both cabin decks, promenade, pool deck and sun deck.
-`HostSession` owns every position, route, activity and evacuation state. A guest
-client receives the same state through the protocol-v3 snapshot and cannot
-author crowd motion.
+The host owns 78 deterministic ambient residents across the occupied ship
+compartments. Guests receive the same snapshot; activity, route, and
+evacuation state never come from the renderer.
 
-## Activities and presentation
+## GLB presentation
 
-Residents walk, chat, dine, cook, perform housekeeping, sightsee, take requested
-photographs, swim and sunbathe. Boarding warning, approach and boarders-aboard
-phases change every resident to an evacuation state; leisure resumes after the
-threat is repelled or failed.
+Visible residents use the validated `CM_PASSENGER` GLB mesh and authored
+AnimationMixer clips. Per-resident variation is limited to deterministic
+material palettes and bounded silhouette scale. The presenter never adds
+procedural hair, sunglasses, visors, earbuds, or any other primitive under an
+unknown GLB head or bone.
 
-Only residents in the occupied compartment are rendered. Every visible resident
-uses `public/assets/characters/cabin-mayhem-characters.glb`, mesh
-`CM_PASSENGER`, and an authored AnimationMixer clip. This reuses the validated
-Blender character contract rather than introducing runtime-generated character
-art.
+Standing and seated roots start at the compartment floor. On instantiate and
+clip changes, the presenter samples the mixer, measures posed mesh bounds in the
+root parent's coordinate space, and applies one bounded correction so the
+non-swimmer minimum Y meets the intended floor. The correction is recomputed
+from the current bounds rather than accumulated; rigs with invalid, extreme, or
+post-correction contact error above 0.03 m stay hidden. Swimming residents
+remain explicitly submerged and are excluded from contact and floating metrics.
 
-Presentation derives one of six stable archetypes from the resident id. Each
-archetype changes the passenger silhouette scale, GLB material palette, hair
-shape, and a small accessory detail while keeping the body mesh and shared GLB
-loading contract intact. Dining and sunbathing use seated authored clips selected
-from deterministic per-activity pools; walking, service, swimming and evacuation
-retain their activity-specific authored clips.
+The canvas exposes:
 
-Seated roots use an explicit seat transform contract: the host position remains
-the anchor, the measured `CM_PASSENGER` seated foot contact (`0.357m`) is scaled
-by the archetype height, and the root is lowered to the surface before the
-presentation layer interpolates position and facing. The authored pelvis drop
-(`0.42m`) and surface/yaw offsets stay in the same contract, so seated feet do
-not float while animation variants prevent a shared pose.
+- `data-crowd-floating-count` — non-swimmers whose measured contact error is
+  greater than 0.03 m;
+- `data-crowd-contact-max` — maximum measured non-swimmer contact error;
+- `data-crowd-visible`, `data-crowd-residents`, and
+  `data-crowd-evacuating` for deterministic runtime evidence.
+
+The intended acceptance state is zero floating non-swimmers and contact max
+at or below 0.03 m. The presenter owns disposal of cloned rigs and cloned
+materials.
+
+Service-mission passengers are a separate authored set. Their stable service
+definition order selects the six GLB-backed archetypes without hash collapse,
+and each rig receives a deterministic mixer phase once at creation. Calm
+seated passengers use the authored `seat_idle`, `seat_chat`, `seat_look`, and
+`seat_relaxed` loops; semantic reaction states continue to select their
+standing, panic, injury, and turbulence clips. The regenerated GLB keeps the
+seated lower-body base pose anatomically valid: thighs travel forward from the
+hips, shins travel down from the knees, and feet remain near the deck.
 
 ## Evidence
 
-- `tests/unit/ambient-crowd.test.ts` proves deterministic population, movement,
-  bounded routes and evacuation transitions.
-- `tests/unit/ambient-crowd-presenter.test.ts` proves every activity resolves to
-  an authored GLB clip, stable archetype variety, seated contact, and activity
-  presentation state selection.
-- host and peer-room tests prove host ownership and strict snapshot validation.
-- the Playwright crowd test renders 12 pool-deck residents and writes
-  `test-results/crowd-evidence/pool-deck-cruise-crowd.png`, plus a settled close
-  framing at `test-results/crowd-evidence/pool-deck-seating-close.png`.
-
-This is the crowd foundation, not a claim that the full resort simulation is
-finished. Cross-compartment schedules, conversations, shopping transactions,
-job-specific NPC cooperation, combat reactions and crowd LOD/streaming polish
-remain future work.
+`tests/unit/ambient-crowd-presenter.test.ts` covers authored clips, stable
+archetypes, seated floor metadata, no procedural attachments, and grounded
+standing/seated GLB instances with swimming excluded.
+`tests/unit/ambient-npc-style.test.ts` verifies that style application only
+recolors/scales the supplied GLB hierarchy. The ambient Playwright test writes
+`test-results/correction-evidence/grounded-crowd.png` and asserts floating count
+zero plus contact max at or below 0.03 m.

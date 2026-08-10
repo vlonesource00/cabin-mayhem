@@ -1,35 +1,33 @@
 # First-person presentation contract
 
 This slice owns presentation only. Host snapshots still decide movement,
-interaction, carrying, fire, repair and navigation outcomes.
+interaction, carrying, fire, repair, navigation, and portal-pad outcomes.
 
 ## Rounded arms
 
-`loadRig(firstPersonRigId)` still validates the authored `CM_FPARMS_ROOT`, all
-declared clips and the existing seven-bone contract. At instantiation time,
-`src/three/animated-rig.ts` hides only the source `CM_FP_ARMS` render mesh and
-adds low-poly capsules, ellipsoids and a rounded cuff to the same animated
-`fp_upperArm.*`, `fp_forearm.*` and `fp_hand.*` bones. Clip names, mixer timing,
-visibility gating and input code remain unchanged.
+`loadRig(firstPersonRigId)` still validates the authored `CM_FPARMS_ROOT`,
+declared clips, and the existing hand-bone contract. `installRoundedFirstPersonVisual`
+keeps the replacement geometry on the authored `fp_upperArm.*`,
+`fp_forearm.*`, and `fp_hand.*` bones, preserving clip timing and hand sockets.
 
-Each hand exposes `fp_hand_socket.R` or `fp_hand_socket.L` as a presentation
-attachment point. The existing camera-relative carried-object transform remains
-the authoritative visual placement path, so tool carrying cannot affect input or
-multiplayer state. If the FP GLB is unavailable, `RoundedFirstPersonFallback`
-provides the same sockets and a bounded pose-driven camera-space render.
+When that binding cannot be used, `RoundedFirstPersonFallback` uses a
+camera-local, compact-low pose: smaller rounded segments and palms sit below
+the view centre in the lower corners, leaving the interaction target and
+passengers readable. `fp_hand_socket.R` and `fp_hand_socket.L` remain stable
+tool attachment points.
 
-## Lighting and cost bounds
+The canvas reports `data-arms-profile="compact-low"` alongside the existing
+rig, socket, and source seams. No fallback geometry changes simulation or
+multiplayer state.
 
-`presentation-lighting.ts` configures:
+The gameplay depth contract preserves the 2400 m ocean far plane while using a
+0.12 m camera near plane and WebGL logarithmic depth buffering. This reduces
+near-surface Z precision loss without changing the authored arm geometry or
+world scale; the canvas publishes the three values for deterministic evidence.
 
-- ACES filmic tone mapping, sRGB output, 1.0–1.5 device pixel ratio clamp;
-- one 1024² PCF-soft directional key with tuned bias/normal bias for contact
-  definition;
-- one hemisphere light, one shadowless blue rim, and eight shadowless point zones;
-- electrical-health flicker/color updates over the fixed zone array;
-- existing exponential fog plus emissive materials as the low-cost post-effect
-  fallback. No per-frame composer, bloom pass or shadow-casting zone lights.
+## Evidence
 
-The runtime keeps `data-lighting-mode="bounded-zones"`,
-`data-shadow-mode="directional-pcf-soft-1024"` and
-`data-post-fx="fog-emissive-fallback"` on the canvas for browser evidence.
+`tests/unit/presentation.test.ts` verifies sockets, the compact marker, and
+the fallback bounds below camera centre. The focused Playwright presentation
+test writes `test-results/correction-evidence/compact-arms.png` and checks
+the compact profile plus silent continuous-audio seam.

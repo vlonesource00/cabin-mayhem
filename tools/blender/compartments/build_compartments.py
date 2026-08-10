@@ -1563,15 +1563,17 @@ def build_atrium(mats):
     slope_rail(mats, "upper_port_rail", -7.18, -3.80, 3.80, 6.40, 9.60)
 
     # --- the lift ----------------------------------------------------------
-    cube("lift_trunk_port", (0.18, 12.80, 2.60), (-1.31, 6.40, -15.70), mats["glass"], 0.0)
-    cube("lift_trunk_stbd", (0.18, 12.80, 2.60), (1.31, 6.40, -15.70), mats["glass"], 0.0)
-    cube("lift_trunk_fwd", (2.80, 12.80, 0.18), (0, 6.40, -14.40), mats["glass"], 0.0)
+    # Clear, not the tinted shell glass: a scenic lift whose trunk you cannot
+    # see the car move inside is just a brass-framed column.
+    cube("lift_trunk_port", (0.18, 12.80, 2.60), (-1.31, 6.40, -15.70), mats["glass_clear"], 0.0)
+    cube("lift_trunk_stbd", (0.18, 12.80, 2.60), (1.31, 6.40, -15.70), mats["glass_clear"], 0.0)
+    cube("lift_trunk_fwd", (2.80, 12.80, 0.18), (0, 6.40, -14.40), mats["glass_clear"], 0.0)
     for index in range(4):
         cube(f"lift_frame_{index}", (0.14, 12.80, 0.14),
              (-1.33 + (index % 2) * 2.66, 6.40, -17.00 + (index // 2) * 2.60),
              mats["brass"], 0.0)
     cube("lift_car", (2.30, 2.35, 2.30), (0, 1.18, -15.70), mats["brass"], 0.02)
-    cube("lift_car_glass", (2.10, 1.90, 0.06), (0, 1.30, -14.60), mats["glass"], 0.0)
+    cube("lift_car_glass", (2.10, 1.90, 0.06), (0, 1.30, -14.60), mats["glass_clear"], 0.0)
     for level in range(0, 4):
         y = level * DECK_PITCH
         for leaf in (-1, 1):
@@ -2006,7 +2008,7 @@ def build_dining_room(mats):
         # why the balustrade runs on bay centres and not on the boundaries.
         for index, z in enumerate(bays):
             cube(f"tier_{tag}_glass_{index}", (0.05, 0.90, 2.36),
-                 (side * 9.95, tier_y + 0.50, z), mats["glass"], 0.0)
+                 (side * 9.95, tier_y + 0.50, z), mats["glass_clear"], 0.0)
             cube(f"tier_{tag}_rail_{index}", (0.14, 0.06, 2.46),
                  (side * 9.95, tier_y + 1.03, z), mats["brass"], 0.02)
             for post, offset in ((0, -1.18), (1, 1.18)):
@@ -2050,7 +2052,8 @@ def build_dining_room(mats):
             for post, offset in ((0, -1.20), (1, 1.20)):
                 cylinder(f"{name}_screen_post_{post}", 0.035, 0.60,
                          (side * 8.25, 1.28, z + offset), mats["brass"], 8)
-            cube(f"{name}_screen", (0.05, 0.50, 2.40), (side * 8.25, 1.32, z), mats["glass"], 0.0)
+            cube(f"{name}_screen", (0.05, 0.50, 2.40), (side * 8.25, 1.32, z),
+                 mats["glass_clear"], 0.0)
 
     # --- the tables in the room proper -------------------------------------
     row_z = [-15.20 + index * 3.80 for index in range(9)]
@@ -2167,7 +2170,7 @@ def build_dining_room(mats):
         for edge, offset in (("p", -1.24), ("s", 1.24)):
             cube(f"wine_{tag}_side_{edge}", (0.12, 1.72, 0.55), (x + offset, 1.22, -21.52),
                  mats["wood"], 0.02)
-        cube(f"wine_{tag}_glass", (2.30, 1.60, 0.06), (x, 1.22, -21.28), mats["glass"], 0.0)
+        cube(f"wine_{tag}_glass", (2.30, 1.60, 0.06), (x, 1.22, -21.28), mats["glass_clear"], 0.0)
         for shelf in range(4):
             cube(f"wine_{tag}_shelf_{shelf}", (2.24, 0.04, 0.44),
                  (x, 0.46 + shelf * 0.40, -21.55), mats["steel"], 0.0)
@@ -2437,7 +2440,10 @@ def balcony_glass(mats, place, name, u, width, jamb=0.60):
     prop(mats, place, f"{name}_jamb_b", (0.14, 2.80, jamb), (u, width - jamb / 2),
          1.40, "bulkhead", 0.0)
     clear = width - 2 * jamb
-    prop(mats, place, f"{name}_glass", (0.06, 2.50, clear), (u, width / 2), 1.35, "glass", 0.0)
+    # The one pane on the ship that has to be clear. Behind it are the balcony,
+    # the shell glazing and then the sea; a tinted screen here would turn every
+    # balcony cabin on board back into an inside cabin.
+    prop(mats, place, f"{name}_glass", (0.06, 2.50, clear), (u, width / 2), 1.35, "glass_clear", 0.0)
     prop(mats, place, f"{name}_sill", (0.14, 0.10, clear), (u, width / 2), 0.05, "trim", 0.0)
     prop(mats, place, f"{name}_head", (0.14, 0.20, clear), (u, width / 2), 2.70, "trim", 0.0)
     prop(mats, place, f"{name}_stile", (0.06, 2.50, 0.08), (u + 0.06, width / 2), 1.35, "trim", 0.0)
@@ -2803,6 +2809,55 @@ def build_cabin_deck_seven(mats):
 # ---------------------------------------------------------------------------
 
 
+def steamer_chair(mats, name, sign, x_head, z, lean=0.55):
+    """A folding steamer chair, head inboard and back raked out towards the sea.
+
+    `o` runs outboard from the head end, so every part is placed against one
+    number instead of a hand-copied pair per side. Five seat slats and not six:
+    a sixth would start 0.019 inside the raked back panel.
+    """
+    def px(o):
+        return x_head + sign * o
+
+    for edge in (-1, 1):
+        for tag, o in (("head", 0.22), ("foot", 1.62)):
+            cube(f"{name}_leg_{tag}_{edge}", (0.06, 0.36, 0.06),
+                 (px(o), 0.18, z + edge * 0.30), mats["wood"], 0.0)
+        cube(f"{name}_rail_{edge}", (1.62, 0.07, 0.07),
+             (px(0.92), 0.395, z + edge * 0.30), mats["wood"], 0.0)
+        cube(f"{name}_arm_{edge}", (1.10, 0.06, 0.09),
+             (px(0.75), 0.66, z + edge * 0.355), mats["wood"], 0.0)
+        for tag, o in (("fore", 0.22), ("aft", 1.25)):
+            cube(f"{name}_armpost_{edge}_{tag}", (0.06, 0.20, 0.06),
+                 (px(o), 0.53, z + edge * 0.355), mats["wood"], 0.0)
+    for slat in range(5):
+        cube(f"{name}_slat_{slat}", (0.20, 0.05, 0.62),
+             (px(0.36 + slat * 0.30), 0.455, z), mats["wood"], 0.0)
+    # The back is raked about ship +Z, so its up axis is (sin a, cos a, 0) and
+    # its bottom edge lands on the seat rail at o = 0.18.
+    angle = -sign * lean
+    height, thick = 0.92, 0.09
+    cube(f"{name}_back", (thick, height, 0.62),
+         (px(0.18) + math.sin(angle) * height / 2, 0.46 + math.cos(angle) * height / 2, z),
+         mats["canvas"], 0.0, (0.0, angle, 0.0))
+
+
+def bistro_set(mats, name, x, z):
+    """A pedestal table with a chair either side of it, square to the walk."""
+    cylinder(f"{name}_foot", 0.30, 0.04, (x, 0.02, z), mats["steel"], 12)
+    cylinder(f"{name}_stem", 0.07, 0.68, (x, 0.38, z), mats["steel"], 10)
+    cylinder(f"{name}_top", 0.44, 0.06, (x, 0.75, z), mats["trim"], 16)
+    for edge in (-1, 1):
+        seat_x = x + edge * 0.86
+        cube(f"{name}_seat_{edge}", (0.46, 0.05, 0.46), (seat_x, 0.45, z), mats["canvas"], 0.02)
+        for across in (-1, 1):
+            for along in (-1, 1):
+                cube(f"{name}_leg_{edge}_{across}_{along}", (0.04, 0.43, 0.04),
+                     (seat_x + across * 0.19, 0.215, z + along * 0.19), mats["steel"], 0.0)
+        cube(f"{name}_back_{edge}", (0.06, 0.46, 0.46),
+             (seat_x + edge * 0.20, 0.68, z), mats["canvas"], 0.02)
+
+
 def build_promenade(mats):
     """The teak walk that wraps the ship, outboard of the deckhouse.
 
@@ -2810,166 +2865,756 @@ def build_promenade(mats):
     rail against the sea — and the three doors are in the deckhouse face
     inboard rather than at the ends, which is exactly the case `shell`'s
     portal-to-side classification gets wrong. It is authored by hand instead.
+
+    The walk is laid station by station so its edge tapers with the hull, in
+    three bands: a steel waterway against the deckhouse, the teak field, and a
+    covering board at the deck edge. Everything else is set out against
+    `beam(z)` rather than against a fixed inset, because forward of about
+    z = 118 the walk narrows to under two metres and a fixed inset would put
+    the furniture over the side.
     """
     doors = [-15.0, 43.0, 84.0]
-    house_x = 5.5  # The doors in ship-layout.ts sit at x = -5.5: this is that face.
+    house_x = 5.5      # the ship-layout.ts door plane, and the wall's centre
+    face_x = 5.60      # outboard face of the deckhouse plating
+    canopy_x = 10.10   # outboard edge of the covered strip amidships
+    # The pilasters stand 0.16 proud of `face_x`, so 5.76 is what anything
+    # leaning on the deckhouse has to clear.
     stations, span = 52, 260.0
     step = span / stations
 
-    # The walk itself, cut to the hull's plan so the deck edge tapers with it.
-    for index in range(stations):
-        z = -span / 2 + step * (index + 0.5)
-        half = min(19.0, hull_half_beam(z))
-        width = max(0.4, half - house_x)
-        for sign in (-1, 1):
-            cube(f"walk_{index}_{sign}", (width, 0.12, step),
-                 (sign * (half + house_x) / 2, -0.06, z), mats["wood"], 0.0)
-        if index % 2 == 0:
-            for sign in (-1, 1):
-                railing(mats, f"walk_rail_{index}_{sign}",
-                        [(sign * (half - 0.35), z - step), (sign * (half - 0.35), z + step)], 0.0)
+    def beam(z):
+        return min(19.0, hull_half_beam(z))
 
-    # The deckhouse face, with the three tower doors cut into the port side.
-    cube("promenade_soffit", (house_x * 2, 0.14, span), (0, 3.26, 0), mats["bulkhead"], 0.0)
+    def station_z(index):
+        return -span / 2 + step * (index + 0.5)
+
+    # --- Deck: waterway, teak field, covering board -------------------------
+    for index in range(stations):
+        z = station_z(index)
+        half = beam(z)
+        field = half - 0.55 - (house_x + 0.30)
+        for sign in (-1, 1):
+            cube(f"walk_waterway_{index}_{sign}", (0.30, 0.12, step),
+                 (sign * (house_x + 0.15), -0.06, z), mats["steel"], 0.0)
+            cube(f"walk_board_{index}_{sign}", (0.55, 0.12, step),
+                 (sign * (half - 0.275), -0.06, z), mats["trim"], 0.0)
+            if field > 0.05:
+                cube(f"walk_teak_{index}_{sign}", (field, 0.12, step),
+                     (sign * (house_x + 0.30 + field / 2), -0.06, z), mats["wood"], 0.0)
+
+    # --- The covered strip, replacing the old soffit ------------------------
+    # The soffit it replaces spanned |x| < 5.5, which is inside the deckhouse:
+    # it roofed nothing anybody could walk under. This one starts at the house
+    # face and stops short of the rail, and it only exists where the walk is
+    # wide enough to be worth covering.
+    for index in range(stations):
+        z = station_z(index)
+        cap = min(canopy_x, beam(z) - 1.6)
+        width = cap - 0.20 - face_x
+        if width < 1.2:
+            continue
+        for sign in (-1, 1):
+            cube(f"canopy_{index}_{sign}", (width, 0.16, step),
+                 (sign * (face_x + width / 2), 3.28, z), mats["bulkhead"], 0.0)
+            cube(f"canopy_fascia_{index}_{sign}", (0.20, 0.50, step),
+                 (sign * (cap - 0.10), 3.11, z), mats["trim"], 0.0)
+            if index % 4 == 0:
+                at = sign * (cap - 0.35)
+                cylinder(f"canopy_column_{index}_{sign}", 0.11, 3.20, (at, 1.60, z),
+                         mats["steel"], 12)
+                cylinder(f"canopy_base_{index}_{sign}", 0.17, 0.12, (at, 0.06, z),
+                         mats["trim"], 12)
+                # 0.15 is exactly the reach from the column to the fascia's
+                # inboard face, so the capital meets it instead of crossing it.
+                cylinder(f"canopy_capital_{index}_{sign}", 0.15, 0.14, (at, 3.13, z),
+                         mats["trim"], 12)
+                cube(f"canopy_light_{index}_{sign}", (0.30, 0.06, 0.30),
+                     (sign * (face_x + width * 0.55), 3.17, z), mats["neon_amber"], 0.0)
+
+    # --- Deckhouse face: sill, glazing, head, pilasters, kick and strake ----
     for sign in (-1, 1):
         cuts = doors if sign < 0 else []
+        door_edges = [centre + edge * 0.8 for centre in cuts for edge in (-1, 1)]
         for part, (start, end) in enumerate(wall_segments(-span / 2, span / 2, cuts)):
-            cube(f"deckhouse_sill_{sign}_{part}", (0.2, 1.0, end - start),
-                 (sign * house_x, 0.5, (start + end) / 2), mats["bulkhead"], 0.0)
-            cube(f"deckhouse_head_{sign}_{part}", (0.2, 0.8, end - start),
-                 (sign * house_x, 2.8, (start + end) / 2), mats["bulkhead"], 0.0)
+            cube(f"house_sill_{sign}_{part}", (0.20, 1.00, end - start),
+                 (sign * house_x, 0.50, (start + end) / 2), mats["bulkhead"], 0.0)
+            cube(f"house_head_{sign}_{part}", (0.20, 0.80, end - start),
+                 (sign * house_x, 2.80, (start + end) / 2), mats["bulkhead"], 0.0)
             bays = max(1, int(round((end - start) / 6.0)))
             for bay in range(bays):
                 low = start + (end - start) * bay / bays
                 high = start + (end - start) * (bay + 1) / bays
-                window_band(mats, f"deckhouse_win_{sign}_{part}_{bay}",
-                            (low + 0.15, high - 0.15), 0.0, 1.0, 2.4, sign * house_x, True)
-        for centre in cuts:
-            cube(f"deckhouse_header_{sign}_{centre}", (0.24, 1.1, 1.6),
-                 (sign * house_x, 2.65, centre), mats["trim"], 0.0)
+                window_band(mats, f"house_win_{sign}_{part}_{bay}",
+                            (low + 0.22, high - 0.22), 0.0, 1.0, 2.4, sign * house_x, True)
+                cube(f"house_kick_{sign}_{part}_{bay}", (0.12, 0.30, high - low - 0.36),
+                     (sign * 5.66, 0.15, (low + high) / 2), mats["trim"], 0.0)
+                cube(f"house_strake_{sign}_{part}_{bay}", (0.10, 0.14, high - low - 0.36),
+                     (sign * 5.65, 0.91, (low + high) / 2), mats["brass"], 0.0)
+            for bay in range(bays + 1):
+                at = start + (end - start) * bay / bays
+                # At a doorway the jamb is the pilaster, so no second one here.
+                if any(abs(at - edge) < 0.30 for edge in door_edges):
+                    continue
+                cube(f"house_pier_{sign}_{part}_{bay}", (0.16, 3.20, 0.36),
+                     (sign * 5.68, 1.60, at), mats["bulkhead"], 0.0)
 
-    # Dressing: chairs, lifebuoys, bollards, signage, jogging markings, lighting.
-    for index, z in enumerate(grid(40, 240.0)):
-        half = min(19.0, hull_half_beam(z))
-        for sign in (-1, 1):
-            cube(f"deck_chair_{index}_{sign}", (0.72, 0.14, 1.9),
-                 (sign * (half - 2.2), 0.42, z), mats["canvas"], 0.02)
-            cube(f"deck_chair_{index}_{sign}_back", (0.72, 0.9, 0.14),
-                 (sign * (half - 2.2), 0.9, z - 0.9), mats["canvas"], 0.02)
-    for index, z in enumerate(grid(14, 230.0)):
-        half = min(19.0, hull_half_beam(z))
-        for sign in (-1, 1):
-            cylinder(f"lifebuoy_{index}_{sign}", 0.38, 0.12, (sign * (half - 0.6), 1.0, z),
-                     mats["orange"], 12, (0.0, math.pi / 2, 0.0))
-            cube(f"lifebuoy_{index}_{sign}_bracket", (0.1, 0.5, 0.1),
-                 (sign * (half - 0.5), 0.6, z), mats["steel"], 0.0)
-    for index, z in enumerate(grid(10, 200.0)):
-        for sign in (-1, 1):
-            cube(f"prom_light_{index}_{sign}", (0.3, 0.5, 0.3), (sign * (house_x + 0.3), 2.6, z),
-                 mats["neon_amber"], 0.0)
-    for index, z in enumerate(grid(8, 220.0)):
-        half = min(19.0, hull_half_beam(z))
-        for sign in (-1, 1):
-            cylinder(f"bollard_{index}_{sign}", 0.22, 0.8, (sign * (half - 1.4), 0.4, z),
-                     mats["steel"], 8)
-    for index, z in enumerate(grid(24, 236.0)):
-        for sign in (-1, 1):
-            cube(f"track_mark_{index}_{sign}", (0.4, 0.02, 1.2), (sign * 9.0, 0.07, z),
-                 mats["neon_cyan"], 0.0)
+    # --- The three doorways, all in the port face ---------------------------
     for index, centre in enumerate(doors):
-        cube(f"door_sign_{index}", (0.06, 0.5, 1.6), (-house_x - 0.2, 2.55, centre),
+        for edge in (-1, 1):
+            cube(f"door_jamb_{index}_{edge}", (0.34, 2.34, 0.26),
+                 (-5.77, 1.17, centre + edge * 0.93), mats["trim"], 0.0)
+        cube(f"door_head_{index}", (0.34, 0.36, 2.12), (-5.77, 2.52, centre), mats["trim"], 0.0)
+        cube(f"door_sign_{index}", (0.08, 0.44, 1.70), (-5.98, 2.92, centre),
              mats["neon_pink"], 0.0)
+        cube(f"door_mat_{index}", (2.40, 0.02, 1.80), (-7.14, 0.015, centre), mats["carpet"], 0.0)
+        for edge in (-1, 1):
+            at = centre + edge * 2.70
+            cube(f"door_screen_{index}_{edge}", (3.24, 2.10, 0.08), (-7.38, 1.05, at),
+                 mats["glass"], 0.0)
+            cube(f"door_screen_cap_{index}_{edge}", (3.24, 0.10, 0.14), (-7.38, 2.15, at),
+                 mats["trim"], 0.0)
+            cube(f"door_screen_post_{index}_{edge}", (0.12, 2.20, 0.12), (-9.06, 1.10, at),
+                 mats["steel"], 0.0)
+
+    # --- The rail, authored by hand ----------------------------------------
+    # `kit.railing` draws a post at every point it is given, so a 52-point
+    # polyline would stack two posts at each interior vertex. Here the bars are
+    # drawn per segment and the posts once per point.
+    rail_z = [-span / 2 + 0.30] + [station_z(index) for index in range(stations)] \
+        + [span / 2 - 0.30]
+    bars = (("top", 1.12, 0.06), ("mid", 0.74, 0.04), ("low", 0.36, 0.04))
+    for sign in (-1, 1):
+        points = [(sign * (beam(z) - 0.30), z) for z in rail_z]
+        for index in range(len(points) - 1):
+            (x0, z0), (x1, z1) = points[index], points[index + 1]
+            run = math.hypot(x1 - x0, z1 - z0)
+            yaw = yaw_towards(x1 - x0, z1 - z0)
+            for tag, level, thick in bars:
+                cube(f"prom_rail_{sign}_{index}_{tag}", (run, thick, thick),
+                     ((x0 + x1) / 2, level, (z0 + z1) / 2), mats["steel"], 0.0, (0.0, 0.0, yaw))
+        for index, (at, z) in enumerate(points):
+            cube(f"prom_post_{sign}_{index}", (0.07, 1.145, 0.07), (at, 0.5725, z),
+                 mats["steel"], 0.0)
+        # End cross rails, inset 0.30 so they do not repeat the corner post.
+        for end in (-1, 1):
+            z_end = end * (span / 2 - 0.30)
+            x_out, x_in = sign * (beam(z_end) - 0.60), sign * 5.90
+            run = abs(x_out - x_in)
+            for tag, level, thick in bars:
+                cube(f"prom_cross_{sign}_{end}_{tag}", (run, thick, thick),
+                     ((x_in + x_out) / 2, level, z_end), mats["steel"], 0.0)
+            for tag, at in (("in", x_in), ("out", x_out)):
+                cube(f"prom_cross_post_{sign}_{end}_{tag}", (0.07, 1.145, 0.07),
+                     (at, 0.5725, z_end), mats["steel"], 0.0)
+
+    # --- Jogging lane, only where the walk is wide enough to carry one ------
+    for index in range(stations):
+        z = station_z(index)
+        half = beam(z)
+        if half < 13.0:
+            continue
+        for sign in (-1, 1):
+            lane = sign * (half - 2.60)
+            cube(f"jog_lane_{index}_{sign}", (1.40, 0.02, step), (lane, 0.02, z),
+                 mats["teal"], 0.0)
+            for edge in (-1, 1):
+                # 0.77 with a 0.14 stripe puts the stripe edge on the lane edge
+                # rather than over it: two same-facing inlays must never overlap.
+                cube(f"jog_edge_{index}_{sign}_{edge}", (0.14, 0.02, step),
+                     (lane + edge * 0.77, 0.02, z), mats["neon_cyan"], 0.0)
+
+    # --- Lifebuoy stations and deck lights ---------------------------------
+    for index in range(-6, 7):
+        z = index * 18.0
+        half = beam(z)
+        for sign in (-1, 1):
+            cube(f"buoy_plate_{index}_{sign}", (0.06, 0.90, 0.90),
+                 (sign * (half - 0.50), 1.10, z), mats["bulkhead"], 0.0)
+            cube(f"buoy_post_{index}_{sign}", (0.06, 1.55, 0.14),
+                 (sign * (half - 0.44), 0.775, z), mats["steel"], 0.0)
+            # Depth 0.12 centred 0.09 outboard of the plate face: the buoy
+            # touches its board instead of hanging in front of it.
+            cylinder(f"buoy_{index}_{sign}", 0.38, 0.12, (sign * (half - 0.59), 1.10, z),
+                     mats["orange"], 16, (0.0, math.pi / 2, 0.0))
+    for index in range(-12, 13):
+        z = index * 10.0
+        half = beam(z)
+        for sign in (-1, 1):
+            at = sign * (half - 0.95)
+            cube(f"deck_light_base_{index}_{sign}", (0.24, 0.10, 0.24), (at, 0.05, z),
+                 mats["steel"], 0.0)
+            cube(f"deck_light_stem_{index}_{sign}", (0.16, 0.85, 0.16), (at, 0.525, z),
+                 mats["steel"], 0.0)
+            cube(f"deck_light_head_{index}_{sign}", (0.24, 0.18, 0.24), (at, 1.04, z),
+                 mats["neon_amber"], 0.0)
+
+    # --- Aft terrace: benches against the house, planters between them ------
+    # x 6.11 and not 5.91: the bench back has to clear the pilasters, which
+    # stand 0.16 proud of the deckhouse face.
+    for index, z in enumerate([-126.0, -121.0, -116.0, -111.0]):
+        for sign in (-1, 1):
+            bench(mats, f"terrace_bench_{index}_{sign}", sign * 6.11, z, 0.0, 2.60,
+                  "z", "wood", -sign)
+    for index, z in enumerate([-123.5, -118.5, -113.5, -108.5]):
+        for sign in (-1, 1):
+            planter(mats, f"terrace_planter_{index}_{sign}", sign * 7.50, z, 0.0, 0.52, 0.80)
+
+    # --- Steamer chairs in pairs, head inboard, table between them ----------
+    def zone_free(z):
+        if -6.0 <= z <= 30.0:      # the cafe terrace owns this stretch
+            return False
+        return all(abs(z - centre) >= 5.5 for centre in doors)
+
+    group, z = 0, -80.0
+    while z <= 78.0:
+        if zone_free(z) and beam(z) >= 18.0:
+            for sign in (-1, 1):
+                x_head = sign * (beam(z) - 7.6)
+                for edge in (-1, 1):
+                    steamer_chair(mats, f"steamer_{group}_{sign}_{edge}", sign, x_head,
+                                  z + edge * 0.85)
+                table_x = x_head + sign * 0.75
+                cylinder(f"steamer_table_{group}_{sign}_foot", 0.24, 0.04,
+                         (table_x, 0.02, z), mats["steel"], 12)
+                cylinder(f"steamer_table_{group}_{sign}_stem", 0.07, 0.48,
+                         (table_x, 0.28, z), mats["steel"], 10)
+                cylinder(f"steamer_table_{group}_{sign}_top", 0.30, 0.05,
+                         (table_x, 0.545, z), mats["trim"], 12)
+            group += 1
+        z += 8.0
+
+    # --- Cafe terrace under the canopy, with a drinks kiosk each side -------
+    for index, z in enumerate([-4.5, -0.5, 3.5, 12.0, 16.0, 20.0, 24.0, 28.0]):
+        for sign in (-1, 1):
+            bistro_set(mats, f"cafe_set_{index}_{sign}", sign * 7.05, z)
+    for index, z in enumerate([-2.0, 14.0, 22.0, 30.0]):
+        for sign in (-1, 1):
+            planter(mats, f"cafe_planter_{index}_{sign}", sign * 8.90, z, 0.0, 0.46, 0.75)
+    for sign in (-1, 1):
+        cube(f"kiosk_back_{sign}", (0.12, 2.90, 3.60), (sign * 5.82, 1.45, 8.0),
+             mats["bulkhead"], 0.0)
+        cube(f"kiosk_body_{sign}", (0.60, 1.06, 3.60), (sign * 6.18, 0.53, 8.0),
+             mats["trim"], 0.0)
+        cube(f"kiosk_counter_{sign}", (0.70, 0.10, 3.60), (sign * 6.23, 1.11, 8.0),
+             mats["wood"], 0.02)
+        cube(f"kiosk_sign_{sign}", (0.06, 0.50, 2.40), (sign * 5.91, 2.45, 8.0),
+             mats["neon_cyan"], 0.0)
+        for shelf, level in enumerate((1.40, 1.85)):
+            cube(f"kiosk_shelf_{sign}_{shelf}", (0.24, 0.06, 3.20),
+                 (sign * 5.98, level, 8.0), mats["steel"], 0.0)
+        for stool in range(4):
+            z_stool = 6.65 + stool * 0.90
+            cylinder(f"kiosk_stool_foot_{sign}_{stool}", 0.22, 0.04,
+                     (sign * 6.95, 0.02, z_stool), mats["steel"], 12)
+            cylinder(f"kiosk_stool_stem_{sign}_{stool}", 0.06, 0.68,
+                     (sign * 6.95, 0.38, z_stool), mats["steel"], 10)
+            cylinder(f"kiosk_stool_seat_{sign}_{stool}", 0.20, 0.08,
+                     (sign * 6.95, 0.76, z_stool), mats["canvas"], 12)
+
+    # --- Observation zone forward, then the barrier and the bare tip -------
+    for index, z in enumerate([92.0, 100.0, 108.0]):
+        half = beam(z)
+        for sign in (-1, 1):
+            at = sign * (half - 1.30)
+            cylinder(f"scope_base_{index}_{sign}", 0.22, 0.08, (at, 0.04, z), mats["steel"], 12)
+            cylinder(f"scope_column_{index}_{sign}", 0.09, 1.06, (at, 0.61, z),
+                     mats["steel"], 10)
+            cylinder(f"scope_head_{index}_{sign}", 0.13, 0.16, (at, 1.22, z), mats["brass"], 10)
+            cylinder(f"scope_tube_{index}_{sign}", 0.08, 0.62, (at + sign * 0.22, 1.30, z),
+                     mats["brass"], 10, (0.0, math.pi / 2, 0.0))
+    for index, z in enumerate([96.0, 104.0]):
+        half = beam(z)
+        for sign in (-1, 1):
+            bench(mats, f"observation_bench_{index}_{sign}", sign * (half - 4.60), z, 0.0,
+                  2.20, "z", "wood", -sign)
+    for index, z in enumerate([90.0, 106.0]):
+        for sign in (-1, 1):
+            at = sign * 8.60
+            cube(f"chart_post_{index}_{sign}", (0.14, 0.95, 0.14), (at, 0.475, z),
+                 mats["steel"], 0.0)
+            angle = -sign * 0.90
+            cube(f"chart_panel_{index}_{sign}", (0.06, 0.70, 0.90),
+                 (at + math.sin(angle) * 0.35, 0.95 + math.cos(angle) * 0.35, z),
+                 mats["screen"], 0.0, (0.0, angle, 0.0))
+    for sign in (-1, 1):
+        x_in, x_out = sign * 5.90, sign * (beam(118.0) - 0.45)
+        for tag, at in (("in", x_in), ("out", x_out)):
+            cylinder(f"barrier_post_{sign}_{tag}", 0.06, 1.00, (at, 0.50, 118.0),
+                     mats["steel"], 10)
+            cylinder(f"barrier_cap_{sign}_{tag}", 0.08, 0.06, (at, 1.03, 118.0),
+                     mats["brass"], 10)
+        for tag, level in (("upper", 0.86), ("lower", 0.52)):
+            cube(f"barrier_chain_{sign}_{tag}", (abs(x_out - x_in), 0.05, 0.05),
+                 ((x_in + x_out) / 2, level, 118.0), mats["brass"], 0.0)
+        cube(f"barrier_sign_{sign}", (0.70, 0.34, 0.05),
+             ((x_in + x_out) / 2, 0.665, 118.0), mats["coral"], 0.0)
 
 
 def build_pool_deck(mats):
-    """The lido: pools, a bar under a canopy, and the funnels rising through."""
-    cube("lido_deck", (34.0, 0.12, 119.0), (0, -0.06, 0), mats["deck"], 0.0)
+    """The lido: a recessed pool amidships, the bar under its canopy, the funnel
+    casings, and a waterslide that starts on a tower and ends in water.
+
+    The plating is laid as four plates around a hole rather than one plate with
+    a blue box standing on it, because a pool you can see the bottom of is the
+    difference between a lido and a car park with a rug. Everything else is set
+    back off the two teak lanes at x +/-11.5 that run the full length, so a
+    guest can walk from the after rail to the bar without stepping over a
+    lounger.
+
+    The basin reaches 1.3 m below the plating. On paper that volume belongs to
+    deck 7, but deck 7 closes its own deckhead over it and the two compartments
+    are never resident at the same time.
+    """
+    HALF_X, AFT_Z, FWD_Z = 17.0, -59.5, 59.5
+    POOL_HALF, POOL_A, POOL_F, POOL_DEEP = 6.0, 16.0, 32.0, 1.30
+    LANE_X, LOUNGE_X = 11.5, 13.9
+
+    def side_table(name, x, z):
+        cube(f"{name}_top", (0.62, 0.06, 0.62), (x, 0.49, z), mats["trim"], 0.02)
+        for tag, sx in (("p", -1), ("s", 1)):
+            for end, sz in (("a", -1), ("f", 1)):
+                cube(f"{name}_leg_{tag}{end}", (0.05, 0.46, 0.05),
+                     (x + sx * 0.25, 0.23, z + sz * 0.25), mats["steel"], 0.0)
+
+    def lounger(name, sign, x_head, z, lean=0.55):
+        """A steamer lounger lying athwartships: head inboard, feet at the rail.
+
+        The backrest is a raked panel rather than a slab stood on end, so it
+        leans over the head end instead of hovering behind it. Its foot is at
+        px(0.16) and the first seat slat starts at px(0.39), which is the
+        clearance that keeps the two out of each other.
+        """
+        def px(offset):
+            return x_head + sign * offset
+
+        for tag, dz in (("a", -0.30), ("b", 0.30)):
+            for leg, o in (("h", 0.30), ("f", 1.70)):
+                cube(f"{name}_leg_{leg}{tag}", (0.06, 0.36, 0.06), (px(o), 0.18, z + dz),
+                     mats["steel"], 0.0)
+            cube(f"{name}_rail_{tag}", (1.62, 0.07, 0.07), (px(1.00), 0.395, z + dz),
+                 mats["steel"], 0.0)
+        for index in range(5):
+            cube(f"{name}_slat_{index}", (0.22, 0.05, 0.66),
+                 (px(0.50 + index * 0.30), 0.455, z), mats["canvas"], 0.0)
+        angle = -sign * lean  # about ship +Z: tilts the panel's top inboard
+        cube(f"{name}_back", (0.09, 0.92, 0.66),
+             (px(0.16) + math.sin(angle) * 0.46, 0.46 + math.cos(angle) * 0.46, z),
+             mats["canvas"], 0.0, (0.0, angle, 0.0))
+
+    def bistro(name, x, z):
+        """A pedestal table and four chairs, square to the ship."""
+        cylinder(f"{name}_foot", 0.35, 0.05, (x, 0.025, z), mats["steel"], 12)
+        cylinder(f"{name}_stem", 0.10, 0.65, (x, 0.375, z), mats["steel"], 10)
+        cylinder(f"{name}_top", 0.62, 0.06, (x, 0.73, z), mats["glass"], 16)
+        for tag, dx, dz in (("p", -1, 0), ("s", 1, 0), ("a", 0, -1), ("f", 0, 1)):
+            cx, cz = x + dx * 0.95, z + dz * 0.95
+            cube(f"{name}_seat_{tag}", (0.48, 0.06, 0.48), (cx, 0.45, cz), mats["orange"], 0.02)
+            for ex in (-1, 1):
+                for ez in (-1, 1):
+                    cube(f"{name}_leg_{tag}_{ex}_{ez}", (0.04, 0.42, 0.04),
+                         (cx + ex * 0.19, 0.21, cz + ez * 0.19), mats["steel"], 0.0)
+            back = (0.06, 0.46, 0.44) if dx else (0.44, 0.46, 0.06)
+            cube(f"{name}_back_{tag}", back, (cx + dx * 0.21, 0.71, cz + dz * 0.21),
+                 mats["orange"], 0.02)
+
+    # ---- plating and rails ------------------------------------------------
+    slab(mats, "lido_plate_aft", (-HALF_X, HALF_X), (AFT_Z, POOL_A), 0.0, "deck")
+    slab(mats, "lido_plate_fwd", (-HALF_X, HALF_X), (POOL_F, FWD_Z), 0.0, "deck")
+    slab(mats, "lido_plate_port", (-HALF_X, -POOL_HALF), (POOL_A, POOL_F), 0.0, "deck")
+    slab(mats, "lido_plate_stbd", (POOL_HALF, HALF_X), (POOL_A, POOL_F), 0.0, "deck")
     for sign in (-1, 1):
         railing(mats, f"lido_rail_{sign}", [(sign * 16.8, -59.0), (sign * 16.8, 59.0)], 0.0)
-    railing(mats, "lido_rail_aft", [(-16.8, -59.0), (16.8, -59.0)], 0.0)
-    railing(mats, "lido_rail_fwd", [(-16.8, 59.0), (16.8, 59.0)], 0.0)
+    # The cross rails are inset 0.3: end-to-end with the side rails they would
+    # each draw a post on the same spot and the corner would render twice.
+    railing(mats, "lido_rail_aft", [(-16.5, -58.7), (16.5, -58.7)], 0.0)
+    railing(mats, "lido_rail_fwd", [(-16.5, 58.7), (16.5, 58.7)], 0.0)
 
-    # The deckhouses the two stair towers come up through, doors to starboard,
-    # standing exactly where ship-layout.ts puts the portals.
-    for name, z in (("aft", -4.5), ("mid", 53.5)):
-        cube(f"tower_house_{name}", (11.0, 3.4, 12.0), (0, 1.7, z), mats["bulkhead"])
-        cube(f"tower_house_{name}_door", (0.24, 2.1, 1.6), (5.5, 1.05, z), mats["glass"], 0.0)
-        cube(f"tower_house_{name}_roof", (12.0, 0.2, 13.0), (0, 3.5, z), mats["trim"], 0.0)
-        cube(f"tower_house_{name}_sign", (3.0, 0.6, 0.08), (0, 2.6, z - 6.1), mats["neon_cyan"], 0.0)
-
-    # Main pool amidships, whirlpools either side of it.
-    cube("pool_coping", (13.0, 0.3, 17.0), (0, 0.15, 24.0), mats["bulkhead"], 0.02)
-    cube("pool_water", (12.0, 0.24, 16.0), (0, 0.12, 24.0), mats["water"], 0.0)
-    for index in range(6):
-        cube(f"pool_lane_{index}", (0.2, 0.02, 15.0), (-4.6 + index * 1.85, 0.25, 24.0),
-             mats["neon_cyan"], 0.0)
+    # ---- circulation, painted before anything is allowed to stand on it ----
     for sign in (-1, 1):
-        cylinder(f"whirlpool_{sign}", 2.2, 0.6, (sign * 10.5, 0.3, 8.0), mats["bulkhead"], 14)
-        cylinder(f"whirlpool_{sign}_water", 1.9, 0.5, (sign * 10.5, 0.34, 8.0), mats["water"], 14)
-        for index in range(6):
-            angle = index / 6 * math.tau
-            cube(f"whirlpool_{sign}_step_{index}", (0.6, 0.2, 0.6),
-                 (sign * 10.5 + math.cos(angle) * 2.6, 0.1, 8.0 + math.sin(angle) * 2.6),
-                 mats["deck"], 0.0)
+        cube(f"lido_lane_{sign}", (2.0, 0.02, 112.0), (sign * LANE_X, 0.01, 0.0),
+             mats["wood"], 0.0)
+    for name, z in (("aft", -12.5), ("mid", 13.5), ("fwd", 47.5)):
+        cube(f"lido_cross_{name}", (21.0, 0.02, 2.0), (0.0, 0.01, z), mats["wood"], 0.0)
 
-    # Pool bar under a canvas canopy.
-    cube("lido_bar", (10.0, 1.15, 3.0), (0, 0.58, 40.0), mats["wood"])
-    cube("lido_bar_top", (10.4, 0.1, 3.4), (0, 1.2, 40.0), mats["brass"], 0.0)
-    cube("lido_bar_canopy", (13.0, 0.2, 6.0), (0, 3.0, 40.0), mats["canvas"], 0.0)
+    # ---- the pool: a real basin, walls, steps, coping ----------------------
+    slab(mats, "pool_floor", (-POOL_HALF, POOL_HALF), (POOL_A, POOL_F), -POOL_DEEP,
+         "bulkhead", 0.16)
+    for tag, sign in (("port", -1), ("stbd", 1)):
+        cube(f"pool_wall_{tag}", (0.14, POOL_DEEP, POOL_F - POOL_A - 0.28),
+             (sign * (POOL_HALF - 0.07), -POOL_DEEP / 2, (POOL_A + POOL_F) / 2),
+             mats["bulkhead"], 0.0)
+    for tag, z in (("aft", POOL_A + 0.07), ("fwd", POOL_F - 0.07)):
+        cube(f"pool_wall_{tag}", (POOL_HALF * 2, POOL_DEEP, 0.14),
+             (0.0, -POOL_DEEP / 2, z), mats["bulkhead"], 0.0)
+    cube("pool_water", (POOL_HALF * 2 - 0.28, 0.05, POOL_F - POOL_A - 0.28),
+         (0.0, -0.145, (POOL_A + POOL_F) / 2), mats["water"], 0.0)
     for index in range(4):
-        cylinder(f"lido_bar_post_{index}", 0.12, 3.0,
-                 (-5.6 + (index % 2) * 11.2, 1.5, 37.6 + (index // 2) * 4.8), mats["steel"], 8)
-    for index in range(10):
-        cylinder(f"lido_stool_{index}", 0.2, 0.8, (-4.5 + index * 1.0, 0.4, 38.0), mats["steel"], 8)
-        cube(f"lido_stool_{index}_seat", (0.44, 0.1, 0.44), (-4.5 + index * 1.0, 0.85, 38.0),
-             mats["orange"])
-    for index in range(8):
-        cube(f"lido_bar_bottle_{index}", (0.14, 0.34, 0.14), (-3.5 + index * 1.0, 1.42, 41.0),
-             mats["teal"], 0.0)
+        top = -0.26 * (index + 1)
+        cube(f"pool_step_{index}", (4.8, POOL_DEEP + top, 0.45),
+             (0.0, (-POOL_DEEP + top) / 2, POOL_A + 0.365 + 0.45 * index),
+             mats["bulkhead"], 0.0)
+    for tag, sign in (("p", -1), ("s", 1)):
+        # An arch: up out of the water on the steps, over the coping, down to it.
+        cylinder(f"pool_grab_{tag}_fwd", 0.035, 1.62, (sign * 2.6, 0.29, 16.70),
+                 mats["brass"], 8)
+        cylinder(f"pool_grab_{tag}_head", 0.035, 1.00, (sign * 2.6, 1.10, 16.20),
+                 mats["brass"], 8, (math.pi / 2, 0.0, 0.0))
+        cylinder(f"pool_grab_{tag}_aft", 0.035, 1.00, (sign * 2.6, 0.60, 15.70),
+                 mats["brass"], 8)
+    for index in range(5):
+        cube(f"pool_lane_mark_{index}", (0.16, 0.02, 12.0),
+             (-4.0 + index * 2.0, -POOL_DEEP + 0.01, 25.5), mats["neon_cyan"], 0.0)
+    for index, offset in enumerate(grid(4, 13.0)):
+        for tag, sign in (("p", -1), ("s", 1)):
+            cube(f"pool_lamp_{index}_{tag}", (0.06, 0.24, 0.44),
+                 (sign * (POOL_HALF - 0.17), -0.55, 24.0 + offset), mats["neon_cyan"], 0.0)
+    cope = 0.45
+    for tag, sign in (("port", -1), ("stbd", 1)):
+        cube(f"pool_cope_{tag}", (cope, 0.10, POOL_F - POOL_A + cope * 2),
+             (sign * (POOL_HALF + cope / 2), 0.05, (POOL_A + POOL_F) / 2),
+             mats["bulkhead"], 0.0)
+    for tag, z in (("aft", POOL_A - cope / 2), ("fwd", POOL_F + cope / 2)):
+        cube(f"pool_cope_{tag}", (POOL_HALF * 2, 0.10, cope), (0.0, 0.05, z),
+             mats["bulkhead"], 0.0)
+    for index, offset in enumerate(grid(8, 15.0)):
+        for tag, sign in (("p", -1), ("s", 1)):
+            cube(f"pool_cope_mark_{index}_{tag}", (0.12, 0.02, 0.60),
+                 (sign * (POOL_HALF + 0.23), 0.11, 24.0 + offset), mats["neon_amber"], 0.0)
 
-    # Funnel casings rising through the deck — the ship's landmark from on board.
+    # Lifeguard chair and its safety kit, on the port side of the basin.
+    cube("guard_chair_mast", (0.60, 1.90, 0.60), (-7.60, 0.95, 24.0), mats["steel"], 0.03)
+    cube("guard_chair_seat", (0.90, 0.10, 0.86), (-7.60, 1.95, 24.0), mats["orange"], 0.02)
+    cube("guard_chair_back", (0.14, 0.72, 0.86), (-8.03, 2.36, 24.0), mats["orange"], 0.02)
+    for tag, sz in (("a", -1), ("f", 1)):
+        cube(f"guard_chair_arm_{tag}", (0.86, 0.08, 0.10),
+             (-7.60, 2.28, 24.0 + sz * 0.42), mats["steel"], 0.0)
+    ladder(mats, "guard_chair_ladder", -7.60, 24.62, 0.0, 1.90, 1, 0.52)
+    cube("guard_post", (0.10, 1.30, 0.10), (-7.10, 0.65, 20.0), mats["steel"], 0.0)
+    cylinder("guard_ring", 0.38, 0.10, (-7.10, 1.30, 20.0), mats["orange"], 12,
+             (0.0, math.pi / 2, 0.0))
+    cube("guard_pole", (0.06, 0.06, 3.00), (-7.10, 1.20, 28.0), mats["trim"], 0.0)
+    cube("guard_notice", (0.06, 0.90, 0.70), (-7.10, 1.60, 20.9), mats["bulkhead"], 0.0)
+
+    # ---- whirlpools on raised octagonal platforms -------------------------
+    for tag, sign in (("port", -1), ("stbd", 1)):
+        cx, cz = sign * 6.8, 8.0
+        cylinder(f"whirl_{tag}_base", 3.12, 0.12, (cx, 0.06, cz), mats["trim"], 8)
+        cylinder(f"whirl_{tag}_platform", 3.00, 0.33, (cx, 0.285, cz), mats["deck"], 8)
+        cylinder(f"whirl_{tag}_liner", 1.95, 0.04, (cx, 0.47, cz), mats["teal"], 16)
+        side = 2 * 2.10 * math.tan(math.pi / 8)
+        seat = 2 * 1.80 * math.tan(math.pi / 8)
+        for k in range(8):
+            angle = k * math.pi / 4
+            dx, dz = math.cos(angle), math.sin(angle)
+            yaw = yaw_towards(-dz, dx)
+            cube(f"whirl_{tag}_coam_{k}", (0.22, 0.62, side),
+                 (cx + dx * 2.10, 0.76, cz + dz * 2.10), mats["bulkhead"], 0.02,
+                 (0.0, 0.0, yaw))
+            cube(f"whirl_{tag}_cap_{k}", (0.34, 0.06, side),
+                 (cx + dx * 2.10, 1.10, cz + dz * 2.10), mats["brass"], 0.0, (0.0, 0.0, yaw))
+            cube(f"whirl_{tag}_seat_{k}", (0.38, 0.34, seat),
+                 (cx + dx * 1.80, 0.66, cz + dz * 1.80), mats["bulkhead"], 0.02,
+                 (0.0, 0.0, yaw))
+        cylinder(f"whirl_{tag}_water", 1.95, 0.04, (cx, 0.94, cz), mats["water"], 16)
+        for index in range(2):
+            top = 0.15 * (index + 1)
+            cube(f"whirl_{tag}_step_{index}", (0.55, top, 2.40),
+                 (cx - sign * (3.395 + (1 - index) * 0.55), top / 2, cz), mats["deck"], 0.0)
+        for end, sz in (("a", -1), ("f", 1)):
+            cube(f"whirl_{tag}_grab_{end}", (0.07, 1.05, 0.07),
+                 (cx - sign * 3.40, 0.525, cz + sz * 1.35), mats["brass"], 0.0)
+        cube(f"whirl_{tag}_plate", (0.90, 0.06, 0.36),
+             (cx - sign * 3.94, 0.32, cz + 1.35), mats["neon_amber"], 0.0)
+
+    # ---- the two tower deckhouses -----------------------------------------
+    # Door centres are the portals in ship-layout.ts: (5.5, 0, -4.5) and
+    # (5.5, 0, 53.5). The forward house is 9 m fore-and-aft, not 12, so that it
+    # clears the forward cross rail at z 59 instead of standing on it.
+    for name, z, depth in (("aft", -4.5, 12.0), ("fwd", 53.5, 9.0)):
+        cube(f"house_{name}", (11.0, 3.40, depth), (0, 1.70, z), mats["bulkhead"], 0.04)
+        cube(f"house_{name}_plinth", (11.40, 0.18, depth + 0.40), (0, 0.09, z),
+             mats["trim"], 0.0)
+        cube(f"house_{name}_roof", (12.00, 0.20, depth + 1.0), (0, 3.50, z), mats["trim"], 0.0)
+        cube(f"house_{name}_coam", (11.40, 0.34, depth + 0.40), (0, 3.77, z),
+             mats["bulkhead"], 0.02)
+        for tag, sx in (("p", -1), ("s", 1)):
+            for end, sz in (("a", -1), ("f", 1)):
+                cube(f"house_{name}_pilaster_{tag}{end}", (0.24, 3.40, 0.24),
+                     (sx * 5.62, 1.70, z + sz * (depth / 2 - 0.12)), mats["trim"], 0.0)
+        # The door, mounted proud of the starboard face at x 5.5.
+        for end, sz in (("a", -1), ("f", 1)):
+            cube(f"house_{name}_jamb_{end}", (0.10, 2.34, 0.26),
+                 (5.55, 1.17, z + sz * 0.93), mats["trim"], 0.0)
+        cube(f"house_{name}_head", (0.10, 0.24, 2.12), (5.55, 2.46, z), mats["trim"], 0.0)
+        cube(f"house_{name}_leaf", (0.06, 2.10, 1.60), (5.53, 1.05, z), mats["glass"], 0.0)
+        cube(f"house_{name}_sill", (0.30, 0.03, 1.92), (5.60, 0.015, z), mats["brass"], 0.0)
+        cube(f"house_{name}_exit", (0.08, 0.34, 1.30), (5.58, 2.86, z), mats["neon_cyan"], 0.0)
+        # Glazing everywhere else, so the house is not a blank white block.
+        for tag, sx in (("p", -1), ("s", 1)):
+            cuts = [z] if sx > 0 else []
+            for part, (start, end) in enumerate(
+                    wall_segments(z - depth / 2 + 0.4, z + depth / 2 - 0.4, cuts, 2.6)):
+                if end - start < 1.2:
+                    continue
+                window_band(mats, f"house_{name}_win_{tag}_{part}",
+                            (start + 0.10, end - 0.10), 0.0, 1.05, 2.55, sx * 5.5, True)
+        for end, sz in (("a", -1), ("f", 1)):
+            window_band(mats, f"house_{name}_win_{end}", (-4.2, 4.2), 0.0, 1.05, 2.55,
+                        z + sz * (depth / 2), False)
+        cube(f"house_{name}_name", (3.60, 0.52, 0.08), (0, 2.90, z - depth / 2 - 0.09),
+             mats["neon_cyan"], 0.0)
+        for index, offset in enumerate(grid(4, depth - 2.0)):
+            for tag, sx in (("p", -1), ("s", 1)):
+                cube(f"house_{name}_lamp_{index}_{tag}", (0.16, 0.26, 0.26),
+                     (sx * 5.62, 3.04, z + offset), mats["neon_amber"], 0.0)
+
+    # ---- the deck cinema: screen on pylons over the after deckhouse --------
+    for tag, sx in (("p", -1), ("s", 1)):
+        cube(f"cine_pylon_{tag}", (0.32, 7.00, 0.32), (sx * 5.0, 3.50, 2.35),
+             mats["steel"], 0.02)
+        cube(f"cine_foot_{tag}", (0.60, 0.16, 0.60), (sx * 5.0, 0.08, 2.35), mats["trim"], 0.0)
+        stay = math.hypot(2.15, 2.80)
+        cube(f"cine_stay_{tag}", (0.14, 0.14, stay), (sx * 5.0, 5.00, 1.275),
+             mats["steel"], 0.0, (math.atan2(-2.80, 2.15), 0.0, 0.0))
+        cube(f"cine_speaker_{tag}", (0.44, 0.70, 0.34), (sx * 5.0, 5.90, 2.05),
+             mats["trim"], 0.02)
+    cube("cine_frame", (10.00, 4.90, 0.24), (0, 4.65, 2.35), mats["trim"], 0.0)
+    cube("cine_screen", (8.80, 4.40, 0.10), (0, 4.65, 2.18), mats["screen"], 0.0)
+    cube("cine_hood", (10.00, 0.16, 0.90), (0, 7.18, 1.95), mats["trim"], 0.0)
+    cube("cine_title", (5.40, 0.44, 0.08), (0, 2.00, 2.19), mats["neon_pink"], 0.0)
+
+    # ---- funnel casings ----------------------------------------------------
     for index, z in enumerate((-30.0, -18.0)):
-        cube(f"funnel_casing_{index}", (7.0, 6.0, 8.0), (0, 3.0, z), mats["hull"])
-        cube(f"funnel_casing_{index}_band", (7.4, 0.8, 8.4), (0, 4.6, z), mats["coral"], 0.0)
+        cube(f"funnel_{index}_plinth", (7.60, 0.30, 8.60), (0, 0.15, z), mats["trim"], 0.0)
+        cube(f"funnel_{index}_casing", (7.00, 5.70, 8.00), (0, 3.15, z), mats["hull"], 0.06)
+        for tag, sx, sz, w, d in (("p", -3.56, 0.0, 0.12, 8.12), ("s", 3.56, 0.0, 0.12, 8.12),
+                                  ("a", 0.0, -4.06, 7.00, 0.12),
+                                  ("f", 0.0, 4.06, 7.00, 0.12)):
+            cube(f"funnel_{index}_band_{tag}", (w, 0.70, d), (sx, 4.60, z + sz),
+                 mats["coral"], 0.0)
+        for tag, sx in (("p", -1), ("s", 1)):
+            for end, sz in (("a", -1), ("f", 1)):
+                cube(f"funnel_{index}_strake_{tag}{end}", (0.14, 5.70, 0.14),
+                     (sx * 3.57, 3.15, z + sz * 4.07), mats["trim"], 0.0)
+        for offset in (-2.0, 0.0, 2.0):
+            for tag, sx in (("p", -1), ("s", 1)):
+                cube(f"funnel_{index}_rib_{tag}_{offset}", (0.10, 5.30, 0.10),
+                     (sx * 3.55, 3.15, z + offset), mats["trim"], 0.0)
         for vent in range(4):
-            cylinder(f"funnel_vent_{index}_{vent}", 0.4, 1.6, (-2.4 + vent * 1.6, 6.6, z),
+            cylinder(f"funnel_{index}_uptake_{vent}", 0.42, 1.80,
+                     (-2.4 + vent * 1.6, 6.90, z), mats["steel"], 12)
+            cylinder(f"funnel_{index}_cowl_{vent}", 0.50, 0.12,
+                     (-2.4 + vent * 1.6, 7.86, z), mats["trim"], 12)
+        cube(f"funnel_{index}_light", (0.24, 0.30, 0.24), (0, 8.07, z), mats["neon_amber"], 0.0)
+        # Machinery door and the cage ladder that reaches the casing top.
+        cube(f"funnel_{index}_door", (1.70, 2.10, 0.08), (0, 1.35, z - 4.04),
+             mats["steel"], 0.0)
+        cube(f"funnel_{index}_door_head", (1.94, 0.20, 0.14), (0, 2.50, z - 4.07),
+             mats["trim"], 0.0)
+        cube(f"funnel_{index}_placard", (0.80, 0.32, 0.06), (0, 2.86, z - 4.03),
+             mats["neon_amber"], 0.0)
+        ladder(mats, f"funnel_{index}_ladder", 2.60, z - 4.20, 0.30, 6.00, -1)
+    cylinder("funnel_whistle", 0.34, 1.30, (-2.60, 6.60, -26.60), mats["brass"], 10,
+             (math.pi / 2, 0.0, 0.0))
+    cube("funnel_whistle_bracket", (0.20, 0.60, 0.20), (-2.60, 6.30, -26.10),
+         mats["trim"], 0.0)
+
+    # ---- the waterslide: tower, flume, splash basin ------------------------
+    stair_flight(mats, "slide_stair", 7.0, 1.90, -58.0, -50.8, 0.0, 5.20, 24, "deck", "brass")
+    for tag, sx in (("p", -1), ("s", 1)):
+        slope_rail(mats, f"slide_stair_rail_{tag}", 7.0 + sx * 0.90, -58.0, -50.8, 0.0, 5.20)
+    cube("slide_platform", (3.00, 0.16, 2.60), (7.0, 5.12, -49.50), mats["deck"], 0.0)
+    for tag, sx in (("p", -1), ("s", 1)):
+        for end, sz in (("a", -1), ("f", 1)):
+            cube(f"slide_leg_{tag}{end}", (0.16, 5.04, 0.16),
+                 (7.0 + sx * 1.32, 2.52, -49.50 + sz * 1.12), mats["steel"], 0.0)
+        railing(mats, f"slide_plat_rail_{tag}",
+                [(7.0 + sx * 1.35, -50.70), (7.0 + sx * 1.35, -48.30)], 5.20)
+    cube("slide_platform_sign", (2.20, 0.44, 0.08), (7.0, 6.10, -50.75),
+         mats["neon_pink"], 0.0)
+    for tag, sx in (("p", -1), ("s", 1)):
+        cube(f"slide_platform_mast_{tag}", (0.10, 0.90, 0.10),
+             (7.0 + sx * 0.90, 5.65, -50.75), mats["steel"], 0.0)
+
+    flume = []
+    for index in range(13):
+        along = index / 12
+        flume.append((-48.20 + 20.00 * along, 0.62 + 4.58 * (1 - along) ** 1.7))
+    for index in range(12):
+        z0, y0 = flume[index]
+        z1, y1 = flume[index + 1]
+        run, drop = z1 - z0, y1 - y0
+        length = math.hypot(run, drop)
+        # +pi so the panel's height axis points up the slope, not down it.
+        pitch = math.atan2(drop, -run) + math.pi
+        up_y, up_z = math.cos(pitch), math.sin(pitch)
+        mid_y, mid_z = (y0 + y1) / 2, (z0 + z1) / 2
+        cube(f"slide_bed_{index}", (1.90, 0.12, length), (7.0, mid_y, mid_z),
+             mats["neon_pink"], 0.0, (pitch, 0.0, 0.0))
+        for tag, sx in (("p", -1), ("s", 1)):
+            cube(f"slide_wall_{index}_{tag}", (0.10, 0.62, length),
+                 (7.0 + sx * 0.95, mid_y + up_y * 0.37, mid_z + up_z * 0.37),
+                 mats["neon_pink"], 0.0, (pitch, 0.0, 0.0))
+        if index % 2 == 0 and mid_y > 0.90:
+            for tag, sx in (("p", -1), ("s", 1)):
+                cube(f"slide_prop_{index}_{tag}", (0.14, mid_y - 0.06, 0.14),
+                     (7.0 + sx * 1.05, (mid_y - 0.06) / 2, mid_z), mats["steel"], 0.0)
+    for tag, x0, x1 in (("port", 4.60, 4.85), ("stbd", 9.15, 9.40)):
+        cube(f"splash_coam_{tag}", (x1 - x0, 0.55, 5.40), ((x0 + x1) / 2, 0.275, -26.10),
+             mats["bulkhead"], 0.02)
+    for tag, x0, x1 in (("pa", 4.85, 5.85), ("sa", 8.15, 9.15)):
+        cube(f"splash_coam_{tag}", (x1 - x0, 0.55, 0.25), ((x0 + x1) / 2, 0.275, -28.675),
+             mats["bulkhead"], 0.02)
+    for tag, x0, x1 in (("pf", 4.85, 6.20), ("sf", 7.80, 9.15)):
+        cube(f"splash_coam_{tag}", (x1 - x0, 0.55, 0.25), ((x0 + x1) / 2, 0.275, -23.525),
+             mats["bulkhead"], 0.02)
+    cube("splash_sill", (1.60, 0.20, 0.25), (7.0, 0.10, -23.525), mats["bulkhead"], 0.0)
+    cube("splash_water", (4.30, 0.06, 4.90), (7.0, 0.43, -26.10), mats["water"], 0.0)
+    cube("splash_step_in", (1.60, 0.28, 0.50), (7.0, 0.14, -24.05), mats["bulkhead"], 0.0)
+    cube("splash_step_out", (1.60, 0.10, 0.60), (7.0, 0.05, -23.10), mats["bulkhead"], 0.0)
+    for tag, sx in (("p", -1), ("s", 1)):
+        cube(f"splash_grab_{tag}", (0.07, 1.05, 0.07), (7.0 + sx * 0.95, 0.525, -23.30),
+             mats["brass"], 0.0)
+    cube("splash_notice", (1.20, 0.06, 0.44), (7.0, 0.60, -22.60), mats["neon_amber"], 0.0)
+
+    # ---- pool bar under its canopy ----------------------------------------
+    bar_top = counter(mats, "lido_bar", 0.0, 40.0, 11.00, 1.40, 0.0, 1.12,
+                      top="brass", body="wood", lip=-1)
+    work_top = counter(mats, "lido_backbar", 0.0, 42.20, 9.00, 0.70, 0.0, 0.92,
+                       top="steel", body="steel", lip=1)
+    levels = shelf_unit(mats, "lido_shelf", 0.0, 43.10, 9.00, 0.55, 0.0, 2.20, 4,
+                        "steel", "wood")
+    for index, level in enumerate(levels[1:]):
+        for slot in range(11):
+            cube(f"lido_bottle_{index}_{slot}", (0.13, 0.32, 0.13),
+                 (-3.9 + slot * 0.78, level + 0.18, 43.10),
+                 mats["teal" if slot % 3 else "coral"], 0.0)
+    for index in range(9):
+        x = -4.8 + index * 1.2
+        cylinder(f"lido_stool_{index}", 0.09, 0.72, (x, 0.36, 38.70), mats["steel"], 10)
+        cylinder(f"lido_stool_{index}_foot", 0.26, 0.05, (x, 0.025, 38.70), mats["steel"], 12)
+        cylinder(f"lido_stool_{index}_ring", 0.22, 0.05, (x, 0.245, 38.70), mats["brass"], 10)
+        cylinder(f"lido_stool_{index}_seat", 0.24, 0.10, (x, bar_top - 0.30, 38.70),
+                 mats["orange"], 12)
+    for index in range(6):
+        cube(f"lido_glassrack_{index}", (0.90, 0.22, 0.46),
+             (-3.6 + index * 1.44, work_top + 0.11, 42.20), mats["glass"], 0.0)
+    cube("lido_bar_sign", (4.00, 0.24, 0.06), (0, 3.05, 37.37), mats["neon_pink"], 0.0)
+    cube("lido_bar_canopy", (14.00, 0.20, 6.00), (0, 3.30, 40.40), mats["canvas"], 0.0)
+    for tag, sz in (("a", 37.49), ("f", 43.31)):
+        cube(f"lido_bar_fascia_{tag}", (13.64, 0.30, 0.18), (0, 3.05, sz), mats["canvas"], 0.0)
+    for tag, sx in (("p", -1), ("s", 1)):
+        cube(f"lido_bar_fascia_{tag}", (0.18, 0.30, 6.00), (sx * 6.91, 3.05, 40.40),
+             mats["canvas"], 0.0)
+        for index, z in enumerate((37.80, 40.40, 43.00)):
+            cylinder(f"lido_bar_base_{tag}{index}", 0.20, 0.12, (sx * 6.40, 0.06, z),
+                     mats["trim"], 10)
+            cylinder(f"lido_bar_post_{tag}{index}", 0.11, 2.96, (sx * 6.40, 1.60, z),
                      mats["steel"], 10)
-
-    # The slide, a curved run of segments off the top of the after casing.
-    for index in range(18):
-        along = index / 17
-        angle = along * math.pi * 1.2
-        x = math.sin(angle) * 6.0
-        z = -30.0 + (1 - math.cos(angle)) * 6.0
-        cube(f"slide_{index}", (1.6, 0.5, 1.8), (x, 5.6 - along * 4.6, z), mats["neon_pink"], 0.05,
-             (0.0, 0.0, yaw_towards(math.cos(angle), math.sin(angle))))
-    cube("slide_splash", (4.0, 0.3, 4.0), (0.5, 0.15, -18.0), mats["water"], 0.0)
-
-    # Loungers, parasols, towel stations, the screen, deck lighting.
-    for index, z in enumerate(grid(13, 100.0)):
-        for sign in (-1, 1):
-            cube(f"lounger_{index}_{sign}", (0.76, 0.14, 2.0), (sign * 14.4, 0.42, z),
-                 mats["canvas"], 0.02)
-            cube(f"lounger_{index}_{sign}_back", (0.76, 0.9, 0.14), (sign * 14.4, 0.9, z - 0.95),
-                 mats["canvas"], 0.02)
-            cube(f"lounger_{index}_{sign}_table", (0.5, 0.4, 0.5), (sign * 13.4, 0.2, z),
-                 mats["trim"])
-    for index, z in enumerate(grid(6, 90.0)):
-        for sign in (-1, 1):
-            cylinder(f"parasol_{index}_{sign}", 0.06, 2.4, (sign * 12.2, 1.2, z), mats["steel"], 6)
-            cylinder(f"parasol_{index}_{sign}_top", 1.5, 0.12, (sign * 12.2, 2.4, z),
-                     mats["orange"], 10)
-    for index, z in enumerate(grid(4, 80.0)):
-        cube(f"towel_station_{index}", (1.6, 1.2, 0.8), (-16.0, 0.6, z), mats["teal"])
-        for shelf in range(3):
-            cube(f"towel_{index}_{shelf}", (1.4, 0.25, 0.7), (-16.0, 0.25 + shelf * 0.35, z),
-                 mats["bulkhead"], 0.0)
-    cube("lido_screen_frame", (9.6, 5.6, 0.4), (0, 3.0, 56.2), mats["trim"], 0.0)
-    cube("lido_screen", (9.0, 5.0, 0.3), (0, 3.0, 56.0), mats["screen"], 0.0)
-    for index, z in enumerate(grid(16, 110.0)):
-        for sign in (-1, 1):
-            cube(f"lido_light_{index}_{sign}", (0.24, 1.1, 0.24), (sign * 16.2, 0.55, z),
+            cylinder(f"lido_bar_cap_{tag}{index}", 0.20, 0.12, (sx * 6.40, 3.14, z),
+                     mats["trim"], 10)
+            cube(f"lido_bar_lamp_{tag}{index}", (0.22, 0.22, 0.22), (sx * 6.40, 2.70, z),
                  mats["neon_amber"], 0.0)
+
+    for index, (bx, bz) in enumerate(((-8.0, 34.5), (0.0, 34.5), (8.0, 34.5),
+                                      (-8.0, 45.0), (0.0, 45.0), (8.0, 45.0))):
+        bistro(f"lido_bistro_{index}", bx, bz)
+
+    # ---- the after deck: shuffleboard, a pergola, sun beds -----------------
+    cube("shuffle_court", (1.90, 0.02, 12.00), (0, 0.01, -44.0), mats["wood"], 0.0)
+    for tag, sx in (("p", -1), ("s", 1)):
+        cube(f"shuffle_edge_{tag}", (0.10, 0.02, 12.00), (sx * 1.00, 0.01, -44.0),
+             mats["neon_cyan"], 0.0)
+    for end, sz in (("a", -1), ("f", 1)):
+        cube(f"shuffle_head_{end}", (1.90, 0.02, 0.10), (0, 0.01, -44.0 + sz * 5.95),
+             mats["neon_cyan"], 0.0)
+        for row in range(3):
+            cube(f"shuffle_zone_{end}_{row}", (1.90 - row * 0.60, 0.02, 0.08),
+                 (0, 0.01, -44.0 + sz * (5.20 - row * 0.70)), mats["neon_amber"], 0.0)
+    cube("shuffle_rack", (0.36, 0.90, 1.60), (2.20, 0.45, -44.0), mats["trim"], 0.02)
+    for index in range(4):
+        cube(f"shuffle_cue_{index}", (0.05, 0.05, 1.70), (2.05, 0.95 + index * 0.14, -44.0),
+             mats["wood"], 0.0)
+
+    for tag, sx in (("p", -1), ("s", 1)):
+        for end, sz in (("a", -1), ("f", 1)):
+            cube(f"pergola_post_{tag}{end}", (0.20, 2.90, 0.20),
+                 (-7.0 + sx * 3.00, 1.45, -45.5 + sz * 4.50), mats["wood"], 0.0)
+        cube(f"pergola_beam_{tag}", (0.18, 0.34, 9.40), (-7.0 + sx * 3.00, 3.07, -45.5),
+             mats["wood"], 0.0)
+    for index, offset in enumerate(grid(11, 9.00)):
+        cube(f"pergola_slat_{index}", (6.20, 0.12, 0.18), (-7.0, 3.30, -45.5 + offset),
+             mats["wood"], 0.0)
+    for index, offset in enumerate(grid(2, 7.60)):
+        cube(f"daybed_{index}_base", (2.40, 0.34, 1.90), (-7.0, 0.17, -45.5 + offset),
+             mats["wood"], 0.02)
+        cube(f"daybed_{index}_pad", (2.30, 0.18, 1.80), (-7.0, 0.43, -45.5 + offset),
+             mats["canvas"], 0.04)
+        for end, sz in (("a", -1), ("f", 1)):
+            cube(f"daybed_{index}_bolster_{end}", (2.30, 0.26, 0.30),
+                 (-7.0, 0.65, -45.5 + offset + sz * 0.75), mats["coral"], 0.06)
+    cube("pergola_sign", (2.40, 0.40, 0.08), (-7.0, 2.60, -50.10), mats["neon_cyan"], 0.0)
+
+    # ---- loungers, tables and parasols outboard of the lanes ---------------
+    for group in range(7):
+        z0 = -53.0 + group * 16.0
+        for slot in range(5):
+            for sign in (-1, 1):
+                lounger(f"lounger_{group}_{slot}_{sign}", sign, sign * LOUNGE_X,
+                        z0 + slot * 2.50)
+        for tag, offset in (("a", 1.25), ("b", 6.25)):
+            for sign in (-1, 1):
+                side_table(f"lounge_table_{group}_{tag}_{sign}",
+                           sign * (LOUNGE_X + 0.75), z0 + offset)
+        if group < 6:
+            for sign in (-1, 1):
+                x = sign * 13.0
+                z = z0 + 13.50
+                cylinder(f"parasol_{group}_{sign}_base", 0.40, 0.14, (x, 0.07, z),
+                         mats["trim"], 12)
+                cylinder(f"parasol_{group}_{sign}_pole", 0.06, 2.26, (x, 1.27, z),
+                         mats["steel"], 8)
+                cylinder(f"parasol_{group}_{sign}_canopy", 1.50, 0.12, (x, 2.46, z),
+                         mats["orange"], 12)
+                cylinder(f"parasol_{group}_{sign}_boss", 0.14, 0.18, (x, 2.61, z),
+                         mats["trim"], 8)
+
+    # ---- towel stations against the deckhouses -----------------------------
+    for index, (z, house) in enumerate(((-7.5, "aft"), (-1.5, "aft"),
+                                        (51.0, "fwd"), (56.0, "fwd"))):
+        cube(f"towel_{index}_carcass", (0.80, 1.30, 1.80), (-5.90, 0.65, z), mats["teal"], 0.03)
+        cube(f"towel_{index}_top", (0.86, 0.06, 1.86), (-5.90, 1.33, z), mats["trim"], 0.0)
+        for shelf in range(3):
+            cube(f"towel_{index}_stack_{shelf}", (0.60, 0.22, 1.60),
+                 (-5.86, 0.24 + shelf * 0.36, z), mats["canvas"], 0.03)
+        cube(f"towel_{index}_sign", (0.06, 0.30, 1.00), (-6.33, 1.05, z),
+             mats["neon_cyan"], 0.0)
+        cube(f"towel_{index}_bin", (0.62, 0.70, 0.62), (-6.70, 0.35, z + 1.30),
+             mats["trim"], 0.03)
+
+    # ---- lifebuoys, deck lighting, wayfinding ------------------------------
+    for index, z in enumerate(grid(12, 108.0)):
+        for tag, sign in (("p", -1), ("s", 1)):
+            cube(f"buoy_{index}_{tag}_post", (0.10, 1.00, 0.10), (sign * 16.30, 0.50, z),
+                 mats["steel"], 0.0)
+            cube(f"buoy_{index}_{tag}_plate", (0.06, 0.86, 0.86), (sign * 16.33, 1.30, z),
+                 mats["trim"], 0.0)
+            cylinder(f"buoy_{index}_{tag}", 0.38, 0.12, (sign * 16.24, 1.30, z),
+                     mats["orange"], 12, (0.0, math.pi / 2, 0.0))
+    for index, z in enumerate(grid(18, 112.0)):
+        for tag, sign in (("p", -1), ("s", 1)):
+            cube(f"lido_light_{index}_{tag}", (0.24, 1.05, 0.24), (sign * 15.90, 0.525, z),
+                 mats["neon_amber"], 0.0)
+            cube(f"lido_light_{index}_{tag}_head", (0.34, 0.16, 0.34),
+                 (sign * 15.90, 1.13, z), mats["trim"], 0.0)
+    for index, (z, sign) in enumerate(((-36.0, -1), (-36.0, 1), (11.0, -1), (11.0, 1),
+                                       (36.0, -1), (36.0, 1))):
+        cube(f"lido_way_post_{index}", (0.12, 2.10, 0.12), (sign * LANE_X, 1.05, z),
+             mats["steel"], 0.0)
+        cube(f"lido_way_sign_{index}", (1.60, 0.34, 0.06), (sign * LANE_X, 1.95, z),
+             mats["neon_cyan"], 0.0)
+        cube(f"lido_way_sign_{index}_b", (1.60, 0.34, 0.06), (sign * LANE_X, 1.55, z),
+             mats["neon_amber"], 0.0)
 
 
 def build_sun_deck(mats):
@@ -3572,6 +4217,154 @@ def build_bridge(mats):
     cube("bridge_extinguisher_bracket", (0.24, 0.26, 0.26), (-1.90, 0.80, -5.80), mats["steel"], 0.0)
     cylinder("bridge_extinguisher", 0.14, 0.66, (-1.90, 0.75, -5.72), mats["coral"], 8)
 
+    # --- authored commander/control room island -----------------------------
+    # `navigationIncidentDefinition.bridge.position` is the bridge playfield
+    # point (13, 5.5). `simToCompartmentLocal` maps that to (0, -0.5) in this
+    # 26 x 12 wheelhouse, so the authored helm below sits under the runtime
+    # feedback overlay without changing the shared navigation contract.
+    HELM_X, HELM_Z = 0.0, -0.50
+    bridge_root = kit.bpy.data.objects.get("CM_BRIDGE_ROOT")
+    if bridge_root:
+        bridge_root["cm_bridge_room_role"] = "commander-control-room"
+        bridge_root["cm_bridge_room_contract"] = "bridge-command-island-v1"
+        bridge_root["cm_helm_target"] = "bridge-helm"
+        bridge_root["cm_helm_local_position"] = "0.0,-0.5"
+
+    def bridge_socket(name, position, target, role):
+        empty = kit.bpy.data.objects.new(name, None)
+        empty.empty_display_type = "CIRCLE"
+        empty.empty_display_size = 0.30
+        empty.location = kit.world_location(*position)
+        empty["cm_compartment_id"] = "bridge"
+        empty["cm_socket_role"] = role
+        empty["cm_interaction_target"] = target
+        empty["cm_coordinate_space"] = "bridge-local"
+        kit.bpy.context.scene.collection.objects.link(empty)
+        if bridge_root:
+            empty.parent = bridge_root
+        return empty
+
+    def command_station(name, x, z, width, depth=1.10):
+        cube(f"{name}_plinth", (width - 0.20, 0.12, depth + 0.08), (x, 0.06, z), mats["steel"], 0.0)
+        cube(f"{name}_body", (width, 0.82, depth), (x, 0.53, z), mats["trim"], 0.02)
+        cube(f"{name}_top", (width + 0.10, 0.10, depth + 0.12), (x, 0.99, z), mats["steel"], 0.0)
+        return 1.04
+
+    # Command header and floor rails give the middle of the room a readable
+    # silhouette from the doorway, even with the HUD feedback overlay hidden.
+    cube("bridge_command_header", (10.40, 0.16, 0.18), (0, 2.72, HELM_Z - 0.10), mats["neon_cyan"], 0.02)
+    cube("bridge_command_header_core", (7.20, 0.08, 0.08), (0, 2.84, HELM_Z - 0.10), mats["neon_pink"], 0.01)
+    cube("bridge_command_floor_mark_a", (10.80, 0.02, 0.08), (0, 0.04, HELM_Z - 1.34), mats["neon_amber"], 0.0)
+    cube("bridge_command_floor_mark_b", (10.80, 0.02, 0.08), (0, 0.04, HELM_Z + 1.30), mats["neon_amber"], 0.0)
+
+    # Central helm island: wheel, rudder display and telegraph all occupy the
+    # same interaction target used by the host navigation system.
+    helm_top = command_station("commander_helm_console", HELM_X, HELM_Z, 3.20, 1.05)
+    helm_panel = fascia("commander_helm_fascia", HELM_X, HELM_Z - 0.55, 2.72, 0.58, helm_top)
+    on_fascia("commander_autopilot_display", helm_panel, -0.78, 0.00, (1.05, 0.38, 0.04), "screen")
+    on_fascia("commander_conning_display", helm_panel, 0.78, 0.00, (1.05, 0.38, 0.04), "screen")
+    on_fascia("commander_helm_mode_row", helm_panel, 0.00, 0.24, (2.36, 0.07, 0.03), "neon_amber")
+
+    COMMANDER_AXIS = math.pi / 2 - 0.26
+    wheel_x, wheel_y, wheel_z = HELM_X, 1.34, HELM_Z + 0.18
+    cylinder("commander_helm_wheel", 0.42, 0.07, (wheel_x, wheel_y, wheel_z), mats["brass"], 20,
+             (COMMANDER_AXIS, 0.0, 0.0))
+    cylinder("commander_helm_hub", 0.10, 0.16, (wheel_x, wheel_y, wheel_z), mats["steel"], 12,
+             (COMMANDER_AXIS, 0.0, 0.0))
+    cube("commander_helm_spoke_across", (0.78, 0.06, 0.06), (wheel_x, wheel_y, wheel_z), mats["brass"], 0.0,
+         (COMMANDER_AXIS, 0.0, 0.0))
+    cube("commander_helm_spoke_up", (0.06, 0.78, 0.06), (wheel_x, wheel_y, wheel_z), mats["brass"], 0.0,
+         (COMMANDER_AXIS, 0.0, 0.0))
+    for index in range(3):
+        angle = index / 3 * math.tau
+        cylinder(
+            f"commander_helm_grip_{index}",
+            0.04,
+            0.12,
+            (wheel_x + math.cos(angle) * 0.34, wheel_y + math.sin(angle) * 0.34 * math.sin(COMMANDER_AXIS),
+             wheel_z - math.sin(angle) * 0.34 * math.cos(COMMANDER_AXIS)),
+            mats["brass"],
+            8,
+            (COMMANDER_AXIS, 0.0, 0.0),
+        )
+    cube("commander_telegraph_base", (0.34, 0.05, 0.48), (1.02, 1.06, HELM_Z + 0.02), mats["brass"], 0.0)
+    cylinder("commander_telegraph_lever", 0.05, 0.34, (1.02, 1.24, HELM_Z + 0.02), mats["steel"], 8,
+             (0.5, 0.0, 0.0))
+    cube("commander_telegraph_handle", (0.18, 0.13, 0.20), (1.02, 1.40, HELM_Z - 0.04), mats["orange"], 0.03)
+
+    # Port navigation station: chart table, plotted route and paper controls.
+    port_top = command_station("bridge_nav_port_console", -4.45, HELM_Z, 3.20)
+    port_panel = fascia("bridge_nav_port_fascia", -4.45, HELM_Z - 0.55, 2.82, 0.60, port_top)
+    on_fascia("bridge_nav_port_chart_display", port_panel, -0.55, 0.00, (1.18, 0.42, 0.04), "screen")
+    on_fascia("bridge_nav_port_control_display", port_panel, 0.72, 0.00, (1.18, 0.42, 0.04), "screen")
+    for index in range(5):
+        on_fascia(f"bridge_nav_port_key_{index}", port_panel, -0.92 + index * 0.46, 0.23,
+                  (0.28, 0.04, 0.02), "neon_cyan" if index % 2 else "neon_pink")
+    cube("bridge_chart_tabletop", (2.76, 0.10, 1.12), (-4.45, 1.08, HELM_Z), mats["wood"], 0.02)
+    cube("bridge_chart_surface", (2.42, 0.03, 0.86), (-4.45, 1.15, HELM_Z - 0.02), mats["screen"], 0.0)
+    for index in range(4):
+        cube(f"bridge_chart_grid_{index}", (2.12, 0.02, 0.025), (-4.45, 1.18, HELM_Z - 0.30 + index * 0.20),
+             mats["neon_cyan"], 0.0)
+    cube("bridge_chart_route", (1.62, 0.025, 0.04), (-4.20, 1.20, HELM_Z - 0.04), mats["neon_pink"], 0.0)
+    cube("bridge_chart_parallel_rule", (0.86, 0.04, 0.10), (-5.10, 1.21, HELM_Z + 0.26), mats["brass"], 0.0)
+
+    # Starboard navigation station: unmistakable circular radar scope and sweep.
+    stbd_top = command_station("bridge_nav_stbd_console", 4.45, HELM_Z, 3.20)
+    stbd_panel = fascia("bridge_nav_stbd_fascia", 4.45, HELM_Z - 0.55, 2.82, 0.60, stbd_top)
+    on_fascia("bridge_nav_stbd_control_display", stbd_panel, -0.72, 0.00, (1.18, 0.42, 0.04), "screen")
+    on_fascia("bridge_nav_stbd_radar_status", stbd_panel, 0.62, 0.00, (1.18, 0.42, 0.04), "screen")
+    for index in range(5):
+        on_fascia(f"bridge_nav_stbd_key_{index}", stbd_panel, -0.92 + index * 0.46, 0.23,
+                  (0.28, 0.04, 0.02), "neon_amber" if index % 2 else "neon_cyan")
+    cylinder("bridge_radar_bezel", 0.50, 0.08, (4.45, 1.48, HELM_Z - 0.58), mats["steel"], 28,
+             (math.pi / 2, 0.0, 0.0))
+    cylinder("bridge_radar_screen", 0.42, 0.04, (4.45, 1.49, HELM_Z - 0.64), mats["screen"], 28,
+             (math.pi / 2, 0.0, 0.0))
+    cube("bridge_radar_sweep", (0.035, 0.035, 0.62), (4.45, 1.52, HELM_Z - 0.64), mats["neon_pink"], 0.0)
+    for index in range(3):
+        cylinder(f"bridge_radar_ring_{index}", 0.14 + index * 0.10, 0.02, (4.45, 1.53, HELM_Z - 0.66),
+                 mats["neon_cyan"], 24, (math.pi / 2, 0.0, 0.0))
+
+    # Engineering/control station and emergency panel, kept on starboard side
+    # so it reads as a second watch position rather than scenery in the lane.
+    control_top = command_station("bridge_control_console", 8.00, HELM_Z, 2.60)
+    control_panel = fascia("bridge_control_fascia", 8.00, HELM_Z - 0.55, 2.22, 0.62, control_top)
+    on_fascia("bridge_control_display", control_panel, 0.00, 0.00, (1.72, 0.42, 0.04), "screen")
+    for index in range(6):
+        on_fascia(f"bridge_control_key_{index}", control_panel, -0.82 + index * 0.33, 0.25,
+                  (0.22, 0.05, 0.02), "neon_amber" if index % 3 else "neon_pink")
+    cube("bridge_emergency_panel", (2.18, 0.64, 0.08), (8.00, 1.48, HELM_Z - 0.60), mats["coral"], 0.02)
+    for index in range(4):
+        cube(f"bridge_emergency_button_{index}", (0.24, 0.12, 0.20),
+             (7.30 + index * 0.46, 1.60, HELM_Z - 0.64), mats["orange" if index % 2 else "neon_amber"], 0.02)
+
+    def work_chair(name, x, z, mat="coral"):
+        cylinder(f"{name}_base", 0.36, 0.07, (x, 0.04, z), mats["steel"], 12)
+        cylinder(f"{name}_stem", 0.09, 0.62, (x, 0.37, z), mats["steel"], 10)
+        cube(f"{name}_seat", (0.72, 0.14, 0.68), (x, 0.72, z), mats[mat], 0.04)
+        cube(f"{name}_back", (0.72, 0.78, 0.12), (x, 1.13, z + 0.30), mats[mat], 0.04)
+        for side, sx in (("p", -1), ("s", 1)):
+            cube(f"{name}_arm_{side}", (0.09, 0.07, 0.48), (x + sx * 0.38, 1.00, z), mats["trim"], 0.02)
+
+    work_chair("captain_chair", 0.0, 0.92)
+    work_chair("crew_chair_port", -4.45, 0.84)
+    work_chair("crew_chair_stbd", 4.45, 0.84)
+
+    # Semantic nodes remain as empties through material joining and glTF export.
+    # Runtime can bind by name/metadata without depending on merged draw meshes.
+    for name in ("BRIDGE_COMMANDER_ROOM", "BRIDGE_CONTROL_ROOM"):
+        bridge_socket(name, (0.0, 0.0, HELM_Z), "bridge-control-room", "room")
+    for name in ("BRIDGE_HELM", "BRIDGE_HELM_SOCKET", "BRIDGE_HELM_INTERACTION_SOCKET", "bridge-helm"):
+        bridge_socket(name, (HELM_X, 1.10, HELM_Z), "bridge-helm", "interaction")
+    bridge_socket("BRIDGE_TELEGRAPH_SOCKET", (1.02, 1.18, HELM_Z), "bridge-telegraph", "interaction")
+    bridge_socket("BRIDGE_CHART_SOCKET", (-4.45, 1.16, HELM_Z), "bridge-chart", "interaction")
+    bridge_socket("BRIDGE_RADAR_SOCKET", (4.45, 1.52, HELM_Z - 0.64), "bridge-radar", "interaction")
+    bridge_socket("BRIDGE_CONTROL_SOCKET", (8.00, 1.20, HELM_Z), "bridge-control", "interaction")
+    bridge_socket("BRIDGE_EMERGENCY_PANEL_SOCKET", (8.00, 1.58, HELM_Z - 0.64), "bridge-emergency-panel", "interaction")
+    bridge_socket("BRIDGE_CAPTAIN_WORK_POSITION", (0.0, 0.0, 0.92), "captain", "work-position")
+    bridge_socket("BRIDGE_CREW_PORT_WORK_POSITION", (-4.45, 0.0, 0.84), "crew-port", "work-position")
+    bridge_socket("BRIDGE_CREW_STBD_WORK_POSITION", (4.45, 0.0, 0.84), "crew-stbd", "work-position")
+
     # --- lighting -----------------------------------------------------------
     for index, x in enumerate(grid(8, 23.0)):
         cube(f"bridge_light_{index}", (1.30, 0.06, 0.46), (x, 3.36, 1.20), mats["screen"], 0.0)
@@ -3596,25 +4389,197 @@ def tower_landings(size):
     return [level * DECK_PITCH for level in range(levels)]
 
 
-def tower_dressing(mats, size, landings):
-    """What makes a shaft feel used: signage, handrails, lighting, extinguishers."""
+# Seven-segment strokes as (across, up, is_horizontal), in units of half the
+# numeral's inner extent. `across` is +1 towards the numeral's own right.
+SEGMENTS = {
+    "a": (0.0, 1.0, True), "g": (0.0, 0.0, True), "d": (0.0, -1.0, True),
+    "f": (-1.0, 0.5, False), "b": (1.0, 0.5, False),
+    "e": (-1.0, -0.5, False), "c": (1.0, -0.5, False),
+}
+DIGIT_SEGMENTS = {
+    0: "abcdef", 1: "bc", 2: "abged", 3: "abgcd", 4: "fgbc",
+    5: "afgcd", 6: "afgecd", 7: "abc", 8: "abcdefg", 9: "abgfcd",
+}
+
+
+def seven_segment(mats, name, digit, centre, width, height, normal,
+                  mat="neon_amber", depth=0.06):
+    """A deck number drawn as strokes rather than as one blank lit square.
+
+    `normal` is the axis the numeral faces along, so the same call works on an
+    x-normal bulkhead and on a z-normal one without a second set of constants.
+    """
+    cx, cy, cz = centre
+    thick = min(width, height) * 0.16
+    for key in DIGIT_SEGMENTS[digit]:
+        across, up, horizontal = SEGMENTS[key]
+        extent = (width - thick) if horizontal else thick
+        rise = thick if horizontal else (height - thick) / 2
+        y = cy + up * (height - thick) / 2
+        offset = across * (width - thick) / 2
+        if normal == "x":
+            cube(f"{name}_{key}", (depth, rise, extent), (cx, y, cz + offset), mats[mat], 0.0)
+        else:
+            cube(f"{name}_{key}", (extent, rise, depth), (cx + offset, y, cz), mats[mat], 0.0)
+
+
+def _tower_doors(portals, size, level):
+    """The doors on one landing, as `(side, coordinate along that wall)`.
+
+    Classified the same way `kit.shell` classifies them, so the dressing lands
+    on the same wall the opening was cut in.
+    """
     half_x, half_z = size[0] / 2, size[2] / 2
+    found = []
+    for entry in portals:
+        px, py, pz = entry["position"]
+        if abs(py - level) > 1e-6:
+            continue
+        if pz >= half_z - 0.5:
+            found.append(("fore", px))
+        elif pz <= -half_z + 0.5:
+            found.append(("aft", px))
+        elif px <= -half_x + 0.5:
+            found.append(("port", pz))
+        else:
+            found.append(("starboard", pz))
+    return found
+
+
+def tower_dressing(mats, size, landings, portals, base_deck):
+    """What makes a shaft feel used, and — more to the point — legible.
+
+    Every landing says which deck it is twice, once on the port wall you face
+    while climbing and once on the aft bulkhead you face when you step off the
+    flight, and a landing with no door says so instead of looking like one you
+    failed to open. Nothing here is placed against a hand-copied constant: the
+    walls are `half - 0.07` because that is where `kit.shell` centres a 0.14
+    band, the deckhead is the next landing's plate underside, and the stair
+    side of the room is left clear because the treads are already there.
+    """
+    width, height, length = size
+    half_x, half_z = width / 2, length / 2
+    face_x, face_z = half_x - 0.07, half_z - 0.07
+    well_x0 = kit.WELL_CENTRE_X - kit.WELL_HALF_X
+    well_z0 = kit.SWITCHBACK_HALF_Z - kit.CLIMB_RUN_Z
+    run = kit.CLIMB_RUN_Z / 16
+
     for index, level in enumerate(landings):
-        cube(f"deck_sign_{index}", (1.2, 0.5, 0.08), (-half_x + 0.25, level + 2.0, -half_z + 2.0),
-             mats["neon_cyan"], 0.0)
-        cube(f"deck_number_{index}", (0.6, 0.6, 0.06), (half_x - 0.25, level + 2.0, -half_z + 3.5),
-             mats["neon_amber"], 0.0)
-        cube(f"landing_light_{index}", (1.4, 0.08, 0.5), (0, level + 2.9, -2.0), mats["screen"], 0.0)
-        cube(f"landing_mat_{index}", (2.4, 0.02, 1.6), (-1.5, level + 0.07, -3.0),
-             mats["carpet"], 0.0)
+        deck = base_deck + index
+        doors = _tower_doors(portals, size, level)
+        # The plate overhead is the next landing's, except at the top of the
+        # shaft where it is the deckhead `kit.shell` drew at `height`.
+        ceiling = landings[index + 1] - 0.12 if index + 1 < len(landings) else height
+
+        # Floor: a spine down the middle and one arm to each side wall, laid
+        # out so no two pieces share a surface and none of it runs under the
+        # well rail's posts or out over the void.
+        for tag, x0, x1, z0, z1 in (
+            ("spine", -1.10, 1.10, -face_z + 0.26, face_z - 0.23),
+            ("port", -face_x + 0.26, -1.10, -1.10, 0.85),
+            ("starboard", 1.10, face_x - 0.26, -1.10, 0.85),
+            ("stair", 1.10, well_x0 - 0.05, well_z0 + 3.60, face_z - 0.23),
+        ):
+            cube(f"landing_floor_{index}_{tag}", (x1 - x0, 0.02, z1 - z0),
+                 ((x0 + x1) / 2, level + 0.015, (z0 + z1) / 2), mats["carpet"], 0.0)
+
+        # Brass nosings on the flight above, inset clear of the well rail.
+        if index + 1 < len(landings):
+            rise = (landings[index + 1] - level) / 16
+            for tread in range(16):
+                cube(f"tread_nose_{index}_{tread}", (2.20, 0.03, 0.08),
+                     (kit.WELL_CENTRE_X, level + rise * (tread + 1) + 0.015,
+                      half_z - run * tread - 0.04), mats["brass"], 0.0)
+
+        # Handrail down the port wall, broken for any door in that wall.
+        port_doors = [at for side, at in doors if side == "port"]
+        for part, (start, end) in enumerate(
+                wall_segments(-face_z + 0.33, face_z - 0.33, port_doors, 1.90)):
+            cube(f"handrail_{index}_{part}", (0.06, 0.06, end - start),
+                 (-5.35, level + 1.00, (start + end) / 2), mats["brass"], 0.0)
+            brackets = max(2, int((end - start) / 1.8) + 1)
+            for bracket in range(brackets):
+                at = start + (end - start) * bracket / (brackets - 1)
+                cube(f"handrail_bracket_{index}_{part}_{bracket}", (0.16, 0.06, 0.06),
+                     (-5.35, level + 0.94, at), mats["brass"], 0.0)
+
+        # Deck identity, port wall: a board with a colour band and the numeral.
+        cube(f"deck_board_{index}", (0.05, 1.60, 1.30), (-face_x + 0.025, level + 2.05, -3.70),
+             mats["bulkhead"], 0.0)
+        cube(f"deck_band_{index}", (0.04, 0.26, 1.30), (-5.36, level + 2.72, -3.70),
+             mats["teal"], 0.0)
+        seven_segment(mats, f"deck_numeral_port_{index}", deck % 10,
+                      (-5.35, level + 1.90, -3.70), 0.62, 1.00, "x")
+
+        # Deck identity again on the aft bulkhead, which is what you are looking
+        # at the moment you arrive off the flight.
+        cube(f"deck_plate_{index}", (1.00, 1.40, 0.05), (3.00, level + 1.85, -face_z + 0.025),
+             mats["bulkhead"], 0.0)
+        seven_segment(mats, f"deck_numeral_aft_{index}", deck % 10,
+                      (3.00, level + 1.85, -5.85), 0.62, 1.00, "z")
+        cube(f"deck_plate_band_{index}", (0.86, 0.14, 0.04), (3.00, level + 2.42, -5.86),
+             mats["teal"], 0.0)
+
+        # Luminaires hung off whatever is actually overhead.
+        for tag, at in (("aft", -2.60), ("fwd", 3.20)):
+            cube(f"luminaire_{index}_{tag}", (1.60, 0.08, 0.70), (0.0, ceiling - 0.04, at),
+                 mats["steel"], 0.0)
+            cube(f"luminaire_lens_{index}_{tag}", (1.40, 0.04, 0.50), (0.0, ceiling - 0.10, at),
+                 mats["screen"], 0.0)
+
+        # Doors: a lit threshold strip and a sign, on the wall the door is in.
+        for side, at in doors:
+            if side in ("aft", "fore"):
+                edge = -1 if side == "aft" else 1
+                cube(f"threshold_{index}_{side}", (1.60, 0.03, 0.26),
+                     (at, level + 0.025, edge * (face_z - 0.13)), mats["neon_cyan"], 0.0)
+                cube(f"door_sign_{index}_{side}", (0.90, 0.30, 0.05),
+                     (at, level + 2.35, edge * (face_z - 0.025)), mats["neon_cyan"], 0.0)
+            else:
+                edge = -1 if side == "port" else 1
+                cube(f"threshold_{index}_{side}", (0.26, 0.03, 1.60),
+                     (edge * (face_x - 0.13), level + 0.025, at), mats["neon_cyan"], 0.0)
+                cube(f"door_sign_{index}_{side}", (0.05, 0.30, 0.90),
+                     (edge * (face_x - 0.025), level + 2.35, at), mats["neon_cyan"], 0.0)
+
+        if doors:
+            # A bench only where somebody has a reason to wait.
+            bench(mats, f"landing_bench_{index}", -4.96, -3.70, level, 1.60, "z", "wood", -1)
+        else:
+            cube(f"no_exit_plate_{index}", (1.30, 0.50, 0.05),
+                 (0.0, level + 1.70, -face_z + 0.025), mats["trim"], 0.0)
+            cube(f"no_exit_bar_{index}", (1.10, 0.12, 0.02), (0.0, level + 1.70, -5.87),
+                 mats["coral"], 0.0)
+
+        # Notice board and a bin, forward of the cross, clear of the well.
+        cube(f"notice_board_{index}", (0.05, 0.90, 1.20), (-face_x + 0.025, level + 1.90, 3.40),
+             mats["trim"], 0.0)
+        for row in range(2):
+            for column in range(3):
+                cube(f"notice_sheet_{index}_{row}_{column}", (0.02, 0.28, 0.22),
+                     (-5.37, level + 1.90 + (0.5 - row) * 0.34, 3.40 + (column - 1) * 0.36),
+                     mats["bulkhead"], 0.0)
+        cylinder(f"waste_bin_{index}", 0.22, 0.66, (-4.60, level + 0.33, 4.60), mats["steel"], 12)
+        cylinder(f"waste_lid_{index}", 0.24, 0.06, (-4.60, level + 0.69, 4.60), mats["trim"], 12)
+
+        # Fire station: board, shelf, bottle and a strap that actually reaches
+        # around it — the old one hung 0.2 clear of the wall on nothing.
         if index % 3 == 0:
-            cylinder(f"extinguisher_{index}", 0.13, 0.6, (-half_x + 0.4, level + 0.9, -1.0),
-                     mats["coral"], 8)
-            cube(f"fire_plan_{index}", (0.06, 0.7, 1.0), (-half_x + 0.25, level + 1.6, 1.5),
+            cube(f"fire_board_{index}", (0.05, 1.10, 0.70), (face_x - 0.025, level + 0.70, -3.50),
+                 mats["coral"], 0.0)
+            cube(f"fire_shelf_{index}", (0.30, 0.05, 0.34), (5.23, level + 0.30, -3.50),
+                 mats["steel"], 0.0)
+            cylinder(f"fire_bottle_{index}", 0.13, 0.62, (5.25, level + 0.635, -3.50),
+                     mats["coral"], 12)
+            for edge in (-1, 1):
+                cube(f"fire_strap_{index}_{edge}", (0.31, 0.06, 0.05),
+                     (5.225, level + 0.90, -3.50 + edge * 0.165), mats["steel"], 0.0)
+            cube(f"fire_strap_face_{index}", (0.05, 0.06, 0.38), (5.095, level + 0.90, -3.50),
+                 mats["steel"], 0.0)
+            cube(f"fire_plan_{index}", (0.90, 0.66, 0.05), (-3.20, level + 1.75, -face_z + 0.025),
                  mats["bulkhead"], 0.0)
-        if index % 2 == 0:
-            cube(f"handrail_{index}", (0.08, 0.08, 7.0), (-half_x + 0.35, level + 1.0, -2.0),
-                 mats["brass"], 0.0)
+            cube(f"fire_plan_face_{index}", (0.80, 0.56, 0.02), (-3.20, level + 1.75, -5.87),
+                 mats["screen"], 0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -3684,7 +4649,7 @@ def main():
         root = kit.compartment_root(compartment_id, deck)
         landings = tower_landings(size)
         kit.stair_tower(mats, size, portals, landings)
-        tower_dressing(mats, size, landings)
+        tower_dressing(mats, size, landings, portals, deck)
         total += kit.export(compartment_id, root, portals)[1]
 
     print(f"Done: {len(ROOMS) + len(TOWERS)} compartments, {total / 1048576:.2f} MB total")

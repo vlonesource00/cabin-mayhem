@@ -1,7 +1,13 @@
 import {
   boardingDefenseActionKindSchema,
+  boardingEventCatalog,
+  boardingEventIdSchema,
+  boardingEventTriggerModeSchema,
   boardingInvasionDefinition,
+  type BoardingEnemyKind,
   type BoardingInvasionDefinition,
+  type BoardingEventId,
+  type BoardingEventTriggerMode,
 } from '../data/invasions';
 import { distance } from './math';
 import type {
@@ -19,7 +25,19 @@ const boardingDefenseActionIntentSchema = z
   })
   .strict();
 
+const boardingEventTriggerRequestSchema = z
+  .object({
+    eventId: boardingEventIdSchema.optional(),
+    mode: boardingEventTriggerModeSchema,
+    warningSeconds: z.number().finite().optional(),
+    approachSeconds: z.number().finite().optional(),
+    maxRaidSeconds: z.number().finite().optional(),
+  })
+  .strict();
+
 export interface BoardingActivationOptions {
+  eventId?: BoardingEventId;
+  enemyKind?: BoardingEnemyKind;
   warningSeconds?: number;
   approachSeconds?: number;
   maxRaidSeconds?: number;
@@ -29,6 +47,30 @@ export interface BoardingActivationResult {
   invasion: BoardingInvasionState;
   accepted: boolean;
   message: string;
+  eventId?: BoardingEventId;
+}
+
+export interface BoardingEventTriggerRequest {
+  eventId?: BoardingEventId;
+  mode: BoardingEventTriggerMode;
+  /** Timing overrides are debug-only and still bounded by activation. */
+  warningSeconds?: number;
+  approachSeconds?: number;
+  maxRaidSeconds?: number;
+}
+
+export interface BoardingEventTriggerContext {
+  voyagePhase: string;
+  /** Elapsed seconds in the current open-sea voyage phase. */
+  cruiseSeconds: number;
+  serviceActive: boolean;
+  navigationClear: boolean;
+  /** Must be true for explicit debug actions; scheduled triggers should leave it false. */
+  explicit: boolean;
+}
+
+export interface BoardingEventTriggerResult extends BoardingActivationResult {
+  mode?: BoardingEventTriggerMode;
 }
 
 export interface BoardingStepResult {
@@ -89,16 +131,39 @@ export function createBoardingInvasionState(
 export function activateBoardingInvasion(
   current: BoardingInvasionState,
   options: BoardingActivationOptions = {},
+  definition: BoardingInvasionDefinition = boardingInvasionDefinition,
 ): BoardingActivationResult {
   if (current.phase !== 'idle') {
     return { invasion: current, accepted: false, message: 'Boarding invasion already active' };
   }
+  const selectedEvent = options.eventId
+    ? boardingEventCatalog.find((event) => event.id === options.eventId)
+    : options.enemyKind
+      ? boardingEventCatalog.find((event) => event.enemyKind === options.enemyKind)
+      : undefined;
+  if (options.eventId && !selectedEvent)
+    return { invasion: current, accepted: false, message: 'Rejected unknown boarding event' };
+  if (selectedEvent && options.enemyKind && selectedEvent.enemyKind !== options.enemyKind)
+    return {
+      invasion: current,
+      accepted: false,
+      message: 'Rejected mismatched boarding event variant',
+    };
+  const enemyKind = options.enemyKind ?? selectedEvent?.enemyKind ?? current.enemyKind;
+  if (!currentEnemyKindSupported(enemyKind, definition))
+    return {
+      invasion: current,
+      accepted: false,
+      message: `Rejected unsupported enemy kind ${enemyKind}`,
+    };
   const warningSeconds = boundedDuration(options.warningSeconds, current.warningSeconds);
   const approachSeconds = boundedDuration(options.approachSeconds, current.approachSeconds);
   const maxRaidSeconds = boundedDuration(options.maxRaidSeconds, current.maxRaidSeconds);
   return {
     invasion: {
       ...current,
+      name: selectedEvent?.name ?? current.name,
+      enemyKind,
       phase: 'warning',
       elapsed: 0,
       phaseElapsed: 0,
@@ -106,12 +171,81 @@ export function activateBoardingInvasion(
       warningSeconds,
       approachSeconds,
       maxRaidSeconds,
-      lastOutcome: 'Unknown fast craft closing. Protect passengers and reach the promenade.',
+      lastOutcome: `${selectedEvent?.label ?? eventLabelForEnemyKind(enemyKind)} incoming. Protect passengers and reach the promenade.`,
     },
     accepted: true,
-    message: 'BOARDING WARNING: UNKNOWN FAST CRAFT CLOSING',
+    message: `${selectedEvent?.label ?? eventLabelForEnemyKind(enemyKind)} WARNING: UNKNOWN FAST CRAFT CLOSING`,
+    eventId: selectedEvent?.id,
   };
 }
+
+/**
+ * Safe host-callable trigger contract. Scheduled events require open sea,
+ * cruise time, active service, and clear navigation. Debug events require an
+ * explicit caller flag, so a fresh moored state cannot auto-fire by accident.
+ * This function only activates the existing invasion state; HostSession still
+ * owns scheduling, snapshots, consequences, and defense authority.
+ */
+export function triggerBoardingEvent(
+  current: BoardingInvasionState,
+  request: BoardingEventTriggerRequest | unknown,
+  context: BoardingEventTriggerContext,
+  definition: BoardingInvasionDefinition = boardingInvasionDefinition,
+): BoardingEventTriggerResult {
+  const parsed = boardingEventTriggerRequestSchema.safeParse(request);
+  if (!parsed.success) return rejectedTrigger(current, 'Rejected invalid boarding event trigger');
+  if (current.phase !== 'idle')
+    return rejectedTrigger(current, 'Rejected boarding event while another event is active');
+  if (!isTriggerContext(context))
+    return rejectedTrigger(current, 'Rejected invalid boarding trigger context');
+
+  const eventId = parsed.data.eventId ?? boardingEventCatalog[0]!.id;
+  const event = boardingEventCatalog.find((candidate) => candidate.id === eventId);
+  if (!event) return rejectedTrigger(current, 'Rejected unknown boarding event');
+  if (!definition.supportedEnemyKinds.includes(event.enemyKind))
+    return rejectedTrigger(current, `Rejected unsupported enemy kind ${event.enemyKind}`);
+
+  if (parsed.data.mode === 'debug') {
+    if (!context.explicit)
+      return rejectedTrigger(current, 'Rejected non-explicit boarding debug trigger');
+  } else {
+    if (
+      parsed.data.warningSeconds !== undefined ||
+      parsed.data.approachSeconds !== undefined ||
+      parsed.data.maxRaidSeconds !== undefined
+    )
+      return rejectedTrigger(current, 'Rejected timing override for scheduled boarding event');
+    if (context.voyagePhase !== event.schedule.voyagePhase)
+      return rejectedTrigger(
+        current,
+        `Rejected boarding event outside ${event.schedule.voyagePhase}`,
+      );
+    if (context.cruiseSeconds < event.schedule.triggerAfterCruiseSeconds)
+      return rejectedTrigger(current, 'Rejected boarding event before authored cruise condition');
+    if (event.schedule.requiresActiveService && !context.serviceActive)
+      return rejectedTrigger(current, 'Rejected boarding event without active service mission');
+    if (event.schedule.requiresClearNavigation && !context.navigationClear)
+      return rejectedTrigger(
+        current,
+        'Rejected boarding event while navigation incident is active',
+      );
+  }
+
+  const activation = activateBoardingInvasion(
+    current,
+    {
+      eventId: event.id,
+      enemyKind: event.enemyKind,
+      warningSeconds: parsed.data.warningSeconds,
+      approachSeconds: parsed.data.approachSeconds,
+      maxRaidSeconds: parsed.data.maxRaidSeconds,
+    },
+    definition,
+  );
+  return { ...activation, eventId: event.id, mode: parsed.data.mode };
+}
+
+export const requestBoardingEvent = triggerBoardingEvent;
 
 export function stepBoardingInvasion(
   current: BoardingInvasionState,
@@ -144,7 +278,7 @@ export function stepBoardingInvasion(
         countdown: invasion.approachSeconds,
         lastOutcome: 'Pirate craft alongside. Boarding gear incoming.',
       };
-      message = 'PIRATE APPROACH: BOARDING GEAR INCOMING';
+      message = `${eventLabelForEnemyKind(invasion.enemyKind)} APPROACH: BOARDING GEAR INCOMING`;
     }
   } else if (invasion.phase === 'approach') {
     invasion = {
@@ -153,7 +287,7 @@ export function stepBoardingInvasion(
     };
     if (invasion.phaseElapsed >= invasion.approachSeconds) {
       invasion = boardersAboard(invasion, definition);
-      message = 'BOARDERS ABOARD: DETACH BOTH BOARDING LINKS';
+      message = `${eventLabelForEnemyKind(invasion.enemyKind)} ABOARD: DETACH BOTH BOARDING LINKS`;
     }
   }
 
@@ -193,9 +327,9 @@ export function stepBoardingInvasion(
         damageEvents: invasion.infrastructure.damageEvents + 1,
       },
       scoreDelta: invasion.scoreDelta + scoreDelta,
-      lastOutcome: 'Boarders damaged ship systems and endangered passengers.',
+      lastOutcome: `${hostileLabel(invasion.enemyKind)} damaged ship systems and endangered passengers.`,
     };
-    message = 'BOARDING PRESSURE: PASSENGERS AND SHIP SYSTEMS AT RISK';
+    message = `${eventLabelForEnemyKind(invasion.enemyKind)} PRESSURE: PASSENGERS AND SHIP SYSTEMS AT RISK`;
   }
 
   if (
@@ -209,9 +343,9 @@ export function stepBoardingInvasion(
       phase: 'failed',
       countdown: 0,
       scoreDelta: invasion.scoreDelta + definition.failureScore,
-      lastOutcome: 'Pirates overwhelmed the defense. Passengers evacuated from the breached deck.',
+      lastOutcome: `${hostileLabel(invasion.enemyKind)} overwhelmed the defense. Passengers evacuated from the breached deck.`,
     };
-    message = 'BOARDING FAILED: PIRATES OVERRAN THE PROMENADE';
+    message = `BOARDING FAILED: ${hostileLabel(invasion.enemyKind).toUpperCase()} OVERRAN THE PROMENADE`;
   }
 
   return { invasion, scoreDelta, structureDamage, passengerInjuries, message };
@@ -254,7 +388,7 @@ export function resolveBoardingDefenseAction(
     countdown: allDetached ? 0 : current.countdown,
     scoreDelta: current.scoreDelta + scoreDelta,
     lastOutcome: allDetached
-      ? 'Both boarding links detached. Pirates forced back to their craft.'
+      ? `Both boarding links detached. ${hostileLabel(current.enemyKind)} forced back to their craft.`
       : `${authored.name} detached. One breach remains.`,
   };
   return {
@@ -279,7 +413,7 @@ function boardersAboard(
     links: Object.fromEntries(
       Object.entries(current.links).map(([id, link]) => [id, { ...link, status: 'attached' }]),
     ),
-    lastOutcome: 'Pirates reached the promenade through two boarding links.',
+    lastOutcome: `${hostileLabel(current.enemyKind)} reached the promenade through two boarding links.`,
   };
 }
 
@@ -289,6 +423,42 @@ function noBoardingStep(invasion: BoardingInvasionState): BoardingStepResult {
 
 function rejectedAction(invasion: BoardingInvasionState, message: string): BoardingActionResult {
   return { invasion, accepted: false, resolved: false, scoreDelta: 0, message };
+}
+
+function rejectedTrigger(
+  invasion: BoardingInvasionState,
+  message: string,
+): BoardingEventTriggerResult {
+  return { invasion, accepted: false, eventId: undefined, mode: undefined, message };
+}
+
+function isTriggerContext(value: unknown): value is BoardingEventTriggerContext {
+  if (!value || typeof value !== 'object') return false;
+  const context = value as Partial<BoardingEventTriggerContext>;
+  return (
+    typeof context.voyagePhase === 'string' &&
+    typeof context.cruiseSeconds === 'number' &&
+    Number.isFinite(context.cruiseSeconds) &&
+    context.cruiseSeconds >= 0 &&
+    typeof context.serviceActive === 'boolean' &&
+    typeof context.navigationClear === 'boolean' &&
+    typeof context.explicit === 'boolean'
+  );
+}
+
+function currentEnemyKindSupported(
+  enemyKind: BoardingEnemyKind,
+  definition: BoardingInvasionDefinition,
+): boolean {
+  return definition.supportedEnemyKinds.includes(enemyKind);
+}
+
+function eventLabelForEnemyKind(enemyKind: BoardingEnemyKind): string {
+  return boardingEventCatalog.find((event) => event.enemyKind === enemyKind)?.label ?? 'BOARDING';
+}
+
+function hostileLabel(enemyKind: BoardingEnemyKind): string {
+  return enemyKind === 'bomber' ? 'Saboteurs' : 'Pirates';
 }
 
 function boundedDuration(value: number | undefined, fallback: number): number {

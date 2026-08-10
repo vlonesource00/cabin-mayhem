@@ -34,6 +34,19 @@ export function compartmentAssetUrl(id: string, baseUrl = import.meta.env.BASE_U
   return `${base}assets/compartments/${id}.glb`;
 }
 
+/** Apply the authored depth/shadow contract to each imported render mesh. */
+export function dressLoadedMesh(mesh: THREE.Mesh): void {
+  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  const transparent = materials.some((material) => material.transparent);
+  for (const material of materials) {
+    if (!material.transparent) continue;
+    material.depthWrite = false;
+    material.side = THREE.FrontSide;
+  }
+  mesh.castShadow = !transparent;
+  mesh.receiveShadow = !transparent;
+}
+
 export async function loadCompartment(
   definition: CompartmentDefinition,
   loader?: GltfLike,
@@ -59,8 +72,7 @@ export async function loadCompartment(
   scene.traverse((entry) => {
     if (!(entry instanceof THREE.Mesh)) return;
     meshCount += 1;
-    entry.castShadow = true;
-    entry.receiveShadow = true;
+    dressLoadedMesh(entry);
   });
   if (meshCount < 4) {
     throw new Error(`Compartment ${definition.id} contains too few render meshes.`);
@@ -114,8 +126,7 @@ export async function loadExterior(
     meshCount += 1;
     if (entry.name.startsWith(exteriorStructurePrefix)) structure += 1;
     if (entry.name.startsWith(exteriorDressingPrefix)) dressing += 1;
-    entry.castShadow = true;
-    entry.receiveShadow = true;
+    dressLoadedMesh(entry);
   });
   if (structure === 0 || dressing === 0) {
     throw new Error(

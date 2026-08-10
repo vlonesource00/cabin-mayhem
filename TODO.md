@@ -5,8 +5,12 @@ Local work snapshot. Phases and exit conditions live in
 
 ## In progress
 
-- [ ] Cruise-ship pivot documentation - Martim
-- [ ] Decide Git LFS before Phase 6 starts landing one GLB per compartment - unassigned
+- [ ] Interior design pass. The exterior reads as a ship; the insides now need
+      the same standard — placement that makes sense, rooms that are designed
+      rather than filled, no stair to nowhere, no clipping. This is the open
+      quality bar, not a checklist item.
+- [ ] Decide Git LFS. Fourteen compartment GLBs plus the exterior are tracked in
+      the repo and the largest is 8 MB. Not urgent, decided before it is - unassigned
 - [ ] Decide one Blender version between both collaborators. `passengers.blend` was written by 502.44 and warns of data loss when opened in 5.1; nothing should be skinned until this is settled - unassigned
 
 ## Next (Phase 5)
@@ -20,13 +24,16 @@ Local work snapshot. Phases and exit conditions live in
 - [x] Compartment traversal. `PlayerState.compartmentId`, host-owned portal movement and
       snapshot-driven compartment streaming now connect the authored rooms. The direct bridge and
       engine-room links remain honest stairwell stand-ins, tracked below.
-- [ ] Author `stairwell-fwd` and `stairwell-aft`. The `atrium` <-> `bridge` and
-      `cabin-corridor-a` <-> `engine-room` portals are stand-ins that skip several decks.
-- [ ] Exterior and open decks — the largest gap. Every compartment authored so far is a sealed
-      interior box: no hull exterior or superstructure, no promenade, pool deck or sun deck, no
-      balconies, no railings, funnels, lifeboats or davits, and no glazing you can see the sea
-      through. All GLB. Exterior rooms see the ocean, the sky and the rest of the ship at once, so
-      state their budgets and LOD tiers in `docs/PERFORMANCE.md` before authoring them.
+- [x] Author the stair towers. Three of them — aft (decks 0–9), midship (1–9) and forward (5–9) —
+      are now the ship's only vertical connection, and the stand-in portals that skipped decks are
+      gone. [ADR 0004](docs/adr/0004-stair-tower-traversal.md).
+- [x] Exterior and open decks. One always-resident `ship-exterior.glb`: hull, sheer,
+      superstructure, balconies, windows, funnels, masts, lifeboats and davits, plus the promenade,
+      lido pool deck and sun deck as authored exterior compartments. Glazing is real — `glass_clear`
+      exports `alphaMode: BLEND` and the loader makes it safe. Budgets and the X0/X1/X2 tiers are in
+      [docs/PERFORMANCE.md](docs/PERFORMANCE.md). [ADR 0003](docs/adr/0003-ship-layout-redesign.md).
+- [x] Deck plan. Hold **N** during a voyage: the ship in section and the current deck in plan, at
+      one true scale, drawn from the layout data rather than from anything loaded.
 - [x] Helm station with positional input authority at the authored bridge interaction area.
 - [x] Collision-course incident end to end: deterministic contact, warning, countdown,
       host-validated avoidance, impact damage, engine-room relay repair and score transitions.
@@ -37,7 +44,11 @@ Local work snapshot. Phases and exit conditions live in
 
 ## Backlog
 
-- [ ] Uniform spatial hash broadphase. The current pairwise loop is O(n²) and blocks the second compartment.
+- [ ] Uniform spatial hash broadphase. The current pairwise loop is O(n²). Not blocking anything
+      today — loose-object counts are per-compartment — but it is the known fix when it does bite.
+- [ ] Perf smoke test on real hardware: frame time, draw calls, triangles, texture memory and mixer
+      count along an authored route through every deck. Cannot be written from the agent side;
+      `requestAnimationFrame` never fires here. The largest verification gap in the project.
 - [ ] Public snapshot projection, delta compression and backpressure. Prerequisite for crews above two.
 - [ ] Split the production JavaScript bundle to remove the known non-blocking Vite chunk-size warning.
 - [ ] Join and skin the 22 T-pose characters to the shared `CM_HUMANOID` skeleton so the cast inherits authored clips. Blocked on the Blender version decision.
@@ -77,6 +88,11 @@ Local work snapshot. Phases and exit conditions live in
 - [x] Ocean: one wave table shared by the simulation and a generated vertex shader, hull pitch/roll/heave fitted to it, drift under a hull that never translates.
 - [x] Compartment streaming: Zod-validated portal graph, contract-checked GLB loading, greybox fallback, residency and eviction, four authored rooms inside budget.
 - [x] Retired the airliner from the runtime: no fuselage geometry, no scenario loader, no aeroplane copy or icons.
+- [x] The ship itself: fourteen compartments across eight occupied decks plus the exterior, one
+      ship space, one deck formula, one beam curve, authored by deterministic headless Blender
+      scripts under `tools/blender/`.
+- [x] Deck plan on **N**, built as a pure string-returning function so it is testable in a suite
+      with no DOM.
 
 ## Retired with the pivot
 
@@ -97,9 +113,11 @@ manual service-flight playtest that was pending against it.
       performer photography.
 - [ ] Dense passenger population: authored social, dining, shopping, work,
       sunbathing, reaction and evacuation behaviours with host-owned safety state.
-- [ ] Massive ship expansion: exterior, open decks, stairwells, additional
-      compartments and resort infrastructure, all authored in Blender and tracked
-      as validated GLB runtime assets.
+- [x] Massive ship expansion: exterior, open decks and stairwells, all authored in Blender and
+      tracked as validated GLB runtime assets.
+- [ ] More of the ship. Fourteen compartments is the working vessel, not the ceiling — shopping
+      arcade, theatre, casino, bars, spa, crew mess, medical bay, more cabin tiers. Candidates and
+      the cost of adding one are listed in [docs/SHIP_LAYOUT.md](docs/SHIP_LAYOUT.md).
 
 Unchecked items are planned slices, not implemented claims. Preserve the current
 exterior and compartment work while each one is built and tested as a

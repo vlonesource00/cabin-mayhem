@@ -21,7 +21,7 @@ import {
   navigationIncidentDefinition,
   steeringRepairDefinition,
 } from '../data/emergencies';
-import { defaultCompartmentId } from '../data/ship-layout';
+import { compartmentById, defaultCompartmentId } from '../data/ship-layout';
 import { clamp, distance, normalized, scale } from './math';
 import {
   activateNavigationRepair,
@@ -35,12 +35,18 @@ import {
   createNavigationIncidentState,
   stepNavigation,
 } from './navigation-incident';
-import { boardingInvasionDefinition } from '../data/invasions';
 import {
-  activateBoardingInvasion,
+  boardingEventCatalog,
+  boardingInvasionDefinition,
+  type BoardingEventId,
+} from '../data/invasions';
+import {
   createBoardingInvasionState,
   resolveBoardingDefenseAction,
   stepBoardingInvasion,
+  triggerBoardingEvent,
+  type BoardingEventTriggerContext,
+  type BoardingEventTriggerRequest,
   type BoardingStepResult,
 } from './boarding-invasion';
 import { createAmbientCrowdState, stepAmbientCrowd } from './ambient-crowd';
@@ -76,6 +82,8 @@ export class HostSession {
   private readonly transport: SimulatedTransport;
   private commands: Record<string, PlayerCommand> = {};
   private readonly disconnectedPlayers = new Set<string>();
+  private readonly completedBoardingEventIds = new Set<BoardingEventId>();
+  private selectedBoardingEventId: BoardingEventId | undefined;
   private eventId = 0;
   private spawnIndex = 0;
 
@@ -111,6 +119,7 @@ export class HostSession {
   public step(deltaSeconds: number): void {
     const dt = clamp(deltaSeconds, 0, 0.05);
     if (dt <= 0) return;
+    this.prepareNextBoardingEvent();
     const now = this.state.voyage.clock * 1000;
     for (const packet of this.transport.receive(now)) {
       if (!this.disconnectedPlayers.has(packet.clientId))
@@ -202,13 +211,16 @@ export class HostSession {
     severity = 0.72,
   ): void {
     if (kind === 'boarding-invasion' || kind === 'boarding-invasion-debug' || kind === 'invasion') {
-      const debug = kind === 'boarding-invasion-debug';
-      const activation = activateBoardingInvasion(
-        this.state.invasion,
-        debug ? { warningSeconds: 0.1, approachSeconds: 0.1, maxRaidSeconds: 2 } : {},
+      this.prepareNextBoardingEvent();
+      const debugTiming = kind === 'boarding-invasion-debug';
+      this.applyBoardingEventTrigger(
+        {
+          eventId: boardingEventCatalog[0]!.id,
+          mode: 'debug',
+          ...(debugTiming ? { warningSeconds: 0.1, approachSeconds: 0.1, maxRaidSeconds: 2 } : {}),
+        },
+        this.boardingTriggerContext(true),
       );
-      this.state.invasion = activation.invasion;
-      this.log('emergency', activation.message);
       return;
     }
     if (kind === 'collision-course' || kind === 'navigation' || kind === 'collision-course-debug') {
@@ -333,7 +345,10 @@ export class HostSession {
       };
     const target = targets[station];
     if (!target) return;
-    if (target.compartmentId) player.compartmentId = target.compartmentId;
+    if (target.compartmentId) {
+      player.compartmentId = target.compartmentId;
+      player.waypointDeck = compartmentById(target.compartmentId)?.deck;
+    }
     player.position = { ...target.position };
     player.velocity = { x: 0, y: 0 };
     const held = player.heldObjectId ? this.state.cabin.objects[player.heldObjectId] : undefined;
@@ -458,16 +473,55 @@ export class HostSession {
   }
 
   private triggerAutomaticBoardingInvasion(): void {
-    if (
-      this.state.invasion.phase === 'idle' &&
-      this.state.service.outcome === 'active' &&
-      this.state.voyage.phase === 'open-sea' &&
-      this.state.voyage.phaseElapsed >= boardingInvasionDefinition.triggerAfterCruiseSeconds &&
-      (this.state.navigation.phase === 'idle' ||
+    if (this.state.invasion.phase !== 'idle') return;
+    const event = boardingEventCatalog.find(
+      (candidate) =>
+        !this.completedBoardingEventIds.has(candidate.id) &&
+        this.state.voyage.phase === candidate.schedule.voyagePhase &&
+        this.state.voyage.phaseElapsed >= candidate.schedule.triggerAfterCruiseSeconds,
+    );
+    if (!event) return;
+    this.applyBoardingEventTrigger(
+      { eventId: event.id, mode: 'scheduled' },
+      this.boardingTriggerContext(false),
+      false,
+    );
+  }
+
+  private applyBoardingEventTrigger(
+    request: BoardingEventTriggerRequest,
+    context: BoardingEventTriggerContext,
+    reportRejection = true,
+  ): void {
+    const activation = triggerBoardingEvent(this.state.invasion, request, context);
+    this.state.invasion = activation.invasion;
+    if (activation.accepted && activation.eventId)
+      this.selectedBoardingEventId = activation.eventId;
+    if (activation.accepted || reportRejection) this.log('emergency', activation.message);
+  }
+
+  private boardingTriggerContext(explicit: boolean): BoardingEventTriggerContext {
+    return {
+      voyagePhase: this.state.voyage.phase,
+      cruiseSeconds: this.state.voyage.phaseElapsed,
+      serviceActive: this.state.service.outcome === 'active',
+      navigationClear:
+        this.state.navigation.phase === 'idle' ||
         this.state.navigation.phase === 'avoided' ||
-        this.state.navigation.phase === 'repaired')
+        this.state.navigation.phase === 'repaired',
+      explicit,
+    };
+  }
+
+  private prepareNextBoardingEvent(): void {
+    if (
+      !this.selectedBoardingEventId ||
+      (this.state.invasion.phase !== 'repelled' && this.state.invasion.phase !== 'failed')
     )
-      this.trigger('boarding-invasion');
+      return;
+    this.completedBoardingEventIds.add(this.selectedBoardingEventId);
+    this.selectedBoardingEventId = undefined;
+    this.state.invasion = createBoardingInvasionState();
   }
 
   private applyBoardingStepConsequences(result: BoardingStepResult): void {

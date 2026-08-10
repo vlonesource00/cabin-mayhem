@@ -70,6 +70,27 @@ describe('peer room protocol', () => {
     ).toBeUndefined();
   });
 
+  it('parses the v4 waypoint option command without client-side authority', () => {
+    const command = {
+      version: protocolVersion,
+      type: 'command',
+      roomCode: 'ABCD2345',
+      epoch: 42,
+      clientId: 'crew-bravo',
+      sequence: 8,
+      sentAt: 100,
+      command: {
+        ...emptyCommand(),
+        interact: true,
+        interactionTargetId: 'elevator-option:grand-atrium:deck-4',
+      },
+    } as const;
+    const parsed = parseCommandPacketResult(command);
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.packet?.version).toBe(4);
+    expect(parsed.packet?.command.interactionTargetId).toBe('elevator-option:grand-atrium:deck-4');
+  });
+
   it('hashes identical authoritative snapshots equally and changed ticks differently', () => {
     const session = new HostSession(91);
     const first = session.snapshot();
@@ -111,8 +132,9 @@ describe('peer room protocol', () => {
   });
 
   it('rejects incompatible command, welcome, and snapshot versions explicitly', () => {
+    const legacyProtocolVersion = 3;
     const command = {
-      version: protocolVersion - 1,
+      version: legacyProtocolVersion,
       type: 'command',
       roomCode: 'ABCD2345',
       epoch: 1,
@@ -122,7 +144,7 @@ describe('peer room protocol', () => {
       command: emptyCommand(),
     } as const;
     const welcome = {
-      version: protocolVersion - 1,
+      version: legacyProtocolVersion,
       type: 'welcome',
       roomCode: 'ABCD2345',
       epoch: 1,
@@ -132,7 +154,7 @@ describe('peer room protocol', () => {
     expect(parseCommandPacketResult(command).error).toMatchObject({
       kind: 'incompatible-version',
       expectedVersion: protocolVersion,
-      receivedVersion: protocolVersion - 1,
+      receivedVersion: legacyProtocolVersion,
     });
     expect(parseWelcomePacketResult(welcome).error?.message).toContain(
       'Incompatible protocol version',
@@ -140,7 +162,7 @@ describe('peer room protocol', () => {
 
     const state = new HostSession(93).snapshot();
     const snapshot = {
-      version: protocolVersion - 1,
+      version: legacyProtocolVersion,
       type: 'snapshot',
       roomCode: 'ABCD2345',
       epoch: 1,

@@ -5,6 +5,7 @@ import { createBoardingInvasionState } from '../../src/sim/boarding-invasion';
 import type { BoardingInvasionState } from '../../src/sim/types';
 import {
   invasionAssetUrl,
+  invasionPresentationMetadata,
   InvasionPresenter,
   type InvasionGltfLike,
 } from '../../src/three/invasion-presenter';
@@ -56,6 +57,27 @@ function boardedState(
 }
 
 describe('boarding invasion presentation', () => {
+  it('maps warning and outcome phases to player-facing event and evacuation metadata', () => {
+    const warning = {
+      ...createBoardingInvasionState(),
+      name: 'Blackwake saboteur boarding',
+      enemyKind: 'bomber' as const,
+      phase: 'warning' as const,
+      countdown: 12,
+    };
+    expect(invasionPresentationMetadata(warning)).toMatchObject({
+      eventId: 'saboteur-boarding-alpha',
+      label: 'SABOTEUR BOARDING',
+      phaseLabel: 'BOARDING WARNING',
+      alert: 'SABOTEUR BOARDING: UNKNOWN FAST CRAFT CLOSING',
+      objective: 'Reach promenade. Protect passengers.',
+      evacuating: true,
+    });
+    expect(
+      invasionPresentationMetadata({ ...warning, phase: 'repelled' as const }).evacuating,
+    ).toBe(false);
+  });
+
   it('loads every authored GLB and stages snapshot-owned links and hostiles', async () => {
     const loader = authoredLoader();
     const presenter = new InvasionPresenter({ baseUrl: '/cruise/', loader });
@@ -73,6 +95,16 @@ describe('boarding invasion presentation', () => {
     expect(presenter.assetSource).toBe('glb');
     expect(presenter.group.visible).toBe(true);
     expect(presenter.group.userData.hostileCount).toBe(6);
+    expect(presenter.group.userData).toMatchObject({
+      eventId: 'pirate-boarding-alpha',
+      label: 'PIRATE BOARDING',
+      phaseLabel: 'BOARDERS ABOARD',
+      evacuationSignal: true,
+      spawnContract: {
+        characterAssetId: 'pirate-boarder-character',
+        loadoutAssetIds: ['boarding-pistol', 'boarding-cutlass', 'pirate-gear-crate'],
+      },
+    });
     expect(
       presenter.group.children.filter((child) => child.userData.hostileIndex !== undefined),
     ).toHaveLength(6);
@@ -82,6 +114,38 @@ describe('boarding invasion presentation', () => {
     expect(presenter.group.getObjectByName('invasion pirate 1')?.userData).toMatchObject({
       assetSource: 'glb',
       action: 'Aim',
+      characterAssetId: 'pirate-boarder-character',
+    });
+  });
+
+  it('shows warning metadata and rebuilds hostile GLBs when event variant changes', async () => {
+    const presenter = new InvasionPresenter({ loader: authoredLoader() });
+    await presenter.ready();
+
+    const warning = {
+      ...createBoardingInvasionState(),
+      phase: 'warning' as const,
+      countdown: 12,
+    };
+    presenter.sync(warning, 'promenade', 0);
+    expect(presenter.group.visible).toBe(true);
+    expect(presenter.group.userData).toMatchObject({
+      phase: 'warning',
+      evacuationSignal: true,
+      eventId: 'pirate-boarding-alpha',
+    });
+
+    presenter.sync(boardedState('pirate'), 'promenade', 2);
+    presenter.sync(boardedState('bomber'), 'promenade', 3);
+    expect(presenter.group.getObjectByName('invasion pirate 1')).toBeUndefined();
+    expect(presenter.group.getObjectByName('invasion bomber 1')?.userData).toMatchObject({
+      assetSource: 'glb',
+      characterAssetId: 'saboteur-boarder-character',
+      loadoutAssetIds: ['boarding-pistol', 'satchel-charge'],
+    });
+    expect(presenter.group.userData.spawnContract).toEqual({
+      characterAssetId: 'saboteur-boarder-character',
+      loadoutAssetIds: ['boarding-pistol', 'satchel-charge'],
     });
   });
 

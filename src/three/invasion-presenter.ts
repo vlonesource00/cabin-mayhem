@@ -1,7 +1,12 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { boardingInvasionDefinition, type InvasionAssetId } from '../data/invasions';
+import {
+  boardingEventCatalog,
+  boardingInvasionDefinition,
+  type BoardingEventId,
+  type InvasionAssetId,
+} from '../data/invasions';
 import type {
   BoardingInvasionPhase,
   BoardingInvasionState,
@@ -34,11 +39,86 @@ interface AnimatedInstance {
   actionName?: string;
 }
 
-const visiblePhases = new Set<BoardingInvasionPhase>(['approach', 'boarders-aboard', 'failed']);
+export interface InvasionPresentationMetadata {
+  eventId: BoardingEventId;
+  eventName: string;
+  label: string;
+  enemyKind: BoardingInvasionState['enemyKind'];
+  phase: BoardingInvasionPhase;
+  phaseLabel: string;
+  alert: string;
+  objective: string;
+  evacuating: boolean;
+}
+
+const visiblePhases = new Set<BoardingInvasionPhase>([
+  'warning',
+  'approach',
+  'boarders-aboard',
+  'repelled',
+  'failed',
+]);
 
 export function invasionAssetUrl(path: string, baseUrl = import.meta.env.BASE_URL): string {
   const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   return `${base}${path.replace(/^\//, '')}`;
+}
+
+export function invasionPresentationMetadata(
+  state: BoardingInvasionState,
+): InvasionPresentationMetadata {
+  const event = boardingEventCatalog.find((candidate) => candidate.enemyKind === state.enemyKind);
+  const label = event?.label ?? 'BOARDING';
+  const eventName = event?.name ?? state.name;
+  const subject = state.enemyKind === 'bomber' ? 'SABOTEURS' : 'PIRATES';
+  const phaseLabel =
+    state.phase === 'warning'
+      ? 'BOARDING WARNING'
+      : state.phase === 'approach'
+        ? `${label} APPROACH`
+        : state.phase === 'boarders-aboard'
+          ? 'BOARDERS ABOARD'
+          : state.phase === 'repelled'
+            ? 'INVASION REPELLED'
+            : state.phase === 'failed'
+              ? 'INVASION FAILED'
+              : 'NO BOARDING CONTACT';
+  const alert =
+    state.phase === 'warning'
+      ? `${label}: UNKNOWN FAST CRAFT CLOSING`
+      : state.phase === 'approach'
+        ? `${label}: BOARDING GEAR INCOMING`
+        : state.phase === 'boarders-aboard'
+          ? `${label}: ${state.hostileCount} HOSTILES ABOARD`
+          : state.phase === 'repelled'
+            ? `${label}: REPELLED`
+            : state.phase === 'failed'
+              ? `${label}: FAILED`
+              : 'NO BOARDING CONTACT';
+  const objective =
+    state.phase === 'warning'
+      ? 'Reach promenade. Protect passengers.'
+      : state.phase === 'approach'
+        ? 'Hold promenade. Boarding gear incoming.'
+        : state.phase === 'boarders-aboard'
+          ? 'Detach both boarding links. Protect passengers.'
+          : state.phase === 'repelled'
+            ? `${subject} forced back. Boarding lane secured.`
+            : state.phase === 'failed'
+              ? `Evacuate passengers. ${subject} control breached deck.`
+              : 'No hostile boarding contact.';
+  return {
+    eventId: event?.id ?? boardingInvasionDefinition.id,
+    eventName,
+    label,
+    enemyKind: state.enemyKind,
+    phase: state.phase,
+    phaseLabel,
+    alert,
+    objective,
+    evacuating:
+      state.phase === 'warning' || state.phase === 'approach' || state.phase === 'boarders-aboard',
+  };
 }
 
 /**
@@ -58,6 +138,7 @@ export class InvasionPresenter {
   private readonly links = new Map<BoardingLinkId, AnimatedInstance>();
   private readonly hostiles: AnimatedInstance[] = [];
   private crate?: AnimatedInstance;
+  private presentedEnemyKind?: BoardingInvasionState['enemyKind'];
   private currentState?: BoardingInvasionState;
   private currentOrigin = '';
   private lastElapsed?: number;
@@ -92,8 +173,26 @@ export class InvasionPresenter {
     this.currentState = state;
     this.currentOrigin = originCompartmentId;
     this.group.visible = visiblePhases.has(state.phase);
-    this.group.userData.phase = state.phase;
-    this.group.userData.hostileCount = state.hostileCount;
+    const metadata = invasionPresentationMetadata(state);
+    const presentation = boardingInvasionDefinition.enemyPresentations.find(
+      (entry) => entry.kind === state.enemyKind,
+    );
+    Object.assign(this.group.userData, metadata, {
+      hostileCount: state.hostileCount,
+      countdown: state.countdown,
+      passengerProtection: { ...state.passengerProtection },
+      infrastructure: { ...state.infrastructure },
+      evacuationSignal: metadata.evacuating,
+      spawnContract: presentation
+        ? {
+            characterAssetId: presentation.characterAssetId,
+            loadoutAssetIds: [...presentation.loadoutAssetIds],
+          }
+        : undefined,
+      boardingLinks: Object.fromEntries(
+        Object.entries(state.links).map(([id, link]) => [id, link?.status ?? 'approaching']),
+      ),
+    });
     if (this._assetSource === 'loading') return;
 
     this.syncLinks(state, originCompartmentId, elapsed);
@@ -109,7 +208,8 @@ export class InvasionPresenter {
       instance.mixer?.stopAllAction();
     this.crate?.mixer?.stopAllAction();
     this.links.clear();
-    this.hostiles.length = 0;
+    this.clearHostiles();
+    this.presentedEnemyKind = undefined;
     this.assets.clear();
   }
 
@@ -188,6 +288,9 @@ export class InvasionPresenter {
       (entry) => entry.kind === state.enemyKind,
     );
     if (!presentation) return;
+    if (this.presentedEnemyKind !== undefined && this.presentedEnemyKind !== state.enemyKind)
+      this.clearHostiles();
+    this.presentedEnemyKind = state.enemyKind;
 
     while (this.hostiles.length < wanted) {
       const index = this.hostiles.length;
@@ -195,6 +298,8 @@ export class InvasionPresenter {
       instance.root.name = `invasion ${state.enemyKind} ${index + 1}`;
       instance.root.userData.enemyKind = state.enemyKind;
       instance.root.userData.hostileIndex = index;
+      instance.root.userData.characterAssetId = presentation.characterAssetId;
+      instance.root.userData.loadoutAssetIds = [...presentation.loadoutAssetIds];
       this.attachLoadout(instance.root, presentation.loadoutAssetIds, index);
       this.hostiles.push(instance);
       this.group.add(instance.root);
@@ -252,6 +357,14 @@ export class InvasionPresenter {
       mixer: asset.clips.size > 0 ? new THREE.AnimationMixer(root) : undefined,
       clips: asset.clips,
     };
+  }
+
+  private clearHostiles(): void {
+    for (const instance of this.hostiles) {
+      instance.mixer?.stopAllAction();
+      this.group.remove(instance.root);
+    }
+    this.hostiles.length = 0;
   }
 
   private fallbackInstance(assetId: InvasionAssetId, role: string): AnimatedInstance {

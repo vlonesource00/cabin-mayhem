@@ -1,6 +1,6 @@
 # Ledger — MS Cabin Mayhem hull redesign
 
-Branch: `new-idea-vlone`. Base at slice start: `bcc9dd9`.
+Branch: `luna-attempt-at-cruise-map-design`. Base at slice start: `bcc9dd9`.
 
 ## Goal
 
@@ -78,6 +78,18 @@ stair towers inside that hull rather than teleports between disconnected boxes.
   yaw from doorway to arrival point; the renderer applies it when it notices
   `compartmentId` changed, not on the frame the field appears, because a
   multi-substep catch-up can swallow that frame.
+- **D11. Asset budgets are rails, not gates.** `maxDrawMeshes` 320 and
+  `maxBytes` 24 MB per compartment, 640 / 48 MB for the exterior. They sit well
+  above a fully dressed room and exist to catch a broken export, not to shape a
+  design. The runtime budgets in `docs/PERFORMANCE.md` (frame time, draw calls,
+  triangles, texture memory) remain gates.
+- **D12. Glass is made safe at load, not at export.** `dressLoadedMesh` sets
+  `depthWrite = false`, forces `side = FrontSide` because Blender's glTF
+  exporter writes `doubleSided: true` on every material, and disables shadow
+  casting and receiving, because a shadow map has no notion of opacity.
+- **D13. Local view state never enters `PlayerCommand`.** The deck plan (**N**)
+  is app state. Everything in `PlayerCommand` is replicated per tick and
+  validated by the host; a UI toggle is neither.
 
 ## Files touched
 
@@ -91,36 +103,58 @@ stair towers inside that hull rather than teleports between disconnected boxes.
   `src/three/compartment-loader.ts`, `src/three/first-person-controller.ts`,
   `src/three/spectator-camera.ts`
 - `src/sim/compartment-space.ts` (playfield mapping, headings, arrivals)
-- `src/app/cabin-mayhem-app.ts` (arrival snap, door prompt, spectator toggle)
+- `src/app/cabin-mayhem-app.ts` (arrival snap, door prompt, spectator toggle,
+  deck-plan overlay on **N**)
+- `src/app/deck-plan.ts` (new; pure layout-data-to-SVG-string), `src/styles.css`
 - `src/input/cabin-input.ts`
 - `tools/blender/compartments/kit.py`, `build_compartments.py`,
   `build_exterior.py`
 - `scripts/validate-assets.ts`, `public/assets/manifest.json`, the GLBs
 - `tests/unit/{cabin-simulation,compartment-space,compartment-streamer,ship-layout,
-  first-person-controller,spectator-camera}.test.ts`
+first-person-controller,spectator-camera}.test.ts`
 - docs
 
 ## Evidence
 
+Latest full pass, after the promenade/tower rewrites, the atrium well, glazing
+and the deck plan:
+
+- Blender 5.1.2 rebuilt all fourteen compartments headlessly, exit 0, 39.08 MB
+  total, 12–17 draw meshes each against a rail of 320. Only the benign
+  `Warning: No mesh data to join` lines, from material groups with no users.
+- `pnpm validate:data` — 14 compartments on 8 decks, all inside the 290 × 38 m
+  hull, 34 doorways paired, reachable and loop-free.
+- `pnpm validate:assets` — 27 project-owned assets; 14 rooms within budget.
 - `npx tsc --noEmit` clean.
-- `npx vitest run tests/unit` — 19 files, 158 tests, all passing. Covers the
-  unrolled stair mapping, portal-pair coincidence, door offer/use separation,
-  the playfield heading correction on landings and flights, and arrival facing.
-- `pnpm build` and `pnpm desktop:build` produced the Tauri release package.
+- `npx vitest run tests/unit --exclude "**/.codex-app-task-bridge/**"` — 35
+  files, 234 tests, all passing. Covers the unrolled stair mapping, portal-pair
+  coincidence, door offer/use separation, the playfield heading correction on
+  landings and flights, arrival facing, and the deck plan.
+- `pnpm build` passes with the known non-blocking Vite large-chunk warning;
+  `pnpm desktop:build` produced the MSI and NSIS bundles (unsigned).
 - Live in-browser verification is not possible in this environment:
   `requestAnimationFrame` never fires because the Browser pane is not displayed.
-  All evidence is headless.
+  All evidence is headless. Nothing has been seen rendering.
 
 ## Blockers
 
-None.
+None in the agent environment. The two remaining items both need a human at a
+running client — see Next action.
 
 ## Next action
 
-Interior detail. Raise the per-compartment asset budgets (`scripts/validate-assets.ts`
-and `compartmentSchema` in `src/data/ship-layout.ts` cap `maxDrawMeshes` at 40 and
-`maxBytes` at 3 MB — both must move together), then redress every room builder in
-`tools/blender/compartments/build_compartments.py` with real placement logic,
-starting with the cabin decks. Also outstanding: hollow `house_main` and drop the
-hull's y 8.66 weather-deck closure (both cut horizontal slabs through the atrium
-void), and give the player a deck plan.
+Walk the ship on real hardware. Two things resolve on that one playthrough and
+cannot resolve without it:
+
+1. **The interior design pass** — the open quality bar. Rooms designed rather
+   than filled, placement that answers to a service route or a sightline, no
+   stair to nowhere, no clipping. The budgets are no longer in the way (D11);
+   what is missing is judgement about what a room looks like when you stand in
+   it. Builders live in `tools/blender/compartments/build_compartments.py`.
+2. **The perf smoke test and the runtime counters** — frame time, draw calls,
+   triangles, texture memory and mixer count along an authored route from the
+   tank top to the bridge, against the gates in `docs/PERFORMANCE.md`. This is
+   the largest verification gap in the project.
+
+After those, Phase 7 (the task economy) is what turns fourteen rooms into
+fourteen places with work in them.

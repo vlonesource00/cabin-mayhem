@@ -98,7 +98,13 @@ vi.mock('peerjs', () => {
   return { Peer: FakePeer };
 });
 
-import { PeerRoom, protocolVersion, type WelcomePacket } from '../../src/network/peer-room';
+import {
+  parseCommandPacketResult,
+  PeerRoom,
+  protocolVersion,
+  type WelcomePacket,
+} from '../../src/network/peer-room';
+import { HostSession } from '../../src/sim/host-session';
 import { emptyCommand } from '../../src/sim/types';
 
 function welcome(roomCode: string, epoch = 41): WelcomePacket {
@@ -190,5 +196,82 @@ describe('PeerRoom connection lifecycle', () => {
     accepted.emit('open');
     expect((accepted.sent[0] as { type: string }).type).toBe('welcome');
     expect(room.status().phase).toBe('connected');
+  });
+
+  it('fails cleanly on a v3 welcome before gameplay starts', () => {
+    const room = new PeerRoom();
+    void room.join('ABCD2345');
+    const peer = peerInstances[0]!;
+    peer.emit('open', 'guest-peer');
+    const connection = peer.connections[0]!;
+    connection.open = true;
+    connection.emit('open');
+    connection.emit('data', {
+      version: 3,
+      type: 'welcome',
+      roomCode: 'ABCD2345',
+      epoch: 41,
+      clientId: 'crew-bravo',
+      // Deliberately omit hostId: version rejection must happen before shape
+      // validation and must not dereference v3-only/missing options.
+    });
+
+    expect(room.status()).toMatchObject({
+      phase: 'error',
+      message: 'Incompatible protocol version for welcome: expected 4, received 3',
+    });
+    room.close();
+  });
+
+  it('carries a guest waypoint option to the host seam for authoritative validation', async () => {
+    const room = new PeerRoom();
+    const joined = room.join('ABCD2345');
+    const peer = peerInstances[0]!;
+    peer.emit('open', 'guest-peer');
+    const connection = peer.connections[0]!;
+    connection.open = true;
+    connection.emit('open');
+    connection.emit('data', welcome('ABCD2345'));
+    await joined;
+
+    const host = new HostSession(97);
+    host.setNetwork({ enabled: false });
+    host.teleport('crew-bravo', 'cabin');
+    for (let tick = 0; tick < 100; tick += 1) {
+      const player = host.snapshot().cabin.players['crew-bravo']!;
+      if (player.position.y <= 5.1 && player.position.y >= 3.5) break;
+      const approach = emptyCommand();
+      approach.move.y = -1;
+      approach.look = { x: 0, y: 1 };
+      host.submitCommand('crew-bravo', approach);
+      host.step(0.05);
+    }
+
+    const guestCommand = emptyCommand();
+    guestCommand.look = { x: 0, y: 1 };
+    guestCommand.interact = true;
+    guestCommand.interactionTargetId = 'elevator-option:grand-atrium:deck-4';
+    room.sendCommand(guestCommand, 0);
+    const packet = connection.sent[0];
+    const parsed = parseCommandPacketResult(packet);
+    expect(parsed.packet?.version).toBe(4);
+    expect(parsed.packet?.command.interactionTargetId).toBe('elevator-option:grand-atrium:deck-4');
+    if (!parsed.packet) throw new Error('Guest command packet failed to parse');
+    host.submitCommand('crew-bravo', parsed.packet.command);
+    host.step(0.05);
+    expect(host.snapshot().cabin.players['crew-bravo']).toMatchObject({
+      compartmentId: 'atrium',
+      waypointDeck: 4,
+      lastAction: 'Elevator: Gallery / Deck 4',
+    });
+
+    host.teleport('crew-bravo', 'cabin');
+    host.submitCommand('crew-bravo', parsed.packet.command);
+    host.step(0.05);
+    expect(host.snapshot().cabin.players['crew-bravo']).toMatchObject({
+      compartmentId: 'atrium',
+      waypointDeck: 2,
+    });
+    room.close();
   });
 });

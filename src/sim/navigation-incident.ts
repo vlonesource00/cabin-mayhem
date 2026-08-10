@@ -142,16 +142,24 @@ export function activateNavigationIncident(
       accepted: false,
       message: 'Collision-course incident already resolved or active',
     };
+  const boundedWarningSeconds = clamp(warningSeconds, 3, 60);
+  const obstacle = navigationIncidentDefinition.obstacle;
+  const travelDistance = Math.max(0, obstacle.startPosition.y - obstacle.contactDistance);
+  const baseTravelSeconds = travelDistance / Math.max(Math.abs(obstacle.relativeVelocity.y), 0.001);
+  const velocityScale = baseTravelSeconds / boundedWarningSeconds;
+  const navigation = createNavigationIncidentState();
+  navigation.obstacle.relativeVelocity = {
+    x: obstacle.relativeVelocity.x * velocityScale,
+    y: obstacle.relativeVelocity.y * velocityScale,
+  };
+  navigation.phase = 'warning';
+  navigation.warningSeconds = boundedWarningSeconds;
+  navigation.countdown = boundedWarningSeconds;
+  navigation.lastOutcome = 'Collision course warning issued';
   return {
-    navigation: {
-      ...createNavigationIncidentState(),
-      phase: 'warning',
-      warningSeconds: clamp(warningSeconds, 3, 60),
-      countdown: clamp(warningSeconds, 3, 60),
-      lastOutcome: 'Collision course warning issued',
-    },
+    navigation,
     accepted: true,
-    message: `COLLISION COURSE - ${navigationIncidentDefinition.obstacle.name}; reach the bridge helm (${Math.round(clamp(warningSeconds, 3, 60))}s)`,
+    message: `COLLISION COURSE - ${obstacle.name}; reach the bridge helm (${Math.round(boundedWarningSeconds)}s)`,
   };
 }
 

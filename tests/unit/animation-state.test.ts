@@ -13,6 +13,7 @@ import {
   crewStance,
   firstPersonClip,
   firstPersonOneShotClip,
+  neutralPassengerClips,
   passengerAnimationState,
   passengerClip,
   type CrewMotion,
@@ -103,6 +104,18 @@ describe('clip names exist in the rig contract', () => {
   it('covers every passenger state', () => {
     for (const state of passengerStates)
       expect(declares(characters, passengerClip(state)), state).toBe(true);
+  });
+
+  it('selects deterministic neutral seated loops without changing semantic reactions', () => {
+    expect(neutralPassengerClips).toHaveLength(4);
+    expect(new Set(neutralPassengerClips).size).toBe(4);
+    expect(neutralPassengerClips.every((clip) => declares(characters, clip))).toBe(true);
+    expect(passengerClip('idle', 0)).toBe('seat_idle');
+    expect(passengerClip('idle', 1)).toBe('seat_chat');
+    expect(passengerClip('idle', 2)).toBe('seat_look');
+    expect(passengerClip('idle', 3)).toBe('seat_relaxed');
+    expect(passengerClip('idle', 4)).toBe('seat_idle');
+    expect(passengerClip('wave', 2)).toBe('seat_wave');
   });
 
   it('covers every crew one-shot on both rigs', () => {

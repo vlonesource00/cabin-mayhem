@@ -5,6 +5,7 @@ import {
   buildGreyboxCompartment,
   compartmentAssetUrl,
   compartmentRootName,
+  dressLoadedMesh,
   loadCompartment,
   portalMarkerName,
   type GltfLike,
@@ -50,6 +51,21 @@ describe('compartmentAssetUrl', () => {
       '/cabin-mayhem/assets/compartments/atrium.glb',
     );
     expect(compartmentAssetUrl('engine-room', '/')).toBe('/assets/compartments/engine-room.glb');
+  });
+});
+
+describe('dressLoadedMesh', () => {
+  it('keeps transparent room glazing from writing depth or casting shadows', () => {
+    const glass = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.2 }),
+    );
+    dressLoadedMesh(glass);
+    const material = glass.material as THREE.MeshStandardMaterial;
+    expect(material.depthWrite).toBe(false);
+    expect(material.side).toBe(THREE.FrontSide);
+    expect(glass.castShadow).toBe(false);
+    expect(glass.receiveShadow).toBe(false);
   });
 });
 

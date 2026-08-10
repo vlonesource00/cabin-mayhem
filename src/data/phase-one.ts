@@ -17,7 +17,12 @@ export const phaseOneObjectSchema = z.object({
 });
 
 export const phaseOneCabinDefinitionSchema = z.object({
-  id: z.literal('gullwing-technical-fuselage'),
+  /**
+   * The playfield the loose-object sim runs on: the atrium's 24 x 46 m floor,
+   * which is why the id names the room and not an aircraft. The old
+   * `gullwing-technical-fuselage` was left over from before this was a ship.
+   */
+  id: z.literal('ms-cabin-mayhem-atrium'),
   width: z.number().positive(),
   length: z.number().positive(),
   objects: z.array(phaseOneObjectSchema).min(7),
@@ -26,7 +31,7 @@ export const phaseOneCabinDefinitionSchema = z.object({
 export type PhaseOneObjectDefinition = z.infer<typeof phaseOneObjectSchema>;
 
 export const phaseOneCabinDefinition = {
-  id: 'gullwing-technical-fuselage',
+  id: 'ms-cabin-mayhem-atrium',
   width: 24,
   length: 46,
   objects: [

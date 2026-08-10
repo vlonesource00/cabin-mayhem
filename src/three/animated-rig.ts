@@ -147,8 +147,8 @@ export class RigInstance {
   }
 
   /** Switches the looping state. Re-requesting the current state is a no-op. */
-  public play(request: ClipRequest, fade = defaultFade): void {
-    if (request.base === this.current.base && request.layer === this.current.layer) return;
+  public play(request: ClipRequest, fade = defaultFade): boolean {
+    if (request.base === this.current.base && request.layer === this.current.layer) return false;
     const previousBase = this.base;
     const previousLayer = this.layer;
 
@@ -174,6 +174,16 @@ export class RigInstance {
     }
 
     this.current = request;
+    return true;
+  }
+
+  /** Seeks the current looping clip to a stable normalized phase. */
+  public seekPhase(phase: number): void {
+    const clip = this.current.base ? this.source.get(this.current.base) : undefined;
+    const duration = clip?.duration ?? 0;
+    if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(phase)) return;
+    const normalized = ((phase % 1) + 1) % 1;
+    this.mixer.setTime(normalized * duration);
   }
 
   /**

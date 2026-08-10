@@ -27,6 +27,10 @@ declare global {
       ): void;
       boardInvasion(): void;
       showCrowd(): void;
+      showServicePassengers(view?: 'front' | 'side'): void;
+      showPortalPad(): void;
+      showAftStair(): void;
+      showPortalOccluded(): void;
       helmNavigation(): void;
       avoidNavigation(): void;
       beginNavigationRepair(): void;

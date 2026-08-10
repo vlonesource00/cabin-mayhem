@@ -57,8 +57,11 @@ describe('ship layout', () => {
 
   it('picks the exterior tier from exposure and glazing', () => {
     expect(exteriorTier('pool-deck')).toBe('X0');
-    expect(exteriorTier('bridge')).toBe('X1');
+    expect(exteriorTier('dining-room')).toBe('X1');
     expect(exteriorTier('stairwell-aft')).toBe('X2');
+    // The wheelhouse is glazed and interior, which would ordinarily be X1, but
+    // its windows look down the foredeck at the very dressing X1 removes.
+    expect(exteriorTier('bridge')).toBe('X0');
     // Failing to draw the ship is worse than drawing it too well, so an id the
     // layout does not know still gets the full hull.
     expect(exteriorTier('boiler-room')).toBe('X0');

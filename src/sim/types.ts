@@ -97,14 +97,30 @@ export interface BoardingDefenseActionIntent {
  * UI offers is by construction a door the simulation will honour. Nothing here
  * opens anything — it is what the crew member is being told, not what they did.
  */
-export interface DoorPrompt {
-  /** The compartment on the other side. */
+export type PortalPadKind = 'door' | 'elevator';
+
+export interface PortalPadOption {
+  id: string;
+  /** The compartment to enter, or the current compartment for an elevator. */
   target: string;
-  /** What to call it on the HUD. */
   label: string;
-  /** The deck it lands on, so the prompt can name it. */
   deck: number;
-  /** Which way the crew member is about to travel through the ship. */
+  direction: 'up' | 'down' | 'level';
+  kind: PortalPadKind;
+  position: Vec2;
+}
+
+export interface DoorPrompt {
+  /** Stable authored pad identifier, never a player-relative marker. */
+  padId: string;
+  padPosition: Vec2;
+  options: PortalPadOption[];
+  defaultOptionId: string;
+  selectedOptionId: string;
+  /** Backwards-compatible single-option summary for existing HUD consumers. */
+  target: string;
+  label: string;
+  deck: number;
   direction: 'up' | 'down' | 'level';
 }
 
@@ -118,6 +134,8 @@ export interface PlayerState {
    * has to travel with it. The host owns it; the renderer streams from it.
    */
   compartmentId: string;
+  /** Authoritative deck selection for tall compartments and the atrium elevator. */
+  waypointDeck?: number;
   /** Seconds until this crew member may use a doorway again. */
   portalCooldown: number;
   /** The doorway in reach, if any. Undefined means there is nothing to open. */

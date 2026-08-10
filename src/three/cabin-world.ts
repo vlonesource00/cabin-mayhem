@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { navigationIncidentDefinition } from '../data/emergencies';
+import { serviceSliceDefinition } from '../data/service';
 import { needLabel } from '../sim/service-mission';
 import { isAtBridgeHelm } from '../sim/navigation-incident';
 import type {
@@ -27,11 +28,19 @@ import { GesturePlayer, handGestures, passengerPose } from './interaction-animat
 import { OceanSurface } from './ocean-surface';
 import { CompartmentStreamer } from './compartment-streamer';
 import { defaultCompartmentId } from '../data/ship-layout';
+import { waypointDeckFor, waypointDeckRenderOffset } from '../sim/waypoint-travel';
 import { feedbackForObjectKind, feedbackForTarget } from './interactable-feedback';
 import { InvasionPresenter } from './invasion-presenter';
 import { NavigationObstaclePresenter } from './navigation-obstacle-presenter';
 import { AmbientCrowdPresenter } from './ambient-crowd-presenter';
+import {
+  ambientArchetypeForIndex,
+  ambientStableHash,
+  applyAmbientNpcStyle,
+  disposeAmbientNpcStyle,
+} from './ambient-npc-style';
 import { RoundedFirstPersonFallback } from './rounded-first-person-rig';
+import { WaypointPadPresenter } from './waypoint-pad-presenter';
 import {
   buildPresentationLighting,
   configurePresentationRenderer,
@@ -77,6 +86,20 @@ const proceduralBodyName = 'procedural body';
 const VOYAGE_FOG = 0.0042;
 const SPECTATOR_FOG = 0.00055;
 
+export const cabinDepthContract = Object.freeze({
+  cameraNear: 0.12,
+  cameraFar: 2400,
+  logarithmicDepthBuffer: true,
+} as const);
+
+const servicePassengerStyleIndex = new Map<string, number>(
+  serviceSliceDefinition.passengers.map((passenger, index) => [passenger.id, index]),
+);
+
+export function servicePassengerPhaseFor(passengerId: string): number {
+  return (ambientStableHash(passengerId) % 997) / 997;
+}
+
 const proceduralBody = (avatar: THREE.Object3D): THREE.Object3D[] =>
   avatar.getObjectByName(proceduralBodyName)?.children ?? [];
 
@@ -88,7 +111,12 @@ const hideProceduralCharacter = (avatar: THREE.Object3D): void => {
 export class CabinWorld {
   public readonly canvas: HTMLCanvasElement;
   // The far plane has to clear the sea plane now, not just the cabin.
-  public readonly camera = new THREE.PerspectiveCamera(72, 1, 0.05, 2400);
+  public readonly camera = new THREE.PerspectiveCamera(
+    72,
+    1,
+    cabinDepthContract.cameraNear,
+    cabinDepthContract.cameraFar,
+  );
 
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
@@ -103,6 +131,7 @@ export class CabinWorld {
   private readonly invasion = new InvasionPresenter();
   private readonly navigationObstacle = new NavigationObstaclePresenter();
   private readonly ambientCrowd = new AmbientCrowdPresenter();
+  private readonly waypointPads: WaypointPadPresenter;
   /**
    * Owns the shell the crew stands in. The occupied compartment's asset source
    * is published on the canvas so the browser tests can tell an authored room
@@ -123,12 +152,10 @@ export class CabinWorld {
   private readonly galleyBreaker: THREE.Group;
   private readonly steeringRelay: THREE.Group;
   private readonly helmStation: THREE.Group;
-  private readonly portalFeedback: THREE.Group;
   private interactionPrompt = 'CLICK TO CAPTURE MOUSE';
   private targetObjectId: string | null = null;
   private disposed = false;
   private fireFeedbackUntil = 0;
-  private portalFeedbackUntil = 0;
   /**
    * The compartment the render origin sits on. Follows the host's snapshot, not
    * startup: the crew walks and the ship streams around them.
@@ -148,6 +175,7 @@ export class CabinWorld {
   ) {
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
+      logarithmicDepthBuffer: cabinDepthContract.logarithmicDepthBuffer,
       powerPreference: 'high-performance',
     });
     configurePresentationRenderer(this.renderer);
@@ -158,16 +186,25 @@ export class CabinWorld {
     this.scene.fog = new THREE.FogExp2(0x16394f, VOYAGE_FOG);
     this.lighting = buildPresentationLighting(this.scene, this.cabin);
     this.firstPersonFallback = new RoundedFirstPersonFallback();
+    this.waypointPads = new WaypointPadPresenter(this.localCrewId);
     this.camera.add(this.firstPersonFallback.root);
     this.mount.append(this.canvas);
     this.canvas.dataset.assetMode = 'loading';
     this.canvas.dataset.lightingMode = 'bounded-zones';
     this.canvas.dataset.shadowMode = 'directional-pcf-soft-1024';
     this.canvas.dataset.postFx = 'fog-emissive-fallback';
+    this.canvas.dataset.cameraNear = String(this.camera.near);
+    this.canvas.dataset.cameraFar = String(this.camera.far);
+    this.canvas.dataset.logarithmicDepthBuffer = String(
+      this.renderer.capabilities.logarithmicDepthBuffer,
+    );
+    this.canvas.dataset.depthContract = 'near:0.12;far:2400;logarithmic:true';
     this.canvas.dataset.armsRig = 'loading';
     this.canvas.dataset.armsPresentation = 'rounded';
+    this.canvas.dataset.armsProfile = 'compact-low';
     this.canvas.dataset.armsSource = 'rounded-fallback';
     this.canvas.dataset.armsSocket = 'fp_hand_socket.R';
+    this.canvas.dataset.audioContinuousSources = '0';
 
     // The streamer offsets every resident by its anchor relative to the
     // occupied compartment, so its group sits on the render origin and
@@ -177,6 +214,7 @@ export class CabinWorld {
     this.cabin.add(this.invasion.group);
     this.cabin.add(this.navigationObstacle.group);
     this.cabin.add(this.ambientCrowd.group);
+    this.cabin.add(this.waypointPads.group);
     this.galleyFire = this.createGalleyFire();
     this.cabin.add(this.galleyFire);
     this.galleyBreaker = this.createGalleyBreaker();
@@ -185,8 +223,6 @@ export class CabinWorld {
     this.cabin.add(this.steeringRelay);
     this.helmStation = this.createHelmStation();
     this.cabin.add(this.helmStation);
-    this.portalFeedback = this.createPortalFeedback();
-    this.cabin.add(this.portalFeedback);
     this.crewBravo = this.createCrewAvatar(0x38bdf8);
     this.cabin.add(this.crewBravo);
     this.scene.add(this.cabin);
@@ -197,7 +233,7 @@ export class CabinWorld {
     window.addEventListener('resize', this.resize);
   }
 
-  public render(state: MissionState): void {
+  public render(state: MissionState, selectedPortalOptionId?: string): void {
     const elapsed = this.elapsed();
     // Clamped the same way the simulation clamps its own step: a backgrounded
     // tab must not fast-forward every mixer when it comes back.
@@ -205,7 +241,7 @@ export class CabinWorld {
     this.lastFrameAt = elapsed;
     this.gestures.push(handGestures(this.previousState, state, this.localCrewId), elapsed);
     this.syncRigs(state);
-    this.syncState(state, elapsed);
+    this.syncState(state, elapsed, selectedPortalOptionId);
     this.previousState = state;
     // Driven by the authoritative voyage clock, not the render clock, so every
     // client fitted to the same snapshot sees the same wave under the hull.
@@ -251,11 +287,15 @@ export class CabinWorld {
     window.removeEventListener('resize', this.resize);
     this.crewBravoRig?.dispose();
     this.firstPersonArms?.dispose();
-    for (const rig of this.passengerRigs.values()) rig.dispose();
+    for (const rig of this.passengerRigs.values()) {
+      disposeAmbientNpcStyle(rig.root);
+      rig.dispose();
+    }
     this.passengerRigs.clear();
     this.compartments.dispose();
     this.invasion.dispose();
     this.ambientCrowd.dispose();
+    this.waypointPads.dispose();
     this.ocean.dispose();
     this.scene.traverse((entry) => {
       if (entry instanceof THREE.Mesh) {
@@ -297,7 +337,7 @@ export class CabinWorld {
         if (this.disposed) return;
         const arms = instantiate(rig, 'CM_FP_ARMS');
         // Parented to the camera, so the arms inherit look direction for free.
-        arms.root.position.set(0, -0.06, 0);
+        arms.root.position.set(0, -0.08, -0.22);
         this.camera.add(arms.root);
         this.firstPersonArms = arms;
         const hasRoundedGlbVisual = arms.root.userData.presentationArms === 'rounded';
@@ -307,6 +347,7 @@ export class CabinWorld {
         this.firstPersonFallback.root.visible = !hasRoundedGlbVisual;
         this.canvas.dataset.armsRig = 'glb';
         this.canvas.dataset.armsPresentation = 'rounded';
+        this.canvas.dataset.armsProfile = 'compact-low';
         this.canvas.dataset.armsSource = hasRoundedGlbVisual ? 'glb-rounded' : 'rounded-fallback';
         this.canvas.dataset.armsMissing = String(
           arms.root.userData.roundedFirstPersonMissing ?? '',
@@ -319,6 +360,7 @@ export class CabinWorld {
           this.firstPersonFallback.root.visible = true;
           this.canvas.dataset.armsRig = 'fallback';
           this.canvas.dataset.armsPresentation = 'rounded';
+          this.canvas.dataset.armsProfile = 'compact-low';
           this.canvas.dataset.armsSource = 'rounded-fallback';
           this.canvas.dataset.armsSocket = 'fp_hand_socket.R';
         }
@@ -330,10 +372,20 @@ export class CabinWorld {
    * undefined while the GLB is still loading or if it never arrives, which is
    * what keeps the procedural seat pose in charge.
    */
-  private passengerRig(passengerId: string, avatar: THREE.Group): RigInstance | undefined {
+  private passengerRig(
+    passengerId: string,
+    avatar: THREE.Group,
+    styleIndex: number,
+  ): RigInstance | undefined {
     const existing = this.passengerRigs.get(passengerId);
     if (existing || !this.characterRig) return existing;
     const rig = instantiate(this.characterRig, 'CM_PASSENGER');
+    const style = ambientArchetypeForIndex(styleIndex);
+    const phase = servicePassengerPhaseFor(passengerId);
+    applyAmbientNpcStyle(rig.root, style);
+    rig.root.userData.serviceStyleId = style.id;
+    rig.root.userData.servicePhase = phase;
+    rig.root.userData.servicePhaseSeeded = false;
     hideProceduralCharacter(avatar);
     avatar.add(rig.root);
     this.passengerRigs.set(passengerId, rig);
@@ -400,12 +452,18 @@ export class CabinWorld {
     }
     group.add(body);
     const beacon = new THREE.Mesh(
-      new THREE.TorusGeometry(0.22, 0.035, 8, 24),
-      new THREE.MeshBasicMaterial({ color: colors.orange, transparent: true, opacity: 0.95 }),
+      new THREE.TorusGeometry(0.38, 0.025, 8, 24),
+      new THREE.MeshBasicMaterial({
+        color: colors.orange,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+      }),
     );
     beacon.name = 'request beacon';
-    beacon.position.y = 2.18;
+    beacon.position.y = 0.05;
     beacon.rotation.x = Math.PI / 2;
+    beacon.renderOrder = 12;
     group.add(beacon);
     const hitbox = new THREE.Mesh(
       new THREE.BoxGeometry(0.85, 2.25, 0.85),
@@ -616,26 +674,6 @@ export class CabinWorld {
     return group;
   }
 
-  private createPortalFeedback(): THREE.Group {
-    const group = new THREE.Group();
-    group.name = 'portal interaction feedback';
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(0.78, 0.07, 8, 24),
-      new THREE.MeshBasicMaterial({ color: colors.cyan, transparent: true, opacity: 0.82 }),
-    );
-    ring.name = 'portal prompt ring';
-    ring.rotation.x = Math.PI / 2;
-    ring.position.y = 0.04;
-    group.add(ring);
-    const light = new THREE.PointLight(colors.cyan, 1.2, 3.5, 1.5);
-    light.name = 'portal prompt light';
-    light.position.y = 0.9;
-    group.add(light);
-    group.userData.feedback = feedbackForTarget('portal');
-    group.visible = false;
-    return group;
-  }
-
   private heldKind(state: MissionState): ObjectKind | undefined {
     const heldId = state.cabin.players[this.localCrewId]?.heldObjectId;
     return heldId ? state.cabin.objects[heldId]?.kind : undefined;
@@ -684,7 +722,7 @@ export class CabinWorld {
     void this.compartments.setCurrent(occupied);
   }
 
-  private syncState(state: MissionState, elapsed: number): void {
+  private syncState(state: MissionState, elapsed: number, selectedPortalOptionId?: string): void {
     this.syncResidency(state);
     const origin = this.originCompartmentId;
     const heldKind = this.heldKind(state);
@@ -694,6 +732,34 @@ export class CabinWorld {
     this.canvas.dataset.crowdVisible = String(this.ambientCrowd.visibleCount());
     this.canvas.dataset.crowdResidents = String(Object.keys(state.crowd.residents).length);
     this.canvas.dataset.crowdEvacuating = String(state.crowd.evacuating);
+    this.canvas.dataset.crowdFloatingCount = String(this.ambientCrowd.floatingCount());
+    this.canvas.dataset.crowdContactMax = this.ambientCrowd.contactMax().toFixed(3);
+    this.canvas.dataset.crowdContactErrors = JSON.stringify(
+      Object.fromEntries(
+        Object.entries(this.ambientCrowd.contactErrors()).map(([id, error]) => [
+          id,
+          Number.isFinite(error) ? error : 'Infinity',
+        ]),
+      ),
+    );
+    this.canvas.dataset.crowdClipStates = JSON.stringify(this.ambientCrowd.clipStates());
+    this.canvas.dataset.crowdContactMeasurement = 'posed-bounds-post-correction';
+    const serviceStyleIds: string[] = [];
+    const servicePhaseOffsets: string[] = [];
+    const serviceClips: string[] = [];
+    const local = state.cabin.players[this.localCrewId];
+    const localDeck = local ? waypointDeckFor(local) : 0;
+    this.canvas.dataset.localDeck = Number.isFinite(localDeck) ? String(localDeck) : 'invalid';
+    this.canvas.dataset.cameraY = Number.isFinite(this.camera.position.y)
+      ? this.camera.position.y.toFixed(3)
+      : 'invalid';
+    const padDebug = this.waypointPads.sync(state, origin, selectedPortalOptionId, elapsed);
+    this.canvas.dataset.portalPadVisible = String(padDebug.visible);
+    this.canvas.dataset.portalPadOptions = padDebug.options;
+    this.canvas.dataset.portalPadSelected = padDebug.selected;
+    this.canvas.dataset.portalPadId = padDebug.padId;
+    this.canvas.dataset.portalPadIds = padDebug.padIds;
+    this.canvas.dataset.audioContinuousSources = '0';
     this.canvas.dataset.invasionPhase = state.invasion.phase;
     this.canvas.dataset.invasionVisible = String(this.invasion.group.visible);
     this.canvas.dataset.invasionAsset = this.invasion.assetSource;
@@ -708,13 +774,11 @@ export class CabinWorld {
           ? 'fixed'
           : 'idle';
     this.syncHelmFeedback(state, elapsed, origin);
-    this.syncPortalFeedback(state, elapsed, origin);
     const pose = this.gestures.pose(
       state,
       heldKind === 'extinguisher' || heldKind === 'toolbox',
       elapsed,
     );
-    const local = state.cabin.players[this.localCrewId];
     const stride = local ? Math.min(Math.hypot(local.velocity.x, local.velocity.y) / 2.6, 1) : 0;
     this.firstPersonFallback.update(elapsed, pose, stride);
     for (const asset of this.dynamicObjects.values()) asset.visible = false;
@@ -758,7 +822,7 @@ export class CabinWorld {
       if (ownershipChanged) asset.rotation.y += Math.sin(elapsed * 18) * 0.025;
     }
 
-    for (const passenger of Object.values(state.service.passengers)) {
+    for (const [passengerIndex, passenger] of Object.values(state.service.passengers).entries()) {
       const avatar =
         this.passengerAvatars.get(passenger.id) ?? this.createPassengerAvatar(passenger);
       this.passengerAvatars.set(passenger.id, avatar);
@@ -775,12 +839,22 @@ export class CabinWorld {
       avatar.rotation.y = toPort ? -0.08 : 0.08;
       avatar.rotation.z = passenger.injury * (toPort ? 0.22 : -0.22);
 
-      const rig = this.passengerRig(passenger.id, avatar);
+      const styleIndex = servicePassengerStyleIndex.get(passenger.id) ?? passengerIndex;
+      const rig = this.passengerRig(passenger.id, avatar, styleIndex);
       if (rig) {
         // The authored clip owns the body. Only the seat-level offsets above,
         // which the clips know nothing about, stay procedural.
         avatar.rotation.x = 0;
-        rig.play({ base: passengerClip(passengerAnimationState(passenger, state, reactionAge)) });
+        const animationState = passengerAnimationState(passenger, state, reactionAge);
+        const clip = passengerClip(animationState, styleIndex);
+        rig.play({ base: clip });
+        if (rig.root.userData.servicePhaseSeeded !== true) {
+          rig.seekPhase(Number(rig.root.userData.servicePhase));
+          rig.root.userData.servicePhaseSeeded = true;
+        }
+        serviceStyleIds.push(String(rig.root.userData.serviceStyleId ?? ''));
+        servicePhaseOffsets.push(Number(rig.root.userData.servicePhase).toFixed(4));
+        serviceClips.push(clip);
       } else {
         avatar.rotation.x = react.lean;
         const arms = proceduralBody(avatar).filter((entry) => entry.name === 'passenger arm');
@@ -810,6 +884,10 @@ export class CabinWorld {
         beacon.scale.setScalar(1 + Math.sin(elapsed * 5) * 0.12);
       }
     }
+    this.canvas.dataset.servicePassengerStyles = serviceStyleIds.join('|');
+    this.canvas.dataset.servicePassengerStyleCount = String(new Set(serviceStyleIds).size);
+    this.canvas.dataset.servicePassengerPhaseOffsets = servicePhaseOffsets.join('|');
+    this.canvas.dataset.servicePassengerClips = serviceClips.join('|');
 
     if (this.previousState?.fire.status === 'active' && state.fire.status === 'suppressed')
       this.fireFeedbackUntil = elapsed + 1.2;
@@ -911,6 +989,7 @@ export class CabinWorld {
       // The peer may be several decks away, so their avatar is placed through
       // their own compartment and rebased onto ours.
       this.crewBravo.position.copy(cabinToWorld(peer.position, 0, peer.compartmentId, origin));
+      this.crewBravo.position.y += waypointDeckRenderOffset(peer);
       this.crewBravo.rotation.y = Math.atan2(peer.facing.x, peer.facing.y);
       this.crewBravo.rotation.z = peer.knockdown > 0 ? 1.2 : 0;
       if (!this.crewBravoRig) {
@@ -969,26 +1048,6 @@ export class CabinWorld {
           ? 1.1
           : 1.8;
     }
-  }
-
-  private syncPortalFeedback(state: MissionState, elapsed: number, origin: string): void {
-    const player = state.cabin.players[this.localCrewId];
-    if (!player) return;
-    const previous = this.previousState?.cabin.players[this.localCrewId];
-    if (previous && previous.compartmentId !== player.compartmentId)
-      this.portalFeedbackUntil = elapsed + 1.1;
-    this.portalFeedback.position.copy(
-      cabinToWorld(player.position, 0, player.compartmentId, origin),
-    );
-    const visible = Boolean(player.pendingDoor) || elapsed < this.portalFeedbackUntil;
-    this.portalFeedback.visible = visible;
-    this.canvas.dataset.portalFeedback = visible
-      ? player.pendingDoor
-        ? 'door-prompt'
-        : 'arrival'
-      : 'idle';
-    const ring = this.portalFeedback.getObjectByName('portal prompt ring');
-    if (ring) ring.scale.setScalar(1 + Math.sin(elapsed * 10) * 0.12);
   }
 
   private updateInteraction(state: MissionState): void {

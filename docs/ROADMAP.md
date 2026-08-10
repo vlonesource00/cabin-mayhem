@@ -46,17 +46,34 @@ dodge one iceberg together.
 
 ## Phase 6 — interior and streaming
 
-The ship becomes a place.
+The ship becomes a place. **Mostly landed.**
 
-- All six decks and the full compartment list in
-  [`SHIP_LAYOUT.md`](SHIP_LAYOUT.md), one Blender build script and one GLB each.
-- Streaming, portal culling, instancing, merged geometry, shared material
-  palette, meshopt and KTX2.
-- The perf smoke test and the runtime counters that enforce the budgets.
-- Character LOD tiers; guest crowd populated at correct cost.
+Done:
 
-**Exit:** you can walk from the bilge to the bridge with no frame over 33 ms and
-draw calls under budget throughout.
+- The full compartment list in [`SHIP_LAYOUT.md`](SHIP_LAYOUT.md) — fourteen
+  compartments across eight occupied decks, plus the always-resident exterior —
+  one Blender build script and one GLB each, under `tools/blender/`.
+- Three stair towers as the ship's vertical spine
+  ([ADR 0004](adr/0004-stair-tower-traversal.md)); no room-to-room portal
+  crosses a deck.
+- Streaming against the portal graph: residency, eviction, reduced detail at two
+  hops, exterior X0/X1/X2 tiers, greybox fallback.
+- Merged geometry per material, one shared palette, real glazing.
+- Character LOD tiers, with a 78-resident ambient crowd rendered through them.
+- The deck plan on **N**, so a ship this size can be read from inside it.
+
+Outstanding:
+
+- The perf smoke test and the runtime counters that enforce the frame budget.
+  This cannot be produced headlessly and is the phase's one real gap.
+- Instancing sweep for the repeated dressing that is currently authored as
+  joined static geometry.
+- meshopt and KTX2, once there are textures and bytes worth compressing.
+- The interior design pass: every room populated and arranged with intent, no
+  stair to nowhere, no clipping.
+
+**Exit:** you can walk from the tank top to the bridge with no frame over 33 ms
+and draw calls under budget throughout — measured on hardware, not asserted.
 
 ## Phase 7 — task economy
 
@@ -199,16 +216,18 @@ product north star.
   cooking, housekeeping, photography, swimming, sunbathing and evacuation layer
   is delivered. Cross-compartment schedules, shopping, richer reactions, crowd
   LOD and further authored resort spaces remain unfinished.
-- **Asset expansion:** continue the Blender-source to tracked-GLB pipeline for
-  the exterior, stairwells, open decks, infrastructure, crowd spaces and bespoke
-  obstacle kinds. The current vessel GLB is validated and shipped; future kinds
-  still need their own authored source/GLB contracts. Do not replace authored
+- **Asset expansion:** the exterior, stairwells and open decks are now authored,
+  validated and shipped through the Blender-source to tracked-GLB pipeline. What
+  remains is more of the ship — the resort spaces listed at the end of
+  [`SHIP_LAYOUT.md`](SHIP_LAYOUT.md) — and bespoke obstacle kinds, each of which
+  still needs its own authored source/GLB contract. Do not replace authored
   assets with procedural placeholders.
 
 ## Initial scope
 
 The first playable target, matching the revised plan's recommendation: one ship,
-six to eight functional compartments, one route, one to four players, steering
+six to eight functional compartments — fourteen exist, so this is met on
+structure and open on function — one route, one to four players, steering
 and iceberg avoidance, one fire, one engine failure, one flooding event, pool
 cleaning, shop restocking, guest assistance, basic upgrades. **No boarding
 pirates in the first playable** — the ship-operation loop has to be fun without

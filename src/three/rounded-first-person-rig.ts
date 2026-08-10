@@ -10,16 +10,21 @@ export interface RoundedFirstPersonVisual {
 
 const UP = new THREE.Vector3(0, 1, 0);
 
+const runtimeNameMatches = (actual: string, authored: string): boolean =>
+  actual === authored ||
+  actual === authored.replaceAll('.', '_') ||
+  actual === authored.replaceAll('.', '');
+
 const namedObject = (root: THREE.Object3D, name: string): THREE.Object3D | undefined => {
   let found: THREE.Object3D | undefined;
   root.traverse((entry) => {
-    if (!found && entry.name === name) found = entry;
+    if (!found && runtimeNameMatches(entry.name, name)) found = entry;
   });
   return found;
 };
 
 const childBone = (parent: THREE.Object3D): THREE.Object3D | undefined =>
-  parent.children.find((entry) => /^fp_(upperArm|forearm|hand)\.[LR]$/.test(entry.name));
+  parent.children.find((entry) => /^fp_(upperArm|forearm|hand)[._]?[LR]$/.test(entry.name));
 
 const directionFor = (parent: THREE.Object3D, fallbackLength: number): THREE.Vector3 =>
   childBone(parent)?.position.clone() ?? new THREE.Vector3(0, fallbackLength, 0);
@@ -118,7 +123,7 @@ export function installRoundedFirstPersonVisual(
 ): RoundedFirstPersonVisual | undefined {
   const existingRight = namedObject(root, 'fp_hand_socket.R');
   const existingLeft = namedObject(root, 'fp_hand_socket.L');
-  if (existingRight && existingLeft)
+  if (root.userData.roundedFirstPersonInstalled === true && existingRight && existingLeft)
     return {
       meshCount: root.userData.roundedFirstPersonMeshCount ?? 0,
       sockets: { R: existingRight, L: existingLeft },
@@ -156,25 +161,23 @@ export function installRoundedFirstPersonVisual(
     const upperDirection = directionFor(upper, 0.23);
     const forearmDirection = directionFor(forearm, 0.22);
     meshCount += 1;
-    addCapsule(upper, `rounded upper arm.${side}`, upperDirection, 0.066, materials.sleeve);
+    addCapsule(upper, `rounded upper arm.${side}`, upperDirection, 0.041, materials.sleeve);
     meshCount += 1;
-    addCapsule(forearm, `rounded forearm.${side}`, forearmDirection, 0.06, materials.sleeve);
-    meshCount += 1;
-    addBand(forearm, `rounded cuff.${side}`, forearmDirection, 0.071, materials.cuff);
+    addCapsule(forearm, `rounded forearm.${side}`, forearmDirection, 0.037, materials.sleeve);
     meshCount += 1;
     addEllipsoid(
       hand,
       `rounded palm.${side}`,
-      new THREE.Vector3(0, 0.057, 0),
-      new THREE.Vector3(0.103, 0.074, 0.083),
+      new THREE.Vector3(0, 0.045, 0),
+      new THREE.Vector3(0.059, 0.052, 0.047),
       materials.skin,
     );
     meshCount += 1;
     const thumb = addCapsule(
       hand,
       `rounded thumb.${side}`,
-      new THREE.Vector3(side === 'R' ? 0.055 : -0.055, 0.035, -0.032),
-      0.028,
+      new THREE.Vector3(side === 'R' ? 0.036 : -0.036, 0.029, -0.022),
+      0.018,
       materials.skin,
     );
     thumb.rotation.z = side === 'R' ? -0.75 : 0.75;
@@ -182,11 +185,12 @@ export function installRoundedFirstPersonVisual(
     addBand(
       hand,
       `rounded hand accent.${side}`,
-      new THREE.Vector3(0, 0.09, 0),
-      0.034,
+      new THREE.Vector3(0, 0.073, 0),
+      0.023,
       materials.accent,
     );
-    sockets[side] = addSocket(hand, side);
+    const existingSocket = namedObject(hand, `fp_hand_socket.${side}`);
+    sockets[side] = existingSocket ?? addSocket(hand, side);
   }
 
   root.traverse((entry) => {
@@ -195,6 +199,9 @@ export function installRoundedFirstPersonVisual(
     entry.userData.presentation = 'rounded-first-person-source-hidden';
   });
   root.userData.presentationArms = 'rounded';
+  root.userData.armsProfile = 'compact-low';
+  root.userData.roundedFirstPersonInstalled = true;
+  root.userData.roundedFirstPersonMissing = '';
   root.userData.roundedFirstPersonMeshCount = meshCount;
   return { meshCount, sockets };
 }
@@ -222,15 +229,16 @@ export class RoundedFirstPersonFallback {
   public constructor() {
     this.root.name = 'rounded first-person fallback';
     this.root.userData.presentationArms = 'rounded-fallback';
-    this.root.position.set(0, -0.06, 0);
+    this.root.userData.armsProfile = 'compact-low';
+    this.root.position.set(0, -0.08, 0);
     const materials = roundedMaterials();
 
     for (const side of ['R', 'L'] as const) {
       const sign = side === 'R' ? 1 : -1;
-      const shoulder = new THREE.Vector3(sign * 0.23, 0.02, -0.3);
-      const elbow = new THREE.Vector3(sign * 0.21, 0.25, -0.25).sub(shoulder);
-      const wrist = new THREE.Vector3(sign * 0.18, 0.47, -0.19).sub(shoulder);
-      const handEnd = new THREE.Vector3(sign * 0.17, 0.59, -0.17).sub(shoulder);
+      const shoulder = new THREE.Vector3(sign * 0.19, -0.07, -0.38);
+      const elbow = new THREE.Vector3(sign * 0.16, -0.13, -0.46).sub(shoulder);
+      const wrist = new THREE.Vector3(sign * 0.14, -0.22, -0.5).sub(shoulder);
+      const handEnd = new THREE.Vector3(sign * 0.13, -0.28, -0.52).sub(shoulder);
       const group = new THREE.Group();
       group.name = `rounded fallback arm.${side}`;
       group.position.copy(shoulder);
@@ -239,44 +247,46 @@ export class RoundedFirstPersonFallback {
         `fallback upper arm.${side}`,
         new THREE.Vector3(),
         elbow,
-        0.066,
+        0.032,
         materials.sleeve,
       );
-      addFallbackSegment(group, `fallback forearm.${side}`, elbow, wrist, 0.06, materials.sleeve);
+      addFallbackSegment(group, `fallback forearm.${side}`, elbow, wrist, 0.029, materials.sleeve);
       addFallbackSegment(
         group,
         `fallback cuff.${side}`,
         new THREE.Vector3().lerpVectors(elbow, wrist, 0.74),
         wrist,
-        0.071,
+        0.035,
         materials.cuff,
       );
       addEllipsoid(
         group,
         `fallback palm.${side}`,
         handEnd.clone().multiplyScalar(0.93),
-        new THREE.Vector3(0.103, 0.074, 0.083),
+        new THREE.Vector3(0.052, 0.04, 0.04),
         materials.skin,
       );
+      const thumbStart = handEnd.clone().add(new THREE.Vector3(sign * 0.075, 0.01, 0.006));
+      const thumbEnd = handEnd.clone().add(new THREE.Vector3(sign * 0.03, 0.04, 0.015));
       const thumb = addFallbackSegment(
         group,
         `fallback thumb.${side}`,
-        new THREE.Vector3(sign * -0.012, 0.48, 0.103),
-        new THREE.Vector3(sign * -0.06, 0.53, 0.071),
-        0.028,
+        thumbStart,
+        thumbEnd,
+        0.014,
         materials.skin,
       );
       thumb.rotation.z = side === 'R' ? -0.5 : 0.5;
       addEllipsoid(
         group,
         `fallback hand accent.${side}`,
-        new THREE.Vector3(handEnd.x, handEnd.y + 0.02, handEnd.z),
-        new THREE.Vector3(0.035, 0.028, 0.035),
+        new THREE.Vector3(handEnd.x, handEnd.y + 0.015, handEnd.z),
+        new THREE.Vector3(0.024, 0.013, 0.024),
         materials.accent,
       );
       const socket = new THREE.Object3D();
       socket.name = `fp_hand_socket.${side}`;
-      socket.position.set(handEnd.x, handEnd.y + 0.02, handEnd.z - 0.065);
+      socket.position.set(handEnd.x, handEnd.y + 0.015, handEnd.z - 0.045);
       socket.userData.presentation = 'hand-tool-socket';
       socket.userData.side = side;
       group.add(socket);
@@ -292,8 +302,8 @@ export class RoundedFirstPersonFallback {
 
   public update(elapsed: number, pose: HandPose, stride = 0): void {
     const bob = Math.sin(elapsed * (5.5 + stride * 2.5)) * (0.004 + stride * 0.012);
-    this.root.position.y = -0.06 + pose.lift * 0.14 + bob;
-    this.root.position.z = pose.push * 0.12;
+    this.root.position.y = -0.08 + pose.lift * 0.05 + bob;
+    this.root.position.z = pose.push * 0.06;
     for (const arm of this.arms) {
       const sign = arm.side === 'R' ? 1 : -1;
       const swing = Math.sin(elapsed * (4.5 + stride * 4)) * stride * 0.08;

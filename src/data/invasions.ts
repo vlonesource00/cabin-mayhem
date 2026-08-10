@@ -4,6 +4,8 @@ const pointSchema = z.object({ x: z.number().finite(), y: z.number().finite() })
 
 export const boardingEnemyKindSchema = z.enum(['pirate', 'bomber']);
 export const boardingDefenseActionKindSchema = z.enum(['detach-boarding-board', 'release-gangway']);
+export const boardingEventIdSchema = z.enum(['pirate-boarding-alpha', 'saboteur-boarding-alpha']);
+export const boardingEventTriggerModeSchema = z.enum(['scheduled', 'debug']);
 export const invasionAssetIdSchema = z.enum([
   'pirate-boarder-character',
   'saboteur-boarder-character',
@@ -40,28 +42,58 @@ const boardingLinkDefinitionSchema = z.object({
   assetId: invasionAssetIdSchema,
 });
 
-export const boardingInvasionDefinitionSchema = z.object({
-  id: z.literal('pirate-boarding-alpha'),
-  name: z.string().min(1),
-  defaultEnemyKind: z.literal('pirate'),
-  supportedEnemyKinds: z.array(boardingEnemyKindSchema).min(2),
-  triggerAfterCruiseSeconds: z.number().min(0).max(300),
-  warningSeconds: z.number().positive().max(60),
-  approachSeconds: z.number().positive().max(60),
-  maxRaidSeconds: z.number().positive().max(120),
-  pressureInterval: z.number().positive().max(30),
-  initialHostileCount: z.number().int().positive().max(24),
-  passengerCount: z.number().int().positive().max(200),
-  passengerFailureThreshold: z.number().int().positive().max(200),
-  infrastructureDamagePerPulse: z.number().positive().max(100),
-  scorePerPressurePulse: z.number().int().max(0).min(-500),
-  detachScore: z.number().int().min(0).max(500),
-  resolutionScore: z.number().int().min(0).max(1000),
-  failureScore: z.number().int().max(0).min(-1000),
-  assets: z.array(invasionAssetDefinitionSchema).min(8),
-  enemyPresentations: z.array(enemyPresentationSchema).length(2),
-  links: z.array(boardingLinkDefinitionSchema).length(2),
-});
+export const boardingInvasionDefinitionSchema = z
+  .object({
+    id: z.literal('pirate-boarding-alpha'),
+    name: z.string().min(1),
+    defaultEnemyKind: z.literal('pirate'),
+    supportedEnemyKinds: z.array(boardingEnemyKindSchema).min(2),
+    triggerAfterCruiseSeconds: z.number().min(0).max(300),
+    warningSeconds: z.number().positive().max(60),
+    approachSeconds: z.number().positive().max(60),
+    maxRaidSeconds: z.number().positive().max(120),
+    pressureInterval: z.number().positive().max(30),
+    initialHostileCount: z.number().int().positive().max(24),
+    passengerCount: z.number().int().positive().max(200),
+    passengerFailureThreshold: z.number().int().positive().max(200),
+    infrastructureDamagePerPulse: z.number().positive().max(100),
+    scorePerPressurePulse: z.number().int().max(0).min(-500),
+    detachScore: z.number().int().min(0).max(500),
+    resolutionScore: z.number().int().min(0).max(1000),
+    failureScore: z.number().int().max(0).min(-1000),
+    assets: z.array(invasionAssetDefinitionSchema).min(8),
+    enemyPresentations: z.array(enemyPresentationSchema).length(2),
+    links: z.array(boardingLinkDefinitionSchema).length(2),
+  })
+  .superRefine((definition, ctx) => {
+    const assets = new Map(definition.assets.map((asset) => [asset.id, asset]));
+    if (assets.size !== definition.assets.length)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invasion asset IDs must be unique' });
+
+    for (const presentation of definition.enemyPresentations) {
+      const character = assets.get(presentation.characterAssetId);
+      if (character?.role !== 'character')
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${presentation.kind} character asset must have character role`,
+        });
+      for (const assetId of presentation.loadoutAssetIds) {
+        if (!assets.has(assetId))
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `${presentation.kind} loadout references missing asset ${assetId}`,
+          });
+      }
+    }
+
+    for (const link of definition.links) {
+      if (assets.get(link.assetId)?.role !== 'boarding-link')
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${link.id} asset must have boarding-link role`,
+        });
+    }
+  });
 
 export const boardingInvasionDefinition = boardingInvasionDefinitionSchema.parse({
   id: 'pirate-boarding-alpha',
@@ -196,7 +228,53 @@ export const boardingInvasionDefinition = boardingInvasionDefinitionSchema.parse
   ],
 });
 
+const boardingEventDefinitionSchema = z.object({
+  id: boardingEventIdSchema,
+  name: z.string().min(1),
+  label: z.string().min(1),
+  enemyKind: boardingEnemyKindSchema,
+  schedule: z.object({
+    voyagePhase: z.literal('open-sea'),
+    triggerAfterCruiseSeconds: z.number().min(0).max(300),
+    requiresActiveService: z.boolean(),
+    requiresClearNavigation: z.boolean(),
+  }),
+});
+
+export const boardingEventCatalog = z
+  .array(boardingEventDefinitionSchema)
+  .length(2)
+  .parse([
+    {
+      id: 'pirate-boarding-alpha',
+      name: boardingInvasionDefinition.name,
+      label: 'PIRATE BOARDING',
+      enemyKind: 'pirate',
+      schedule: {
+        voyagePhase: 'open-sea',
+        triggerAfterCruiseSeconds: boardingInvasionDefinition.triggerAfterCruiseSeconds,
+        requiresActiveService: true,
+        requiresClearNavigation: true,
+      },
+    },
+    {
+      id: 'saboteur-boarding-alpha',
+      name: 'Blackwake saboteur boarding',
+      label: 'SABOTEUR BOARDING',
+      enemyKind: 'bomber',
+      schedule: {
+        voyagePhase: 'open-sea',
+        triggerAfterCruiseSeconds: 110,
+        requiresActiveService: true,
+        requiresClearNavigation: true,
+      },
+    },
+  ]);
+
 export type BoardingInvasionDefinition = z.infer<typeof boardingInvasionDefinitionSchema>;
 export type BoardingEnemyKind = z.infer<typeof boardingEnemyKindSchema>;
 export type BoardingDefenseActionKind = z.infer<typeof boardingDefenseActionKindSchema>;
+export type BoardingEventDefinition = z.infer<typeof boardingEventDefinitionSchema>;
+export type BoardingEventId = z.infer<typeof boardingEventIdSchema>;
+export type BoardingEventTriggerMode = z.infer<typeof boardingEventTriggerModeSchema>;
 export type InvasionAssetId = z.infer<typeof invasionAssetIdSchema>;
