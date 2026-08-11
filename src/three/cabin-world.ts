@@ -730,6 +730,9 @@ export class CabinWorld {
     this.ambientCrowd.sync(state.crowd, origin);
     this.canvas.dataset.crowdAsset = this.characterRig ? 'glb' : 'loading';
     this.canvas.dataset.crowdVisible = String(this.ambientCrowd.visibleCount());
+    // Meshes the previous frame actually drew. Allocation is not evidence of a
+    // render, so this is the only crowd number a test can trust.
+    this.canvas.dataset.crowdDrawnMeshes = String(this.ambientCrowd.consumeDrawnMeshCount());
     this.canvas.dataset.crowdResidents = String(Object.keys(state.crowd.residents).length);
     this.canvas.dataset.crowdEvacuating = String(state.crowd.evacuating);
     this.canvas.dataset.crowdFloatingCount = String(this.ambientCrowd.floatingCount());
@@ -836,7 +839,9 @@ export class CabinWorld {
       const shake = Math.sin(elapsed * 15 + passenger.requestAt) * passenger.panic * 0.035;
       avatar.position.set(seat.x + shake, seat.y + react.bob, seat.z);
       const toPort = passenger.seatPosition.x < centrelineX(gameplayCompartmentId);
-      avatar.rotation.y = toPort ? -0.08 : 0.08;
+      // Seated guests face the cabin door, which is -Z of the seat; the rig's
+      // own forward is -Z, so the base yaw is a half turn plus the seat lean.
+      avatar.rotation.y = Math.PI + (toPort ? -0.08 : 0.08);
       avatar.rotation.z = passenger.injury * (toPort ? 0.22 : -0.22);
 
       const styleIndex = servicePassengerStyleIndex.get(passenger.id) ?? passengerIndex;
@@ -990,7 +995,7 @@ export class CabinWorld {
       // their own compartment and rebased onto ours.
       this.crewBravo.position.copy(cabinToWorld(peer.position, 0, peer.compartmentId, origin));
       this.crewBravo.position.y += waypointDeckRenderOffset(peer);
-      this.crewBravo.rotation.y = Math.atan2(peer.facing.x, peer.facing.y);
+      this.crewBravo.rotation.y = Math.atan2(-peer.facing.x, -peer.facing.y);
       this.crewBravo.rotation.z = peer.knockdown > 0 ? 1.2 : 0;
       if (!this.crewBravoRig) {
         const speed = Math.hypot(peer.velocity.x, peer.velocity.y);

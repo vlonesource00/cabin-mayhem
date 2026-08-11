@@ -141,7 +141,8 @@ function ambientTarget(
       resident.compartmentId,
       originCompartmentId,
     ),
-    rotationY: Math.atan2(resident.facing.x, resident.facing.y) + presentation.yawOffset,
+    // Model forward is -Z, so the ship-wide convention negates both terms.
+    rotationY: Math.atan2(-resident.facing.x, -resident.facing.y) + presentation.yawOffset,
     rotationZ: presentation.rotationZ,
     presentation,
   };
@@ -209,6 +210,10 @@ export class AmbientCrowdPresenter {
   private compartmentId = '';
   private originValid = false;
   private lastState?: AmbientCrowdState;
+  private drawTally = 0;
+  private readonly tallyDraw = (): void => {
+    this.drawTally += 1;
+  };
 
   public constructor() {
     this.group.name = 'ambient cruise crowd';
@@ -319,6 +324,22 @@ export class AmbientCrowdPresenter {
 
   public visibleCount(): number {
     return this.originValid ? this.instances.size : 0;
+  }
+
+  /**
+   * Ambient meshes the renderer actually drew since the last read, then resets.
+   *
+   * `visibleCount()` counts allocated instances, which keeps reporting a full
+   * crowd even when every mesh is missing from the render list — the exact
+   * failure mode that made the guests invisible while `visible`, opacity, world
+   * bounds and layers all read healthy. Only a per-draw tally can tell them
+   * apart, because three.js fires `onAfterRender` from `renderObject`, after
+   * the mesh has survived projection, frustum culling and material setup.
+   */
+  public consumeDrawnMeshCount(): number {
+    const drawn = this.drawTally;
+    this.drawTally = 0;
+    return drawn;
   }
 
   public floatingCount(): number {
@@ -463,6 +484,9 @@ export class AmbientCrowdPresenter {
     rig.play({ base: candidate.target.presentation.clip });
     rig.update(candidate.resident.phase * 1.8);
     setAmbientOpacity(rig.root, 0);
+    rig.root.traverse((node) => {
+      if (node instanceof THREE.Mesh) node.onAfterRender = this.tallyDraw;
+    });
     this.instances.set(candidate.resident.id, entry);
     this.group.add(rig.root);
     this.alignToFloor(entry);

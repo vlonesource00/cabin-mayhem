@@ -55,14 +55,24 @@ actually spawns in.
 
 ### NPC visibility — the host spawned inside the scenic lift car
 
-The crowd was always present and always drawn. `data-crowd-residents=78`,
-`data-crowd-asset=glb`, `data-character-rig=glb`, `data-crowd-visible=24`,
+> **Correction (2026-08-11).** The paragraph that used to open this section
+> claimed the crowd "was always present and always drawn" on the strength of
+> `data-crowd-visible=24`. That conclusion was wrong, and the metric behind it
+> was worthless: `visibleCount()` returns `this.instances.size`, i.e. instances
+> **allocated**, not meshes drawn. The crowd was allocated and never submitted
+> to a render list. See "NPC visibility — the material shape" below for the
+> real root cause. The spawn-inside-the-lift-car bug recorded here was real and
+> is fixed, but it was a second, independent fault, not the reason the ship
+> looked empty.
+
+`data-crowd-residents=78`, `data-crowd-asset=glb`, `data-character-rig=glb`,
 `data-crowd-floating-count=0`, `data-crowd-contact-max=0.000` at a clean start.
 A headless run of the real `AmbientCrowdPresenter` against the real
 `cabin-mayhem-characters.glb` returned every instance `visible: true`,
-`opacity: 1`, contact error 3.6e-15.
+`opacity: 1`, contact error 3.6e-15 — all true, and all compatible with a
+crowd that is never drawn.
 
-The camera could not see any of it. `createCabinState` spawned `crew-alpha` at
+The camera also could not see the room. `createCabinState` spawned `crew-alpha` at
 playfield `(12, 6.5)`. The atrium is 24 x 46 with its aft bulkhead at
 playfield y 0, so that is authored ship `(0, -16.5)` — inside the solid
 `lift_car` cube `build_atrium` places over authored z -16.85..-14.55 on the
@@ -78,6 +88,75 @@ both the lift car and the stair flight.
 Density is unchanged and is a separate design question: the atrium zone holds
 10 of the 78 residents across 24 x 46 m, so a single forward view frames only a
 few of them.
+
+### NPC visibility — the material shape (the real root cause)
+
+Guests were invisible in every compartment, on both the normal start and the
+`showCrowd()` teleport, while every observable property read healthy: `visible`,
+`opacity`, `transparent`, `colorWrite`, `layers`, `frustumCulled`, bone count,
+bind matrix, and posed world bounds. Thirteen rounds of elimination found
+nothing because none of those properties is the one that was wrong.
+
+`applyAmbientNpcStyle` cloned each mesh's materials through `source.map(...)`
+and assigned the resulting **array** back to `entry.material`. three.js
+`WebGLRenderer.projectObject` branches on `Array.isArray(material)`: for an
+array it walks `geometry.groups` and pushes one render item per group; for a
+scalar it pushes the object directly. The exporter splits the four-material body
+into four **single-primitive** meshes, and a single-primitive geometry declares
+no `geometry.groups` — so the loop had nothing to iterate and the mesh was
+silently dropped from every render list while still reporting `visible: true`.
+`crew-bravo` rendered throughout because the player rigs never pass through
+`applyAmbientNpcStyle`.
+
+Two probes isolated it: magenta unlit marker boxes added to the crowd group
+_did_ draw (so the group, the transforms and the placement were fine), and
+swapping in a scalar `MeshBasicMaterial` made full green humanoids appear (so
+the geometry, skinning and submission were fine). The console carried no shader
+errors, ruling out a compile failure.
+
+Fix, in `src/three/ambient-npc-style.ts`: remember whether the source was an
+array and restore that shape — `entry.material = wasArray ? cloned : cloned[0]!`.
+
+The same investigation exposed a second bug in the same function. The palette
+slot was chosen by array index, but because each primitive carries exactly one
+material every mesh saw `index === 0`, so every guest was painted head-to-toe in
+`palette.skin` and shirt, trousers and hair were never applied. The slot is now
+resolved from the authored material name (`cm_pax_skin`, `cm_pax_shirt`,
+`cm_pax_trousers`, `cm_pax_accent`; `cm_crew_*` for crew).
+
+**Metric correction.** `data-crowd-visible` cannot guard this and never could —
+it counts allocated instances. `data-crowd-drawn-meshes` was added alongside it
+and counts ambient meshes the renderer actually drew last frame, tallied from
+`onAfterRender`, which three.js fires from `renderObject` only after the mesh has
+survived projection, frustum culling and material setup.
+`tests/e2e/ambient-crowd-normal-start.spec.ts` asserts it is above zero, and
+`tests/unit/ambient-npc-style.test.ts` asserts a single-material primitive stays
+scalar and that the four name-keyed slots land on four different colours.
+
+### NPC orientation — toes pointed backwards
+
+Two faults that cancelled out on the face and therefore hid each other.
+
+`tools/blender/build_character_rig.py` placed the head's face plate on Blender
+−Y and the seated lap strap likewise, while both foot boxes and both foot bones
+(`foot.L`/`foot.R`, tails at ±0.11, **+0.17**, 0.05) point +Y. The exporter maps
+Blender (x, y, z) to glTF (x, z, −y), so the feet arrived on three.js −Z — the
+project's forward — and the face on +Z.
+
+The presenters then compounded it: `ambient-crowd-presenter.ts` and
+`cabin-world.ts`'s crew-bravo peer used `Math.atan2(facing.x, facing.y)` where
+the ship-wide convention, set in `src/sim/compartment-space.ts`, is
+`Math.atan2(-dx, -dz)` for a −Z-forward model. The two errors are a half turn
+apart, so the _face_ ended up pointing along travel and the feet trailed behind.
+
+Both halves are fixed together — the face plate and lap strap moved to +Y and
+the GLB re-exported, and both yaws switched to the negated form. Because the net
+rotation change is exactly π and the model flipped by exactly π, absolute
+hand-tuned yaws on the `CM_*` rig needed +π: the seated service passengers in
+`cabin-world.ts` are now `Math.PI + (toPort ? -0.08 : 0.08)`. Relative seat
+`yawOffset` leans in `src/data/ambient-crowd.ts` were unaffected.
+`invasion-presenter.ts` was checked and left alone — hostiles come from a
+separate asset pack, not `cabin-mayhem-characters.glb`.
 
 ### Navigation and hydraulics state mismatch — a CSS cascade bug
 
@@ -115,7 +194,7 @@ into three causes:
   budget: the two waypoint specs to 180 s, the impact-HUD and pool-deck crowd
   specs to 120 s.
 - **Two stale test contracts (2 specs).** `waypoint-navigation` searched the
-  portal option *id* for `main-galley`, but a stairwell pass-through id encodes
+  portal option _id_ for `main-galley`, but a stairwell pass-through id encodes
   only the tower and two indices — `door-option:atrium:stairwell:stairwell-aft:0:2`
   — so the match could never succeed. It now resolves the id out of
   `data-portal-pad-options`, whose entries are `id:label:Ddeck`. And

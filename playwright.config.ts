@@ -1,6 +1,20 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const isCI = Boolean(process.env.CI);
+const DEFAULT_LOCAL_WORKERS = 1;
+const MAX_LOCAL_WORKERS = 4;
+
+function resolveLocalWorkers(value: string | undefined): number {
+  const workers = Number(value);
+
+  return Number.isSafeInteger(workers) &&
+    workers >= DEFAULT_LOCAL_WORKERS &&
+    workers <= MAX_LOCAL_WORKERS
+    ? workers
+    : DEFAULT_LOCAL_WORKERS;
+}
+
+const workers = isCI ? DEFAULT_LOCAL_WORKERS : resolveLocalWorkers(process.env.PLAYWRIGHT_WORKERS);
 
 // GitHub's runners have no GPU, so Chromium software-rasterises the Three.js
 // cabin. The authored GLB scenario roughly doubles per-frame cost against the
@@ -16,6 +30,7 @@ const isCI = Boolean(process.env.CI);
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: false,
+  workers,
   timeout: 90_000,
   expect: { timeout: isCI ? 15_000 : 10_000 },
   retries: isCI ? 1 : 0,

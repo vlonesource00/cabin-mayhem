@@ -30,6 +30,16 @@ test('the atrium is populated at a clean start', async ({ page }) => {
   await expect
     .poll(async () => Number(await canvas.getAttribute('data-crowd-visible')))
     .toBeGreaterThan(0);
+  // `data-crowd-visible` counts allocated instances and stayed at 24 through the
+  // whole period the crowd was missing from every render list, so it cannot
+  // guard this. `data-crowd-drawn-meshes` counts meshes the renderer actually
+  // drew last frame: four body primitives per guest, so a populated atrium is
+  // far above zero and a silently dropped crowd reads exactly zero.
+  await expect
+    .poll(async () => Number(await canvas.getAttribute('data-crowd-drawn-meshes')), {
+      timeout: 15_000,
+    })
+    .toBeGreaterThan(8);
   await expect(canvas).toHaveAttribute('data-crowd-floating-count', '0');
 
   const spawn = await page.evaluate(() => {

@@ -45,6 +45,43 @@ describe('ambient NPC style presentation', () => {
     expect(root.userData.ambientArchetype).toBeUndefined();
   });
 
+  it('keeps single-material primitives scalar and reads the slot off the name', () => {
+    // The exporter splits the four-material body into one single-material
+    // primitive each, so every mesh sees material index 0 and carries a scalar
+    // `material`. Wrapping that scalar in a one-element array makes three.js
+    // `projectObject` walk `geometry.groups`, which a single-primitive geometry
+    // does not have, so the mesh is dropped from every render list while still
+    // reporting `visible: true`. That is what made the whole crowd invisible.
+    const root = new THREE.Group();
+    const slots = ['cm_pax_skin', 'cm_pax_shirt', 'cm_pax_trousers', 'cm_pax_accent'];
+    const meshes = slots.map((name) => {
+      const material = new THREE.MeshStandardMaterial();
+      material.name = name;
+      // PlaneGeometry declares no groups, exactly like an exported primitive.
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+      mesh.name = name.toUpperCase();
+      root.add(mesh);
+      return mesh;
+    });
+
+    const style = ambientArchetypes[0]!;
+    applyAmbientNpcStyle(root, style);
+
+    for (const mesh of meshes) {
+      expect(Array.isArray(mesh.material)).toBe(false);
+      expect(mesh.geometry.groups.length).toBe(0);
+    }
+    const colors = meshes.map((mesh) =>
+      (mesh.material as THREE.MeshStandardMaterial).color.getHexString(),
+    );
+    expect(colors).toEqual([
+      style.palette.skin.slice(1),
+      style.palette.shirt.slice(1),
+      style.palette.trousers.slice(1),
+      style.palette.hair.slice(1),
+    ]);
+  });
+
   it('assigns all authored looks by stable definition order', () => {
     const styles = ambientArchetypes.map((_, index) => ambientArchetypeForIndex(index));
     expect(styles.map((style) => style.id)).toEqual(ambientArchetypes.map((style) => style.id));

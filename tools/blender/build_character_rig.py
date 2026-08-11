@@ -76,7 +76,8 @@ def build_body(builder, *, bulk=1.0, seated_hint=False):
     builder.box("neck", (0.0, 0.0, 1.49), (0.13, 0.13, 0.10), skin)
     builder.box("head", (0.0, 0.0, 1.63), (0.25, 0.25, 0.24), skin)
     builder.box("head", (0.0, 0.015, 1.745), (0.26, 0.26, 0.06), accent)
-    builder.box("head", (0.0, -0.135, 1.63), (0.16, 0.02, 0.08), secondary)
+    # The face reads on +Y, the same side the feet and the foot bones point at.
+    builder.box("head", (0.0, 0.135, 1.63), (0.16, 0.02, 0.08), secondary)
     for side, sign in (("L", 1.0), ("R", -1.0)):
         builder.box(f"shoulder.{side}", (sign * 0.14, 0.0, 1.41), (0.14, 0.22, 0.16), primary)
         builder.box(f"upperArm.{side}", (sign * 0.20, 0.0, 1.28), (0.13, 0.15, 0.28), primary)
@@ -87,7 +88,7 @@ def build_body(builder, *, bulk=1.0, seated_hint=False):
         builder.box(f"foot.{side}", (sign * 0.11, 0.09, 0.05), (0.16, 0.28, 0.11), accent)
     if seated_hint:
         # A lap-strap plate reads as "belted in" without needing a second mesh.
-        builder.box("hips", (0.0, -0.13, 0.99), (0.30 * w, 0.04, 0.07), accent)
+        builder.box("hips", (0.0, 0.13, 0.99), (0.30 * w, 0.04, 0.07), accent)
 
 
 # --- animation authoring -------------------------------------------------

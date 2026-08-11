@@ -53,7 +53,7 @@ export class CabinMayhemApp {
   /** Local view state only. Deliberately not part of `PlayerCommand`. */
   private spectating = false;
   /** Where the local crew member was last seen, to catch doorway arrivals. */
-  private lastCompartmentId = '';
+  private lastCompartmentId?: string;
   /** Test-only held repair intent; still travels through normal host validation. */
   private testNavigationRepairHeld = false;
   /** Local-only wheel selection for the currently active physical pad. */
@@ -156,6 +156,7 @@ export class CabinMayhemApp {
     this.room = new PeerRoom();
     this.devOpen = false;
     this.planOpen = false;
+    this.lastCompartmentId = undefined;
     this.debriefVisible = false;
     this.portalPadId = undefined;
     this.portalOptionIndex = 0;
