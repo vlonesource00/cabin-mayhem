@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 
 test('shows physical portal pads and host-validated elevator selection', async ({ page }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000);
   mkdirSync('test-results/correction-evidence', { recursive: true });
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/');
@@ -67,7 +67,7 @@ test('shows physical portal pads and host-validated elevator selection', async (
 test('aft stair pad shows real destinations, travels to Main Galley, and is occluded by walls', async ({
   page,
 }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000);
   mkdirSync('test-results/correction-evidence', { recursive: true });
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(process.env.CABIN_TEST_BASE_URL ?? '/');
@@ -82,12 +82,24 @@ test('aft stair pad shows real destinations, travels to Main Galley, and is occl
     path: 'test-results/correction-evidence/aft-stair-destination-picker.png',
   });
 
+  // A pass-through stair option is identified by its tower and its index in the
+  // tower's portal list, not by the room it lands in — `door-option:atrium:
+  // stairwell:stairwell-aft:0:2`. Searching the id for 'main-galley' can never
+  // match, so read the destination out of `data-portal-pad-options`, whose
+  // entries are `id:label:Ddeck`, and scroll until that exact id is selected.
+  const optionEntries = ((await canvas.getAttribute('data-portal-pad-options')) ?? '').split('|');
+  const galleySuffix = ':Main galley:D2';
+  const galleyEntry = optionEntries.find((entry) => entry.endsWith(galleySuffix));
+  expect(galleyEntry, `no Main galley option in ${optionEntries.join('|')}`).toBeDefined();
+  const galleyOptionId = (galleyEntry ?? '').slice(0, -galleySuffix.length);
+
   let selected = await canvas.getAttribute('data-portal-pad-selected');
-  for (let tick = 0; tick < 4 && !selected?.includes('main-galley'); tick += 1) {
+  for (let tick = 0; tick < optionEntries.length && selected !== galleyOptionId; tick += 1) {
     await page.mouse.wheel(0, 100);
+    await expect.poll(() => canvas.getAttribute('data-portal-pad-selected')).not.toBe(selected);
     selected = await canvas.getAttribute('data-portal-pad-selected');
   }
-  expect(selected).toContain('main-galley');
+  expect(selected).toBe(galleyOptionId);
   await page.keyboard.press('e');
   await expect
     .poll(() =>

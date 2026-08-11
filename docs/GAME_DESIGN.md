@@ -1,5 +1,10 @@
 # Game Design
 
+> **Current status (2026-08-10):** This document separates the implemented
+> first-person cruise checkpoint from the planned product north star. Read
+> [CURRENT_STATUS.md](CURRENT_STATUS.md) for exact evidence and unresolved
+> runtime observations; use [ROADMAP.md](ROADMAP.md) for sequencing.
+
 ## Vision
 
 Cabin Mayhem is an original first-person cooperative cruise-ship game. Players
@@ -173,8 +178,9 @@ or a hit succeeds.** Neither does the renderer, the HUD or the audio layer.
 ## Current playable boundary
 
 The airliner vertical at `79bb002` is a historical boundary note. The current
-cruise implementation includes the navigation-incident slice described at the
-end of this document; the rest of the product remains planned.
+checkpoint is the first-person cruise-ship map plus host-authoritative
+navigation/invasion slices; the rest of the product remains planned. The source
+creates 78 ambient residents, but normal packaged NPC visibility is not proven.
 
 ## Crew size
 

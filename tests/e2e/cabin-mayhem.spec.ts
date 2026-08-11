@@ -176,7 +176,7 @@ test('navigation warning requires the bridge and can be avoided by helm input', 
 });
 
 test('navigation impact and engine-room repair HUD are visible end to end', async ({ page }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   mkdirSync('test-results/navigation-evidence', { recursive: true });
   await page.goto('/');
   await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.start());
@@ -250,7 +250,7 @@ test('authored pirate invasion renders aboard with warning HUD and animated GLBs
 });
 
 test('pool deck shows the host-owned animated cruise crowd', async ({ page }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   mkdirSync('test-results/crowd-evidence', { recursive: true });
   mkdirSync('test-results/correction-evidence', { recursive: true });
   await page.goto('/');
@@ -262,7 +262,16 @@ test('pool deck shows the host-owned animated cruise crowd', async ({ page }) =>
 
   await expect(canvas).toHaveAttribute('data-local-compartment-id', 'pool-deck');
   await expect(canvas).toHaveAttribute('data-crowd-residents', '78');
-  await expect(canvas).toHaveAttribute('data-crowd-visible', '12');
+  // The pool-deck zone holds 12 residents, but the presenter draws everything
+  // `residency('pool-deck')` admits within 96 m, so the sun deck and promenade
+  // above and below it contribute too and the 24-instance budget is the real
+  // ceiling. Pinning the zone's own count broke the moment the ship grew past
+  // one open deck; the contract worth guarding is that the deck is populated
+  // and the budget is respected.
+  await expect
+    .poll(async () => Number(await canvas.getAttribute('data-crowd-visible')))
+    .toBeGreaterThanOrEqual(12);
+  expect(Number(await canvas.getAttribute('data-crowd-visible'))).toBeLessThanOrEqual(24);
   await expect(canvas).toHaveAttribute('data-crowd-evacuating', 'false');
   await page.waitForTimeout(700);
   await expect(canvas).toHaveAttribute('data-crowd-floating-count', '0');

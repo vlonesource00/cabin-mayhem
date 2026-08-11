@@ -1,5 +1,10 @@
 # Network Model
 
+> **Current status (2026-08-10):** Host-authoritative navigation/invasion and
+> local room contracts are current checkpoint scope. Separate-network proof and
+> broader crew scale remain open; see [CURRENT_STATUS.md](CURRENT_STATUS.md) and
+> [ROADMAP.md](ROADMAP.md).
+
 ## Current model
 
 Solo mode uses `SimulatedTransport` to test latency, jitter and loss locally. Two-player mode uses `PeerRoom`: `crew-alpha` hosts and `crew-bravo` joins through PeerJS signaling, then exchanges data directly over WebRTC. The free cloud broker is the zero-configuration prototype default. A self-hosted PeerServer and TURN credentials can be supplied through Vite environment variables without coupling simulation code to a provider.

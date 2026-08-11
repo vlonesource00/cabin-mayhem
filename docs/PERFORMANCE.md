@@ -1,5 +1,9 @@
 # Performance
 
+> **Current status (2026-08-10):** These are budgets and measurement contracts,
+> not proof of hardware performance. No hardware perf smoke is current evidence;
+> see [CURRENT_STATUS.md](CURRENT_STATUS.md) and [ROADMAP.md](ROADMAP.md).
+
 A cruise ship is roughly two orders of magnitude more world than one aircraft
 cabin. The airliner build could afford to render everything it owned every
 frame. This one cannot. Performance is what makes a ship this size possible at

@@ -1,5 +1,9 @@
 # Physical portal-pad navigation
 
+> **Current status (2026-08-10):** Waypoint/elevator travel and physical portal
+> pads are current checkpoint scope. See [CURRENT_STATUS.md](CURRENT_STATUS.md)
+> for runtime evidence and [ROADMAP.md](ROADMAP.md) for planned expansion.
+
 Named destinations remain data for stable labels and Grand Atrium elevator
 stops. They are not a global travel chart. `src/data/waypoints.ts` validates
 the elevator's D2/D3/D4/D5 stops and the authored destination metadata.

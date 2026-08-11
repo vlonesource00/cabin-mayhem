@@ -3,6 +3,10 @@
 Local work snapshot. Phases and exit conditions live in
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
+Current evidence and unresolved runtime observations live in
+[docs/CURRENT_STATUS.md](docs/CURRENT_STATUS.md). Do not mark NPC visibility or
+the hydraulics state mismatch resolved without fresh packaged evidence.
+
 ## In progress
 
 - [ ] Interior design pass. The exterior reads as a ship; the insides now need
@@ -17,7 +21,8 @@ Local work snapshot. Phases and exit conditions live in
 
 - [x] Ship motion model: heading, rudder, telegraph, momentum, turning radius, derived deck acceleration.
 - [x] Compartment set (atrium, cabin-corridor-a, bridge, engine-room) behind the streaming loader and
-      portal graph. The airliner cabin is gone from the code and from the authored geometry.
+      portal graph, expanded to the current 14-compartment, 8-deck authored ship.
+      The airliner cabin is gone from the code and from the authored geometry.
 - [x] Widen the ship. `CABIN_SCALE = 1` in `src/three/coordinates.ts` now maps a 24 x 46 metre
       playfield onto a 24 m x 46 m atrium, 12.8 m tall, and every compartment, station, prop and
       teleport target was restaged onto it. The fuselage footprint is gone.
@@ -118,6 +123,14 @@ manual service-flight playtest that was pending against it.
 - [ ] More of the ship. Fourteen compartments is the working vessel, not the ceiling — shopping
       arcade, theatre, casino, bars, spa, crew mess, medical bay, more cabin tiers. Candidates and
       the cost of adding one are listed in [docs/SHIP_LAYOUT.md](docs/SHIP_LAYOUT.md).
+
+## Current verification follow-up
+
+- [ ] Capture clean packaged normal-start NPC screenshot and crowd metrics; the
+      focused `showCrowd()` E2E teleport is not normal-start proof.
+- [ ] Reproduce clean-start voyage and navigation-incident state; reconcile the
+      screenshot `MOORED` plus `IMPACT: HYDRAULICS DAMAGED` before claiming a fix.
+- [ ] Run two-Windows/two-network multiplayer and hardware performance gates.
 
 Unchecked items are planned slices, not implemented claims. Preserve the current
 exterior and compartment work while each one is built and tested as a

@@ -1,5 +1,10 @@
 # Audio and soundscape contract
 
+> **Current status (2026-08-10):** Procedural bounded audio is part of the current
+> checkpoint. This document describes presentation behavior, not proof that the
+> packaged NPC or hydraulics observations are resolved. See
+> [CURRENT_STATUS.md](CURRENT_STATUS.md).
+
 Cabin audio is a presentation-only projection of authoritative snapshots. It
 ships no audio assets and the default resumed cruise is silent except for
 short, meaningful localized cues.

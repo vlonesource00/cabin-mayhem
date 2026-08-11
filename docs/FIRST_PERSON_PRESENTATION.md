@@ -1,5 +1,9 @@
 # First-person presentation contract
 
+> **Current status (2026-08-10):** First-person presentation is part of the
+> current cruise checkpoint. NPC visibility in normal packaged startup remains
+> unresolved; see [CURRENT_STATUS.md](CURRENT_STATUS.md).
+
 This slice owns presentation only. Host snapshots still decide movement,
 interaction, carrying, fire, repair, navigation, and portal-pad outcomes.
 

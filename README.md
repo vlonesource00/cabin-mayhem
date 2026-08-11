@@ -10,6 +10,10 @@ The premise changed at `79bb002` — see
 [ADR 0001](docs/adr/0001-cruise-ship-pivot.md). The engine, host authority,
 network model, rig pipeline and CI carry over; the airliner content is retired.
 
+> **Current status (2026-08-10):** The committed checkpoint is `551c2f7`.
+> See [docs/CURRENT_STATUS.md](docs/CURRENT_STATUS.md) for implemented state,
+> unresolved NPC and hydraulics observations, proof gaps, and next actions.
+
 ## Run
 
 ```powershell
@@ -75,19 +79,20 @@ At a deck weapon mount:
 
 Gamepad: left stick move, shoulder sprint, face buttons interact/crouch/brace/throw, triggers throttle/brake.
 
-## Prototype scope
+## Current checkpoint scope
 
-The last thing that ran is the airliner vertical at `79bb002`: walkable Three.js
-fuselage with a Blender-authored GLB and procedural fallback, host-authoritative
-service-cart stock, loose cargo, straps, crew, eight seated passenger NPCs,
-drink/meal/medical requests, galley-fire suppression, one breaker repair,
-patience, panic, injury, scoring, passenger-review debrief, subsystem damage,
-deterministic simulated network conditions, procedurally synthesised audio, two
-Blender-authored skeletal rigs with 44 clips on a Three.js `AnimationMixer`, and
-free two-player browser rooms.
+The current runtime is first-person and cruise-ship shaped: 14 Blender-authored
+compartments on 8 decks, three stair towers, waypoint/elevator travel, a
+bridge/commander room, host-authoritative navigation and invasion slices, GLB
+crowd/invasion assets, and procedural bounded audio. This is a checkpoint, not
+the complete cruise product; see [docs/CURRENT_STATUS.md](docs/CURRENT_STATUS.md)
+and [docs/ROADMAP.md](docs/ROADMAP.md).
 
-None of the cruise premise is implemented yet. It is designed and documented;
-the first implementation slice is Phase 5 in [docs/ROADMAP.md](docs/ROADMAP.md).
+The source creates 78 ambient residents, but normal packaged NPC visibility is
+not proven. A 2026-08-10 user screenshot shows no atrium NPCs and also shows
+`MOORED` with `IMPACT: HYDRAULICS DAMAGED`; that source-vs-runtime mismatch is
+unresolved. Do not treat the focused `showCrowd()` E2E path or the debug trigger
+as normal-start proof.
 
 Audio is synthesised in the Web Audio API at runtime, so the repository ships no
 audio files. The default E2E suite skips the cloud multiplayer smoke unless
@@ -113,5 +118,6 @@ TypeScript, Three.js/WebGL, Vite, Zod, Vitest, Playwright, ESLint, Prettier and 
 - [docs/NETWORK_MODEL.md](docs/NETWORK_MODEL.md): authority and transport boundary.
 - [docs/CONTENT_AUTHORING.md](docs/CONTENT_AUTHORING.md): how to add compartments, jobs, incidents and upgrades.
 - [docs/TEST_PLAN.md](docs/TEST_PLAN.md): automated/manual checks.
+- [docs/CURRENT_STATUS.md](docs/CURRENT_STATUS.md): current evidence, open runtime observations, and proof gaps.
 
 Git commits, pull requests, GitHub Issues and GitHub Projects remain shared-history/task authority; these files do not replace them.

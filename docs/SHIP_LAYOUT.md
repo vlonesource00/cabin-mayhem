@@ -1,5 +1,10 @@
 # Ship Layout
 
+> **Current status (2026-08-10):** The 14-compartment, 8-deck layout and three
+> stair towers are current authored checkpoint scope. Layout/asset contracts do
+> not by themselves prove normal packaged NPC visibility; see
+> [CURRENT_STATUS.md](CURRENT_STATUS.md) and [ROADMAP.md](ROADMAP.md).
+
 _MS Cabin Mayhem_ — the authored compartment graph. This file describes what
 [`src/data/ship-layout.ts`](../src/data/ship-layout.ts) declares; that file is
 the source of truth, this one is why. Every compartment listed here is one

@@ -1,8 +1,20 @@
 # Ambient cruise crowd slice
 
+> **Current status (2026-08-10):** The source/presenter contract is implemented,
+> but normal packaged NPC visibility is unresolved. See
+> [CURRENT_STATUS.md](CURRENT_STATUS.md); the roadmap is in
+> [ROADMAP.md](ROADMAP.md).
+
 The host owns 78 deterministic ambient residents across the occupied ship
 compartments. Guests receive the same snapshot; activity, route, and
 evacuation state never come from the renderer.
+
+`createAmbientCrowdState` creates 78 residents across 8 zones and
+`CabinWorld` calls `AmbientCrowdPresenter.sync`. Instances wait for async
+`loadRig(characterRigId)`; a load catch only sets `data-character-rig=fallback`
+and does not expose a visible error. Residency and 96 m culling, the 24-instance
+cap, and fades can leave no visible NPCs in a packaged scene. The focused
+`showCrowd()` E2E teleport to `pool-deck` is not normal-start proof.
 
 ## GLB presentation
 

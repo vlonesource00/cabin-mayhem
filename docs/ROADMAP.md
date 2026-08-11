@@ -1,5 +1,10 @@
 # Roadmap
 
+> **Current status (2026-08-10):** The exact implemented checkpoint, runtime
+> observations, and proof gaps are in [CURRENT_STATUS.md](CURRENT_STATUS.md).
+> Proposal material is inspiration only; roadmap entries are not shipped claims
+> unless labeled implemented and backed by current evidence.
+
 Phases 0–4 were the airliner premise. Phases 0–2 shipped; 3 and 4 were never
 started and are superseded by [ADR 0001](adr/0001-cruise-ship-pivot.md). The
 cruise ship starts at Phase 5.
@@ -59,7 +64,9 @@ Done:
 - Streaming against the portal graph: residency, eviction, reduced detail at two
   hops, exterior X0/X1/X2 tiers, greybox fallback.
 - Merged geometry per material, one shared palette, real glazing.
-- Character LOD tiers, with a 78-resident ambient crowd rendered through them.
+- Character LOD tiers and a 78-resident ambient crowd source/presenter slice.
+  Normal packaged-start NPC visibility remains unproven; focused `showCrowd()`
+  E2E teleport is not normal-start evidence.
 - The deck plan on **N**, so a ship this size can be read from inside it.
 
 Outstanding:
@@ -198,9 +205,11 @@ product north star.
   pressure, link-detachment resolution, score consequences, warning/countdown HUD,
   and a Three.js presenter loading eight validated Blender invasion GLBs with
   authored character, weapon, explosive, link and prop Actions.
-- a host-owned 78-resident ambient crowd across eight cruise areas. The occupied
-  compartment renders Blender-authored passenger rigs performing leisure and
-  work animations, while boarding threats switch the full crowd to evacuation.
+- a host-owned 78-resident ambient crowd across eight cruise areas. The source
+  and presenter implement Blender-authored passenger rigs, leisure/work
+  animation states, and evacuation switching. Instances wait for async rig load,
+  then residency/96 m culling and a 24-instance cap apply; normal packaged-start
+  visibility is unresolved.
 
 ### Planned next phases, not implemented now
 
@@ -212,10 +221,10 @@ product north star.
   chefs, mall/restaurant/bar restocking and consensual guest-request or
   performer photography. The current service loop is not a claim that every job
   exists.
-- **Crowds and ship scale:** the first 78-resident walking, socializing, dining,
-  cooking, housekeeping, photography, swimming, sunbathing and evacuation layer
-  is delivered. Cross-compartment schedules, shopping, richer reactions, crowd
-  LOD and further authored resort spaces remain unfinished.
+- **Crowds and ship scale:** the first 78-resident state/presenter layer covers
+  authored activity and evacuation contracts. Normal-start packaged visibility,
+  cross-compartment schedules, shopping, richer reactions, further crowd LOD
+  work, and additional resort spaces remain unfinished or unproven.
 - **Asset expansion:** the exterior, stairwells and open decks are now authored,
   validated and shipped through the Blender-source to tracked-GLB pipeline. What
   remains is more of the ship — the resort spaces listed at the end of

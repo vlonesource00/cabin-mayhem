@@ -1,5 +1,6 @@
 import { CabinAudio } from '../audio/cabin-audio';
 import { navigationIncidentDefinition } from '../data/emergencies';
+import { compartmentById } from '../data/ship-layout';
 import { CabinInputController } from '../input/cabin-input';
 import { normalizeRoomCode, PeerRoom, type RoomRole, type RoomStatus } from '../network/peer-room';
 import { HostSession } from '../sim/host-session';
@@ -15,6 +16,7 @@ import { CabinWorld } from '../three/cabin-world';
 import { FirstPersonController } from '../three/first-person-controller';
 import { SpectatorCamera } from '../three/spectator-camera';
 import { buildDebrief, type DebriefSystemResult } from './debrief';
+import { buildDeckPlan } from './deck-plan';
 
 type Screen = 'menu' | 'voyage';
 type IconName = 'ship' | 'alert' | 'tool' | 'fire' | 'hand' | 'people' | 'dev' | 'mute';
@@ -45,6 +47,8 @@ export class CabinMayhemApp {
   private accumulator = 0;
   private lastHudUpdate = 0;
   private devOpen = false;
+  /** Held, not toggled: the plan is a chart you hold up, not a screen you sit in. */
+  private planOpen = false;
   private debriefVisible = false;
   /** Local view state only. Deliberately not part of `PlayerCommand`. */
   private spectating = false;
@@ -61,6 +65,7 @@ export class CabinMayhemApp {
 
   public mount(): void {
     window.addEventListener('keydown', this.onKeyDown);
+    window.addEventListener('keyup', this.onKeyUp);
     this.renderMenu();
     this.installTestBridge();
   }
@@ -72,11 +77,28 @@ export class CabinMayhemApp {
       this.setDevOpen(!this.devOpen);
       return;
     }
+    if (event.code === 'KeyN') {
+      event.preventDefault();
+      // `repeat` fires at the OS key-repeat rate; redrawing the plan on each
+      // one would rebuild the same SVG dozens of times a second for nothing.
+      if (!event.repeat) this.setPlanOpen(true);
+      return;
+    }
     if (event.code === 'KeyM' && this.audio) {
       event.preventDefault();
       this.audio.setEnabled(this.audio.muted());
       this.setMuteIndicator(this.audio.muted());
     }
+  };
+
+  /**
+   * Not gated on the screen, unlike keydown.
+   *
+   * A key pressed during the voyage and released after the shift ends would
+   * otherwise leave the plan up over the debrief with nothing able to lower it.
+   */
+  private readonly onKeyUp = (event: KeyboardEvent): void => {
+    if (event.code === 'KeyN') this.setPlanOpen(false);
   };
 
   private readonly onStageGesture = (): void => {
@@ -133,11 +155,12 @@ export class CabinMayhemApp {
     if (role !== 'solo') this.session.setNetwork({ enabled: false });
     this.room = new PeerRoom();
     this.devOpen = false;
+    this.planOpen = false;
     this.debriefVisible = false;
     this.portalPadId = undefined;
     this.portalOptionIndex = 0;
     this.root.innerHTML = `
-      <main class="game-shell" data-testid="technical-test-scene" data-debug-open="false" data-audio="on" data-room-role="${role}" data-room-phase="idle">
+      <main class="game-shell" data-testid="technical-test-scene" data-debug-open="false" data-plan-open="false" data-audio="on" data-room-role="${role}" data-room-phase="idle">
         <section class="world-stage" data-world-stage></section>
         <header class="flight-chip">
           ${icon('ship')}
@@ -203,6 +226,14 @@ export class CabinMayhemApp {
               <p data-debrief="restart-note">Fresh voyage. Same questionable cruise line.</p>
             </footer>
           </div>
+        </section>
+        <section class="deck-plan" data-testid="deck-plan" aria-label="Ship deck plan" aria-hidden="true">
+          <div class="deck-plan__head">
+            <span>MS CABIN MAYHEM / DECK PLAN</span>
+            <strong data-plan="here">GRAND ATRIUM</strong>
+            <span>HOLD N</span>
+          </div>
+          <div data-plan-sheet></div>
         </section>
         <aside class="dev-drawer" aria-label="Development controls" aria-hidden="true">
           <p class="dev-drawer__title">CHAOS LAB / F1</p>
@@ -303,6 +334,9 @@ export class CabinMayhemApp {
     if (player && player.compartmentId !== this.lastCompartmentId) {
       this.lastCompartmentId = player.compartmentId;
       if (player.arrivalYaw !== undefined) this.controller.faceHeading(player.arrivalYaw);
+      // Walking through a door while holding the plan up moves the "you are
+      // here" and, on a stair landing, the whole deck being shown.
+      if (this.planOpen) this.drawDeckPlan();
     }
     if (this.spectating) {
       const look = this.controller.lookAngles();
@@ -488,6 +522,32 @@ export class CabinMayhemApp {
     if (toggle) toggle.setAttribute('aria-expanded', String(open));
     const drawer = this.root.querySelector<HTMLElement>('.dev-drawer');
     if (drawer) drawer.setAttribute('aria-hidden', String(!open));
+  }
+
+  /**
+   * Raise or lower the deck plan.
+   *
+   * The SVG is built on the way up rather than kept live, because it only
+   * changes when the walked compartment does — and that is the one moment it is
+   * redrawn while already up.
+   */
+  private setPlanOpen(open: boolean): void {
+    if (open === this.planOpen) return;
+    this.planOpen = open;
+    const shell = this.root.querySelector<HTMLElement>('.game-shell');
+    if (shell) shell.dataset.planOpen = String(open);
+    const panel = this.root.querySelector<HTMLElement>('.deck-plan');
+    panel?.setAttribute('aria-hidden', String(!open));
+    if (open) this.drawDeckPlan();
+  }
+
+  private drawDeckPlan(): void {
+    const sheet = this.root.querySelector<HTMLElement>('[data-plan-sheet]');
+    if (!sheet) return;
+    const current = this.lastCompartmentId || undefined;
+    sheet.innerHTML = buildDeckPlan({ current });
+    const here = compartmentById(current ?? '');
+    this.text('[data-plan="here"]', here ? here.label.toUpperCase() : 'AT SEA');
   }
 
   private bindDebugControls(): void {

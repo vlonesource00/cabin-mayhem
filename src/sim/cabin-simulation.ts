@@ -31,9 +31,17 @@ export function createCabinState(): CabinState {
   return {
     width: phaseOneCabinDefinition.width,
     length: phaseOneCabinDefinition.length,
+    // Playfield coordinates, not authored ship coordinates: the atrium is
+    // 24 x 46 with its aft bulkhead at y 0, so authored z = y - 23 and
+    // authored x = x - 12. Both crew stand on the centreline walk that
+    // `build_atrium` deliberately keeps clear — alpha on the sole medallion
+    // (authored z -6), bravo on the forward runner (authored z +8). The
+    // previous pair sat at authored z -16.5 and z +16, which is inside the
+    // scenic lift car and inside the grand stair flight respectively, so the
+    // host spawned boxed into a brass cube and saw no atrium and no crowd.
     players: {
-      'crew-alpha': player('crew-alpha', 'Crew Alpha / host', '#f7be62', { x: 12, y: 6.5 }),
-      'crew-bravo': player('crew-bravo', 'Crew Bravo / client', '#73d5e8', { x: 12, y: 39 }),
+      'crew-alpha': player('crew-alpha', 'Crew Alpha / host', '#f7be62', { x: 12, y: 17 }),
+      'crew-bravo': player('crew-bravo', 'Crew Bravo / client', '#73d5e8', { x: 12, y: 31 }),
     },
     objects: Object.fromEntries(objects.map((entry) => [entry.id, entry])),
     collisionCount: 0,

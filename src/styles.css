@@ -474,6 +474,12 @@ button {
   pointer-events: none;
   text-align: center;
 }
+/* An author `display` beats the user-agent `[hidden] { display: none }`, so the
+   panel needs its own hidden rule or `navigationAlert.hidden = true` does
+   nothing and a moored ship permanently reports damaged hydraulics. */
+.navigation-alert[hidden] {
+  display: none;
+}
 .navigation-alert[data-phase='warning'] {
   animation: navigation-alert-pulse 0.75s ease-in-out infinite alternate;
 }

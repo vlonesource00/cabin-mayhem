@@ -1,5 +1,10 @@
 # Host-authoritative boarding invasion slice
 
+> **Current status (2026-08-10):** This host-authoritative invasion slice is part
+> of the current checkpoint. Its asset and presenter contracts do not prove the
+> separate NPC-visibility or hydraulics runtime observations are resolved. See
+> [CURRENT_STATUS.md](CURRENT_STATUS.md) and [ROADMAP.md](ROADMAP.md).
+
 This slice now includes host-authoritative simulation plus a presentation-only Three.js layer. It renders the authored pirate/saboteur characters, carried equipment, boarding links and gear crate, and drives their Blender Actions from snapshot phase/status. Pirate boarding and saboteur boarding are separate deterministic event variants with player-facing warning, approach, aboard, repelled, and failed metadata. It does not yet claim combat AI, firearms hit resolution, a playable bomb-search/disarm loop, or a complete network UI.
 
 `HostSession` owns the invasion phase, timers, boarding-link status, player compartment/range checks, passenger protection, infrastructure integrity, hull damage, and score changes. Clients submit only `boardingAction` intent. The host rejects unknown action shapes, actions in the wrong phase, mismatched action/target pairs, wrong compartments, and out-of-range actors.

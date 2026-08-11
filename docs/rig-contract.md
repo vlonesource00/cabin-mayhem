@@ -1,5 +1,9 @@
 # Rig and animation contract
 
+> **Current status (2026-08-10):** Rig and GLB contracts are implemented and
+> validated as asset interfaces. They do not prove normal packaged NPC
+> visibility; see [CURRENT_STATUS.md](CURRENT_STATUS.md).
+
 Bone names, clip names and clip lengths are a hard interface between the Blender
 build scripts and the Three.js runtime. The machine-readable copy lives in
 [`src/three/animation-contract.ts`](../src/three/animation-contract.ts); this

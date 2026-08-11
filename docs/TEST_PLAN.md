@@ -1,8 +1,13 @@
 # Test Plan
 
-Written for the cruise premise. Checks marked **(shipped)** exist today against
-the airliner vertical and mostly survive a rename; the rest land with the phase
-that introduces the system.
+> **Current status (2026-08-10):** Evidence is summarized in
+> [CURRENT_STATUS.md](CURRENT_STATUS.md). The normal packaged-start NPC and
+> clean-start hydraulics assertions are still missing; do not infer them from
+> focused debug/E2E paths.
+
+Written for the cruise premise. Checks marked **(shipped)** describe an existing
+automated or integration contract; historical airliner wording is not current
+runtime proof. Planned checks land with the phase that introduces the system.
 
 ## Automated
 

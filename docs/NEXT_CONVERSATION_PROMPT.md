@@ -1,5 +1,10 @@
 # Next conversation prompt
 
+> **Current status override (2026-08-10):** Start from
+> [CURRENT_STATUS.md](CURRENT_STATUS.md), not from stale checkpoint prose inside
+> the prompt. The committed checkpoint is `551c2f7`, pushed to
+> `origin/luna-attempt-at-cruise-map-design`.
+
 Copy everything inside the block below into a new conversation with this
 repository selected. It is self-contained: it carries the constants, conventions
 and fault classes that are expensive to re-derive, so a fresh session can resume
@@ -15,7 +20,9 @@ Cabin Mayhem is an original cooperative cruise-ship game. Vite + TypeScript +
 Three.js are the game runtime; Tauri v2 + Rust wrap the same web build as a
 Windows EXE. Do not convert it to another engine or a 2D/top-down game.
 
-CURRENT BRANCH: luna-attempt-at-cruise-map-design, at dc1a20b.
+CURRENT CHECKPOINT: `551c2f7` (`551c2f775e8050421502745f68901e56b9365cde`).
+The main branch ref is `luna-attempt-at-cruise-map-design`; this documentation
+worktree may be detached at that commit.
 Stable branch: novo-main-stable (protected: PR, `verify` green, one approval).
 Do not merge into novo-main-stable without being told to.
 Never commit TURN credentials. Never stage .codex-remote-attachments/.
@@ -52,20 +59,20 @@ Constraints the user has stated and that are still in force, verbatim:
 
 == WHERE THE WORK STANDS ==
 
-Working tree: one uncommitted modification to
-tools/blender/compartments/build_compartments.py (the build_pool_deck rewrite).
-Nothing has been committed, compiled, built or Blender-run since that edit.
+Current source-of-truth: 14 Blender-authored compartments on 8 decks, three
+stair towers, waypoint/elevator travel, bridge/commander room, GLB crowd and
+invasion assets, host-authoritative navigation/invasion slices, and procedural
+bounded audio. `pnpm build` passed; elevated `pnpm desktop:build` passed; 37
+live unit files / 262 tests passed with archived bridge worktrees excluded.
 
-Rooms finished to the required standard:
-atrium, dining-room, cabin-deck-four, cabin-deck-seven, main-galley,
-engine-room, crew-corridor, bridge, sun-deck, pool-deck (new, UNVERIFIED).
+Observed but unresolved: the 2026-08-10 user screenshot shows no atrium NPCs
+and shows `MOORED` with `IMPACT: HYDRAULICS DAMAGED`. The source defaults and
+automatic trigger gates do not establish a root cause. Do not claim NPC
+visibility or hydraulics repair. Focused `showCrowd()` and debug-trigger paths
+are not normal packaged-start proof.
 
-Still to rewrite in build_compartments.py:
-1. build_promenade  (around line 2806)
-2. tower_dressing   (around line 3599 after the pool-deck rewrite shifted it)
-
-Both designs are fully derived and recorded below — write them, do not redesign
-them.
+The detailed builder notes below are roadmap authoring context, not evidence
+that every proposed room or product system is shipped.
 
 == SHIP SPACE AND DECK DATUM ==
 

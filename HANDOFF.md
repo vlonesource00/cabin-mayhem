@@ -1,5 +1,11 @@
 # Handoff
 
+> **Current status (2026-08-10):** This handoff is subordinate to
+> [docs/CURRENT_STATUS.md](docs/CURRENT_STATUS.md). Current checkpoint is
+> `551c2f7`, pushed to `origin/luna-attempt-at-cruise-map-design`; unresolved
+> runtime observations must not be promoted to fixes or shipped-visibility
+> claims. Planned work is in [docs/ROADMAP.md](docs/ROADMAP.md).
+
 ## Current state
 
 Cabin Mayhem is a browser-first Vite/Three.js cooperative game with an optional
@@ -23,21 +29,19 @@ and the player stands in an authored compartment served by the streamer. The
 room is no longer aircraft-sized either: the playfield and the atrium are both
 24 m abeam by 46 m fore-and-aft, 12.8 m tall, at one metre per sim unit.
 
-What actually runs today, on top of the ocean:
+What the current checkpoint establishes:
 
-- Moored → preparation → departure → open-sea → approach → docked progression,
-  driven by the telegraph rather than by a debug phase skip.
-- A rate-command helm: the wheel and telegraph hold position, speed is in knots
-  with a long deceleration tail, turning radius is emergent from steerage way,
-  the hull heels outward in a turn and the swell is felt through the deck.
-- Host-authoritative cabin physics, service-cart stock, passenger requests,
-  delivery validation, patience, panic, injury, score and mission outcome.
-- A galley-fire objective with extinguisher ownership, aim and range validation.
-- A deterministic breaker repair: carry the toolbox, aim, hold `E` for three
-  uninterrupted seconds.
-- An icon-first contextual HUD with a closed-by-default `F1` drawer.
-- Free two-player PeerJS/WebRTC rooms, host-authoritative.
-- A landing debrief with reviews and room-preserving replay.
+- First-person cruise-ship presentation with 14 Blender-authored compartments on
+  8 decks, three stair towers, waypoint/elevator travel, and a bridge/commander
+  room.
+- Host-authoritative navigation and invasion slices, GLB crowd/invasion assets,
+  and procedural bounded audio.
+- Source crowd state creates 78 residents across 8 zones, but normal packaged
+  NPC visibility is not proven. Focused E2E `showCrowd()` teleport is not normal
+  startup evidence.
+- A 2026-08-10 user screenshot shows no atrium NPCs and a HUD mismatch:
+  `MOORED` alongside `IMPACT: HYDRAULICS DAMAGED`. Source defaults and trigger
+  gates do not explain that runtime state yet; no root cause or fix is claimed.
 - A 290 m ship: fourteen Blender-authored compartments from the engine room on
   deck 0 to the navigating bridge on deck 9, plus `ship-exterior.glb` — hull,
   sheer, superstructure, balconies, windows, funnels, masts, lifeboats and
@@ -101,14 +105,13 @@ it testable in a suite that has neither. It is app state, never a
 `PlayerCommand` field; nothing local-only is replicated.
 
 Fresh evidence for this slice: all fourteen compartments rebuilt headlessly in
-Blender 5.1.2 (39.08 MB total, 12–17 draw meshes each against a rail of 320);
-`pnpm validate:data` reports 14 compartments on 8 decks inside a 290 × 38 m hull
-with 34 doorways paired, reachable and loop-free; `pnpm validate:assets` reports
-27 project-owned assets and 14 rooms within budget; `tsc --noEmit` clean; 234
-unit tests across 35 files pass; the production build passes with the known
-non-blocking large-chunk warning; Tauri packaging passes.
+Current evidence is recorded in
+[`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md): `pnpm build` passed data
+validation, asset validation, TypeScript checking, and Vite; elevated
+`pnpm desktop:build` passed and produced the Windows EXE, MSI, and NSIS bundles;
+37 live unit files and 262 tests passed with archived bridge worktrees excluded.
 
-Before that, Phase 5 step 4 replaced the airliner interior with streamed ship compartments,
+The following historical notes explain how an earlier Phase 5 step replaced the airliner interior with streamed ship compartments;
 on branch `new-idea-vlone`. `src/data/ship-layout.ts` is a Zod-validated
 compartment graph: four rooms, their sizes, deck numbers, world anchors, per-room
 budgets and a symmetric portal pair per connection, plus `residency(origin)`,

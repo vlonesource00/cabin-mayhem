@@ -1,5 +1,9 @@
 # Technical Architecture
 
+> **Current status (2026-08-10):** This describes current runtime contracts for
+> the first-person cruise checkpoint. Runtime proof gaps and the unresolved NPC
+> / hydraulics observations are tracked in [CURRENT_STATUS.md](CURRENT_STATUS.md).
+
 ## Runtime boundary
 
 TypeScript simulation runs at a fixed 1/60 s step with frame delta bounded to

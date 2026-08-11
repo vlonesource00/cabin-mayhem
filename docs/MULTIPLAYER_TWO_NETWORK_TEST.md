@@ -1,5 +1,9 @@
 # Two-Windows, two-network multiplayer acceptance
 
+> **Current status (2026-08-10):** The real two-Windows/two-network gate remains
+> unproven. Local live unit/build evidence does not replace it. See
+> [CURRENT_STATUS.md](CURRENT_STATUS.md) and [NETWORK_MODEL.md](NETWORK_MODEL.md).
+
 This is the required real-world gate for the two-player room. Two browser
 contexts on one computer are useful automation, but they are not this test.
 

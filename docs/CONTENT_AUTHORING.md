@@ -1,5 +1,9 @@
 # Content Authoring
 
+> **Current status (2026-08-10):** Authored-data and GLB contracts support the
+> current ship checkpoint; runtime observations and planned content are tracked
+> in [CURRENT_STATUS.md](CURRENT_STATUS.md) and [ROADMAP.md](ROADMAP.md).
+
 All authored content is validated data in `src/data/`, separate from mutable
 runtime state in `src/sim/`. Every definition needs a stable ID, a display name,
 authored limits and explicit resolution and cleanup behaviour. Validation must

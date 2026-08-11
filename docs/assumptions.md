@@ -1,7 +1,11 @@
 # Assumptions
 
+> **Current status (2026-08-10):** These assumptions describe current contracts
+> and planned product direction; runtime evidence and unresolved observations are
+> tracked in [CURRENT_STATUS.md](CURRENT_STATUS.md).
+
 - Web/Vite plus Tauri is the product platform. Unity technical direction is translated into web equivalents, not silently mixed in.
-- The premise is a cruise ship ([ADR 0001](adr/0001-cruise-ship-pivot.md)). The airliner vertical at `79bb002` is the last thing that ran; the ship is designed and documented but not implemented.
+- The premise is a cruise ship ([ADR 0001](adr/0001-cruise-ship-pivot.md)). The current checkpoint implements the first-person ship map and navigation/invasion slices; the complete product remains planned. The airliner vertical at `79bb002` is historical.
 - The hull never translates in world coordinates. The ocean, obstacle field and horizon move relative to a stationary hull, and decks respond to derived acceleration. This assumption is load-bearing for float precision and for reusing the existing physics.
 - Phase 1 proved local host/client behaviour with deterministic network simulation. The optional exactly-two-player PeerJS/WebRTC room still depends on external signaling and NAT conditions and is not a production relay service. Crews larger than two assume snapshot deltas that do not exist yet.
 - Presentation is one authored GLB per compartment, assembled in Blender from a shared modular kit on a fixed grid, streamed against a portal graph, with procedural greybox fallback. Gameplay props, hazard effects and interaction proxies remain procedural until their own asset slices.

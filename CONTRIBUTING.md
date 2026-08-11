@@ -1,5 +1,10 @@
 # Contributing
 
+> **Current status (2026-08-10):** Read
+> [docs/CURRENT_STATUS.md](docs/CURRENT_STATUS.md) before proposing cruise-map
+> work. It separates implemented behavior, runtime observations, and roadmap
+> work.
+
 ## Branches
 
 - `novo-main-stable`: the project base. Stable, tested builds only; GitHub Pages deploys from it.

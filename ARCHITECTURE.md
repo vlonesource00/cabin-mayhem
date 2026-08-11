@@ -1,5 +1,9 @@
 # Architecture
 
+> **Current status (2026-08-10):** The checkpoint and its evidence are recorded
+> in [docs/CURRENT_STATUS.md](docs/CURRENT_STATUS.md). Planned systems remain
+> explicitly marked and are tracked in [docs/ROADMAP.md](docs/ROADMAP.md).
+
 ## Scope
 
 Web/Tauri architecture for Cabin Mayhem under the cruise-ship premise
@@ -91,8 +95,9 @@ Renamed:
 
 Planned:
 
-- `helm`: bridge station with rudder and telegraph authority, and host-validated
-  obstacle avoidance. Today the bridge is a place; it is not yet a station.
+- `helm`: broader bridge-station and task expansion beyond the current
+  bridge/commander-room navigation slice. The current navigation slice already
+  uses host-validated bridge presence; broader helm gameplay remains planned.
 - `job-economy`: stock outlets, restocking, cleaning, housekeeping, medical.
 - `defence`: deck weapon mounts and host-validated hits on top of the existing
   boarder population.

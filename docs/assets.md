@@ -1,5 +1,10 @@
 # Asset Catalog
 
+> **Current status (2026-08-10):** Asset presence and validation do not prove
+> packaged runtime visibility. The user-observed atrium screenshot had no NPCs;
+> see [CURRENT_STATUS.md](CURRENT_STATUS.md) and planned follow-up in
+> [ROADMAP.md](ROADMAP.md).
+
 All shipped visuals are project-owned. No external art, characters, cruise-line
 branding or copied game layouts are used.
 
