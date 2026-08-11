@@ -92,6 +92,49 @@ export const cabinDepthContract = Object.freeze({
   logarithmicDepthBuffer: true,
 } as const);
 
+export interface RemoteAvatarTarget {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  compartmentId: string;
+  deck: number;
+}
+
+export type RemoteAvatarPresentation = RemoteAvatarTarget;
+
+export function stepRemoteAvatarPresentation(
+  current: RemoteAvatarPresentation | undefined,
+  target: RemoteAvatarTarget,
+  deltaSeconds: number,
+): RemoteAvatarPresentation {
+  const distance = current
+    ? Math.hypot(target.x - current.x, target.y - current.y, target.z - current.z)
+    : Number.POSITIVE_INFINITY;
+  if (
+    !current ||
+    current.compartmentId !== target.compartmentId ||
+    current.deck !== target.deck ||
+    distance > 12
+  )
+    return { ...target };
+
+  const delta = Math.min(Math.max(deltaSeconds, 0), 0.05);
+  const smoothing = 1 - Math.exp(-12 * delta);
+  const yawDelta = Math.atan2(
+    Math.sin(target.yaw - current.yaw),
+    Math.cos(target.yaw - current.yaw),
+  );
+  return {
+    x: current.x + (target.x - current.x) * smoothing,
+    y: current.y + (target.y - current.y) * smoothing,
+    z: current.z + (target.z - current.z) * smoothing,
+    yaw: current.yaw + yawDelta * smoothing,
+    compartmentId: target.compartmentId,
+    deck: target.deck,
+  };
+}
+
 const servicePassengerStyleIndex = new Map<string, number>(
   serviceSliceDefinition.passengers.map((passenger, index) => [passenger.id, index]),
 );
@@ -168,6 +211,8 @@ export class CabinWorld {
   private firstPersonArms?: RigInstance;
   private readonly passengerRigs = new Map<string, RigInstance>();
   private lastFrameAt?: number;
+  private remotePresent = true;
+  private remotePresentation?: RemoteAvatarPresentation;
 
   public constructor(
     private readonly mount: HTMLElement,
@@ -205,6 +250,9 @@ export class CabinWorld {
     this.canvas.dataset.armsSource = 'rounded-fallback';
     this.canvas.dataset.armsSocket = 'fp_hand_socket.R';
     this.canvas.dataset.audioContinuousSources = '0';
+    this.canvas.dataset.remotePlayerVisible = 'false';
+    this.canvas.dataset.remotePlayerDistance = '0';
+    this.canvas.dataset.remotePlayerInterpolation = 'idle';
 
     // The streamer offsets every resident by its anchor relative to the
     // occupied compartment, so its group sits on the render origin and
@@ -241,7 +289,7 @@ export class CabinWorld {
     this.lastFrameAt = elapsed;
     this.gestures.push(handGestures(this.previousState, state, this.localCrewId), elapsed);
     this.syncRigs(state);
-    this.syncState(state, elapsed, selectedPortalOptionId);
+    this.syncState(state, elapsed, selectedPortalOptionId, delta);
     this.previousState = state;
     // Driven by the authoritative voyage clock, not the render clock, so every
     // client fitted to the same snapshot sees the same wave under the hull.
@@ -249,6 +297,17 @@ export class CabinWorld {
     this.updateRigs(delta);
     this.updateInteraction(state);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  public setRemotePresence(present: boolean): void {
+    this.remotePresent = present;
+    if (!present) {
+      this.remotePresentation = undefined;
+      this.crewBravo.visible = false;
+      this.canvas.dataset.remotePlayerVisible = 'false';
+      this.canvas.dataset.remotePlayerDistance = '0';
+      this.canvas.dataset.remotePlayerInterpolation = 'idle';
+    }
   }
 
   /** The compartment the render origin sits on, for rebasing the free camera. */
@@ -722,7 +781,12 @@ export class CabinWorld {
     void this.compartments.setCurrent(occupied);
   }
 
-  private syncState(state: MissionState, elapsed: number, selectedPortalOptionId?: string): void {
+  private syncState(
+    state: MissionState,
+    elapsed: number,
+    selectedPortalOptionId?: string,
+    deltaSeconds = 0,
+  ): void {
     this.syncResidency(state);
     const origin = this.originCompartmentId;
     const heldKind = this.heldKind(state);
@@ -990,13 +1054,42 @@ export class CabinWorld {
 
     const peerCrewId = this.localCrewId === 'crew-alpha' ? 'crew-bravo' : 'crew-alpha';
     const peer = state.cabin.players[peerCrewId];
-    if (peer) {
+    const remoteVisible = this.remotePresent && Boolean(peer);
+    this.crewBravo.visible = remoteVisible;
+    this.canvas.dataset.remotePlayerVisible = String(remoteVisible);
+    if (remoteVisible && peer) {
       // The peer may be several decks away, so their avatar is placed through
       // their own compartment and rebased onto ours.
-      this.crewBravo.position.copy(cabinToWorld(peer.position, 0, peer.compartmentId, origin));
-      this.crewBravo.position.y += waypointDeckRenderOffset(peer);
-      this.crewBravo.rotation.y = Math.atan2(-peer.facing.x, -peer.facing.y);
+      const targetPosition = cabinToWorld(peer.position, 0, peer.compartmentId, origin);
+      targetPosition.y += waypointDeckRenderOffset(peer);
+      const target: RemoteAvatarTarget = {
+        x: targetPosition.x,
+        y: targetPosition.y,
+        z: targetPosition.z,
+        yaw: Math.atan2(-peer.facing.x, -peer.facing.y),
+        compartmentId: peer.compartmentId,
+        deck: waypointDeckFor(peer),
+      };
+      this.remotePresentation = stepRemoteAvatarPresentation(
+        this.remotePresentation,
+        target,
+        deltaSeconds,
+      );
+      this.crewBravo.position.set(
+        this.remotePresentation.x,
+        this.remotePresentation.y,
+        this.remotePresentation.z,
+      );
+      this.crewBravo.rotation.y = this.remotePresentation.yaw;
       this.crewBravo.rotation.z = peer.knockdown > 0 ? 1.2 : 0;
+      this.canvas.dataset.remotePlayerDistance = this.camera.position
+        .distanceTo(this.crewBravo.position)
+        .toFixed(2);
+      this.canvas.dataset.remotePlayerInterpolation = Math.hypot(
+        target.x - this.remotePresentation.x,
+        target.y - this.remotePresentation.y,
+        target.z - this.remotePresentation.z,
+      ).toFixed(3);
       if (!this.crewBravoRig) {
         const speed = Math.hypot(peer.velocity.x, peer.velocity.y);
         const stride = Math.min(speed / 2.6, 1);
@@ -1008,6 +1101,10 @@ export class CabinWorld {
           limb.rotation.x =
             (index % 2 === 0 ? swing : -swing) * (limb.name === 'crew arm' ? 0.8 : 1);
       }
+    } else {
+      this.remotePresentation = undefined;
+      this.canvas.dataset.remotePlayerDistance = '0';
+      this.canvas.dataset.remotePlayerInterpolation = 'idle';
     }
 
     const health = Math.min(state.voyage.electrical, state.voyage.structure);

@@ -108,6 +108,23 @@ test('two isolated browsers join one host-authoritative WebRTC room', async ({ b
       timeout: 20_000,
     })
     .toBe('connected');
+  await expect
+    .poll(() => host.evaluate(() => window.__CABIN_MAYHEM_TEST__?.roomStatus()?.crewCount))
+    .toBe(2);
+  await expect
+    .poll(() => guest.evaluate(() => window.__CABIN_MAYHEM_TEST__?.roomStatus()?.snapshotMode))
+    .toBe('delta');
+  await expect(guest.getByTestId('three-canvas')).toHaveAttribute(
+    'data-remote-player-visible',
+    'true',
+  );
+  const snapshotSizes = await host.evaluate(() => {
+    const status = window.__CABIN_MAYHEM_TEST__?.roomStatus();
+    return { full: status?.fullSnapshotBytes ?? 0, delta: status?.deltaSnapshotBytes ?? 0 };
+  });
+  expect(snapshotSizes.full).toBeGreaterThan(0);
+  expect(snapshotSizes.delta).toBeGreaterThan(0);
+  expect(snapshotSizes.delta).toBeLessThan(snapshotSizes.full);
 
   await host.evaluate(() => window.__CABIN_MAYHEM_TEST__?.advancePhase());
   await expect
@@ -200,17 +217,6 @@ test('navigation impact and engine-room repair HUD are visible end to end', asyn
   await page.screenshot({ path: 'test-results/navigation-evidence/navigation-damage-repair.png' });
 
   await page.evaluate(() => window.__CABIN_MAYHEM_TEST__?.beginNavigationRepair());
-  console.log(
-    await page.evaluate(() => {
-      const state = window.__CABIN_MAYHEM_TEST__?.state();
-      return {
-        phase: state?.navigation.phase,
-        repair: state?.navigation.repair.status,
-        player: state?.cabin.players['crew-alpha'],
-        toolbox: state?.cabin.objects['toolbox-01'],
-      };
-    }),
-  );
   await expect(page.getByTestId('three-canvas')).toHaveAttribute(
     'data-repair-feedback',
     'repairing',

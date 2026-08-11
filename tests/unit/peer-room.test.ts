@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   createRoomCode,
+  createSnapshotDeltaState,
   missionStateHash,
+  mergeSnapshotPacketResult,
   normalizeRoomCode,
   parseCommandPacketResult,
   parseCommandPacket,
@@ -70,7 +72,7 @@ describe('peer room protocol', () => {
     ).toBeUndefined();
   });
 
-  it('parses the v4 waypoint option command without client-side authority', () => {
+  it('parses the v5 waypoint option command without client-side authority', () => {
     const command = {
       version: protocolVersion,
       type: 'command',
@@ -87,7 +89,7 @@ describe('peer room protocol', () => {
     } as const;
     const parsed = parseCommandPacketResult(command);
     expect(parsed.error).toBeUndefined();
-    expect(parsed.packet?.version).toBe(4);
+    expect(parsed.packet?.version).toBe(5);
     expect(parsed.packet?.command.interactionTargetId).toBe('elevator-option:grand-atrium:deck-4');
   });
 
@@ -129,6 +131,69 @@ describe('peer room protocol', () => {
         },
       }),
     ).toBeUndefined();
+  });
+
+  it('parses, merges, hashes, and rejects malformed snapshot deltas', () => {
+    const session = new HostSession(95);
+    const baseline = session.snapshot();
+    session.step(1 / 60);
+    const next = session.snapshot();
+    const fullPacket = {
+      version: protocolVersion,
+      type: 'snapshot',
+      roomCode: 'ABCD2345',
+      epoch: 1,
+      sequence: 0,
+      sentAt: 100,
+      acknowledgedCommand: -1,
+      stateHash: missionStateHash(baseline),
+      state: baseline,
+    } as const;
+    const deltaPacket = {
+      version: protocolVersion,
+      type: 'snapshot-delta',
+      roomCode: 'ABCD2345',
+      epoch: 1,
+      sequence: 1,
+      sentAt: 200,
+      acknowledgedCommand: -1,
+      stateHash: missionStateHash(next),
+      state: createSnapshotDeltaState(next),
+    } as const;
+
+    const parsed = parseSnapshotPacketResult(deltaPacket);
+    expect(parsed.error).toBeUndefined();
+    expect(JSON.stringify(deltaPacket).length).toBeLessThan(JSON.stringify(fullPacket).length);
+    expect(mergeSnapshotPacketResult(undefined, deltaPacket).error?.message).toContain(
+      'before full snapshot',
+    );
+    const merged = mergeSnapshotPacketResult(baseline, parsed.packet!);
+    expect(merged.error).toBeUndefined();
+    expect(JSON.parse(JSON.stringify(merged.packet))).toEqual(JSON.parse(JSON.stringify(next)));
+    expect(missionStateHash(merged.packet!)).toBe(deltaPacket.stateHash);
+
+    const firstResident = deltaPacket.state.crowd.residents['guest-001'];
+    const forged = {
+      ...deltaPacket,
+      state: {
+        ...deltaPacket.state,
+        crowd: {
+          ...deltaPacket.state.crowd,
+          residents: {
+            ...deltaPacket.state.crowd.residents,
+            'guest-001': { ...firstResident, name: 'forged' },
+          },
+        },
+      },
+    };
+    expect(parseSnapshotPacket(forged)).toBeUndefined();
+    expect(
+      mergeSnapshotPacketResult(baseline, {
+        ...deltaPacket,
+        state: createSnapshotDeltaState(next),
+        stateHash: '00000000',
+      }),
+    ).toMatchObject({ error: { kind: 'invalid' } });
   });
 
   it('rejects incompatible command, welcome, and snapshot versions explicitly', () => {

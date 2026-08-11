@@ -172,7 +172,7 @@ export class CabinMayhemApp {
         </button>
         <aside class="critical-icons" aria-label="Critical cabin status">
           <div class="critical-icon" data-critical="fire" data-testid="fire-status">${icon('fire')}<strong data-hud="fire-status">CLEAR</strong></div>
-          <div class="critical-icon" data-critical="panic">${icon('people')}<strong data-hud="panic">0</strong></div>
+          <div class="critical-icon" data-critical="panic" aria-label="Passenger panic count">${icon('people')}<span>PANIC</span><strong data-hud="panic">0</strong></div>
           <div class="critical-icon" data-critical="held">${icon('hand')}<strong data-hud="held">EMPTY</strong></div>
           <div class="critical-icon" data-critical="muted" data-testid="audio-muted">${icon('mute')}<strong>MUTED</strong></div>
         </aside>
@@ -192,7 +192,9 @@ export class CabinMayhemApp {
         <section class="radio-caption" data-hud="caption" aria-live="polite">Host ready. Local client connected.</section>
         <aside class="room-chip" data-testid="room-status" aria-live="polite">
           <span data-room="role">SOLO</span>
+          <strong data-room="crew">CREW 1/2</strong>
           <strong data-room="message">LOCAL CABIN</strong>
+          <strong data-room="telemetry">RTT 0MS / TX 0B / RX 0B / SNAP WAIT / DROP 0</strong>
           <button data-action="copy-room" type="button" hidden><span data-room="code"></span> / COPY</button>
         </aside>
         <section class="debrief" data-testid="landing-debrief" aria-labelledby="debrief-title" aria-hidden="true" hidden>
@@ -669,9 +671,29 @@ export class CabinMayhemApp {
       shell.dataset.roomCode = status.roomCode;
       shell.dataset.roomTick = String(status.remoteTick);
       shell.dataset.stateHash = status.stateHash;
+      shell.dataset.crewCount = String(status.crewCount);
+      shell.dataset.playersConnected = String(status.playersConnected);
+      shell.dataset.latencyMs = String(status.latencyMs);
+      shell.dataset.bytesSent = String(status.bytesSent);
+      shell.dataset.bytesReceived = String(status.bytesReceived);
+      shell.dataset.snapshotMode = status.snapshotMode;
+      shell.dataset.snapshotDrops = String(status.snapshotDrops);
+      shell.dataset.snapshotRejected = String(status.snapshotRejected);
+      shell.dataset.snapshotPacketsSent = String(status.snapshotPacketsSent);
+      shell.dataset.snapshotPacketsReceived = String(status.snapshotPacketsReceived);
+      shell.dataset.snapshotBytesSent = String(status.snapshotBytesSent);
+      shell.dataset.snapshotBytesReceived = String(status.snapshotBytesReceived);
+      shell.dataset.fullSnapshotBytes = String(status.fullSnapshotBytes);
+      shell.dataset.deltaSnapshotBytes = String(status.deltaSnapshotBytes);
     }
+    this.world?.setRemotePresence(status.role === 'solo' || status.playersConnected > 1);
     this.text('[data-room="role"]', status.role.toUpperCase());
+    this.text('[data-room="crew"]', `CREW ${status.crewCount}/2`);
     this.text('[data-room="message"]', status.message.toUpperCase());
+    this.text(
+      '[data-room="telemetry"]',
+      `RTT ${status.latencyMs}MS / TX ${formatNetworkBytes(status.snapshotBytesSent)} / RX ${formatNetworkBytes(status.snapshotBytesReceived)} / SNAP ${status.snapshotMode.toUpperCase()} / DROP ${status.snapshotDrops}`,
+    );
     this.text('[data-room="code"]', status.roomCode);
     const copy = this.root.querySelector<HTMLButtonElement>('[data-action="copy-room"]');
     if (copy) copy.hidden = status.role !== 'host' || !status.roomCode;
@@ -1264,6 +1286,11 @@ function doorPrompt(player: PlayerState | undefined, selectedId?: string): strin
 function headingLabel(heading: number): string {
   const degrees = Math.round(((heading % 360) + 360) % 360) % 360;
   return String(degrees).padStart(3, '0');
+}
+
+function formatNetworkBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  return `${(bytes / 1024).toFixed(1)}KB`;
 }
 
 function icon(name: IconName): string {

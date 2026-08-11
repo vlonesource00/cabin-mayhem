@@ -1,277 +1,238 @@
 # Game Design
 
-> **Current status (2026-08-10):** This document separates the implemented
-> first-person cruise checkpoint from the planned product north star. Read
-> [CURRENT_STATUS.md](CURRENT_STATUS.md) for exact evidence and unresolved
-> runtime observations; use [ROADMAP.md](ROADMAP.md) for sequencing.
+> **Design status:** This document records the product intent and the boundary
+> of the current cruise checkpoint. It does not convert planned systems into
+> shipped features. See [PROJECT_BASELINE.md](PROJECT_BASELINE.md) for the
+> evidence matrix and [ROADMAP.md](ROADMAP.md) for delivery gates.
 
 ## Vision
 
-Cabin Mayhem is an original first-person cooperative cruise-ship game. Players
-are the entire crew of one ship: they steer it, keep guests fed and unoffended,
-restock it, repair what breaks, clean up what nobody wants to clean up, and
-fight back when something boards it. The ship really moves across an ocean, and
-everything that happens to it is felt as physical comedy below deck.
+_MS Cabin Mayhem_ puts one to four crew members inside a detailed, moving cruise
+ship. The ship is not a menu backdrop: its momentum, decks,
+stairs, cabins, public rooms, exterior walks, machinery, guests, and weather
+create the work.
 
-The core tension is that the ship always needs a person somewhere else. Every
-job takes a crew member out of position, and the ship does not wait.
+Players steer and dodge hazards, carry the right item to the right person,
+restock outlets before they fail, repair damage under pressure, respond to
+disasters, repel pirates with a small practical arsenal, and turn a successful
+shift into better capability for the next route.
 
-## Pillars
+The tone is physical, readable, and cooperative. The comedy comes from
+coordination under ship motion and cascading problems, not from making the
+simulation arbitrary.
 
-- **The ship is one shared body.** Steering, damage and sea state produce
-  readable consequences on every deck. A hard turn to dodge an iceberg throws
-  loose trays across the buffet three decks up.
-- **Physical comedy with rules.** Mass, friction, impact tolerance, securing and
-  ownership stay visible and simulated. The joke is the physics, not a canned
-  animation.
-- **Presence is the resource.** There is one helm, one engine room and many
-  jobs. Deciding who abandons what is the main decision the crew makes.
-- **Readable escalation.** Ignored problems compound into related problems. A
-  missed dodge breaches the hull; the breach floods; the flood kills a
-  generator; the dark casino makes guests furious. Nothing is a disconnected
-  random event.
-- **Repair, defend, upgrade.** Damage is survivable and fixable. Money earned
-  from a good voyage buys hull, weapons, radar and capacity that make the next
-  voyage's jobs tractable.
+## Design pillars
 
-## The ship
+### A moving, legible ship
 
-_MS Cabin Mayhem_ — six decks, roughly twenty-five discrete compartments at the
-initial scope and room to grow past seventy, from the bilge to the bridge. The
-full compartment graph, what each room is for and which hazards live in it are in
-[`SHIP_LAYOUT.md`](SHIP_LAYOUT.md).
+The ship must feel like a place. A player should know which deck they occupy,
+where the stair tower leads, why the bridge is far from the engine room, and how
+an exterior deck relates to the hull. Motion affects the cabin simulation; the
+renderer presents the host-owned result.
 
-The hull stays at the local origin. The ocean, weather and obstacle field move
-relative to it, which keeps float precision stable and lets the same
-vehicle-local physics from the aircraft build carry over unchanged.
+**Current label: Implemented foundation.** The source has 14 compartments across
+8 occupied decks, three stair towers, an exterior asset, portal travel, and
+ship/ocean state. Full route performance and all arrival/spawn geometry are not
+yet proven.
 
-## Voyage structure
+### Work with consequences
 
-A voyage is a bounded run with a fixed authored duration, the successor to the
-old flight phases:
+Tasks should be concrete: select a request, find or restock an item, carry it
+through space, interact at the correct target, and deal with what changed while
+the crew was away. A missed guest should affect satisfaction; a delayed repair
+should affect ship state; a wrong action should explain its rejection.
 
-```text
-moored -> preparation -> departure -> open-sea -> (incidents) -> approach -> docked
-                                                                          -> foundered
-```
+**Current label: Partial.** The current service primitive has eight passengers,
+three request types, a finite cart, matching delivery, patience, and score. It
+does not yet provide a cross-deck task board or the complete resort economy.
 
-`preparation` is the calm before the run: pick the route, read the weather
-forecast for it, buy supplies and fuel, spend the last voyage's payout on
-upgrades, and agree who starts where. It is the only moment the crew can plan
-instead of react, and every choice made there is a number the rest of the voyage
-reads.
+### Hazards are chains
 
-`open-sea` is where the game is. Incidents are scheduled on the deterministic
-mission clock and by escalation, never by a random director.
+An incident should be a short story: warning, decision, consequence, recovery,
+and debrief. Navigation can damage steering; fire can raise pressure; later
+disasters will combine system damage, passenger state, ship location, and time.
 
-A voyage ends in a debrief: guest reviews, jobs completed and missed, hull and
-system condition, incidents survived, and the payout that funds upgrades.
+**Current label: Partial.** One navigation incident, a galley fire, and two
+bounded repair targets exist. Flooding, bilge pumps, breach sealing, power loss,
+incident chaining, and a full disaster catalogue are planned.
 
-## Jobs
+### Defence is an escalation, not the whole game
 
-Jobs are the ordinary work. They are always available, they compete with
-incidents for crew attention, and neglecting them loses the voyage slowly rather
-than dramatically.
+Pirates are a scripted threat that interrupts the crew's ordinary work. Defence
+should ask where to stand, which link or attacker matters, and when to use a
+weapon. It should remain shallow enough that service, navigation, repair, and
+ship awareness stay central.
 
-| Job               | Where                         | Loop                                                                                                               |
-| ----------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Guest requests    | Cabins, dining, bars, pool    | Take the right item from stock, carry it to the guest who asked. Direct descendant of the current service mission. |
-| Restocking        | Cold store, mall, bar, buffet | Move goods from the hold to the outlet that ran dry. Empty outlets stop earning and start annoying.                |
-| Pool cleaning     | Pool deck                     | Contamination accumulates; skim and treat it before guests notice.                                                 |
-| Bird strikes      | Any exterior deck             | Flocks foul railings, loungers and the pool. Cosmetic, then reputational.                                          |
-| Medical           | Medical bay, anywhere         | Injured or ill guests need a medkit or an escort to the bay.                                                       |
-| Waste and laundry | Lower decks                   | Deferrable, unglamorous, compounding.                                                                              |
-| Housekeeping      | Guest cabins                  | Cabin state decays over a voyage.                                                                                  |
+**Current label: Partial.** Host-owned boarding phases, boarding links,
+passenger/infrastructure pressure, and presentation GLBs exist. Weapon assets
+are present, but combat AI, target/hit resolution, firearm/melee semantics,
+**Planned:** bomb objectives and persistent boarding damage are not part of the
+current boarding slice.
 
-## Incidents
+### Specificity without render debt
 
-Incidents interrupt. Each has a warning, a window, a required response and a
-consequence for failing.
+Blender-authored GLBs define the ship's visual identity, character rigs, crowd
+looks, invasion loadouts, and future interaction props. Data definitions and
+host simulation define collision, targets, portals, tasks, and outcomes. A bad
+GLB must degrade to a playable greybox or explicit partial fallback.
 
-| Incident                 | Warning                                      | Response                                                                                                                     |
-| ------------------------ | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **Collision course**     | Radar contact, HUD bearing, impact countdown | Someone reaches the bridge and steers clear before the timer expires. Icebergs, containers, reefs, derelicts, other vessels. |
-| **Hull breach**          | Flooding alarm, list to one side             | Patch the breach, run the bilge pumps, seal the compartment.                                                                 |
-| **Fire**                 | Smoke, alarm                                 | Extinguisher, correct range and aim. Reuses the existing fire system.                                                        |
-| **Power failure**        | Lights out, systems degrade                  | Toolbox to the breaker, hold to repair. Reuses the existing repair system.                                                   |
-| **Engine breakdown**     | Speed drops, vibration                       | Engine-room repair under time pressure while the ship cannot manoeuvre.                                                      |
-| **Rogue wave / tsunami** | Horizon warning, long countdown              | Secure loose objects, close hatches, brace. Everything unsecured becomes a projectile.                                       |
-| **Pirates**              | Radar contact closing, then grapples         | Man the deck weapons, repel boarders, defend key compartments.                                                               |
-| **Man overboard**        | Guest alarm                                  | Turn the ship, launch the tender, recover them.                                                                              |
-| **Dense fog**            | Visibility collapses                         | Radar becomes the only sensor; warning lead times shorten and speed must come off.                                           |
-| **Ship failure**         | A subsystem stops                            | Stuck elevator, dead lighting circuit, broken shop equipment, failed refrigeration. Small, frequent, cumulative.             |
-| **Guest incident**       | A guest report                               | Lost child, fight, theft, food shortage, seasickness outbreak. Reputation damage if ignored.                                 |
+**Current label: Implemented for existing contracts; Partial for full content.**
+The manifest, Blender sources, loaders, root/portal/socket/Action checks, and
+fallback paths exist. Hardware performance remains an evidence gap.
 
-The obstacle field is not just icebergs: floating containers, reefs, derelicts,
-drifting mines, rock formations, whirlpools, waterspouts and other vessels all
-resolve through the same collision-course machinery with different sizes,
-clearance margins and consequences. Large sea creatures are the same shape of
-problem with a different silhouette.
+## Player shift loop
 
-Incidents chain. Collision causes breach causes flood causes power loss causes
-angry guests in a dark casino. That chain is the difficulty curve, not a
-difficulty slider.
+| Step    | Player experience                                                                                              | Current label                                                                                                              |
+| ------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Prepare | Choose a route, inspect risk, assign people, buy supplies, and agree on priorities.                            | **Planned.** The source has voyage phase values but not the complete preparation economy or upgrade console.               |
+| Sail    | Read the sea, steer the ship, move through the vessel, and respond to warnings.                                | **Partial.** Moving ship, ocean state, first-person scene, portals, and one navigation incident exist.                     |
+| Work    | Serve guests, restock, clean, cook, repair, and keep systems moving.                                           | **Partial.** One bounded service/cart/repair primitive exists; task board and broad job catalogue are planned.             |
+| Respond | Handle fire, flooding, collision, weather, guest emergencies, and boarders.                                    | **Partial.** Fire, navigation, repair, and boarding foundations exist; full disaster chains do not.                        |
+| Recover | Finish the route, inspect damage and reviews, and understand what was lost.                                    | **Partial.** Current debrief reports bounded service/incident outcomes; it is not yet the full economy/progression result. |
+| Improve | Spend payout on navigation, engineering, safety, passenger service, defence, and quality-of-life improvements. | **Planned.** No authoritative upgrade or persistence state exists in the current mission model.                            |
 
-### The dodge, specifically
+## The ship as a play space
 
-This is the mechanic the whole crew layout exists to serve.
+The current authored layout is the first playable vessel, not the final content
+ceiling. The design uses:
 
-1. The host spawns an obstacle on a collision bearing at a known distance, with
-   a time-to-impact derived from closing speed.
-2. Every client shows the same authoritative warning: what it is, which bearing,
-   and a countdown.
-3. A crew member has to physically get to the bridge. Nobody steers from the
-   buffet.
-4. The host validates avoidance: a player is at the helm, rudder input is
-   applied, and the resulting track clears the obstacle by the authored margin.
-5. Clearing it costs speed and throws everything loose on every deck. Missing it
-   breaches the hull.
+- A 290 m hull frame, fixed deck datum, and ship-local coordinates.
+- Fourteen authored compartments from engine room to bridge, including public
+  rooms, cabin decks, open decks, and three stair towers.
+- Portal pads, doors, and elevator stops derived from validated data. Travel is a
+  host action, not a client teleport.
+- One GLB per compartment plus an always-resident exterior. Current residency is
+  the occupied room and direct neighbours at full detail, second-hop rooms at
+  reduced detail, and nothing beyond.
+- Procedural collision/interaction proxies that remain valid if a GLB falls back.
 
-The cost of success is deliberate. Dodging is never free, and the crew feels it
-in the mess it makes elsewhere.
+The layout contract is documented in [SHIP_LAYOUT.md](SHIP_LAYOUT.md) and
+implemented in [`ship-layout.ts`](../src/data/ship-layout.ts). New rooms should
+earn their place by adding a distinct job, hazard, sightline, or recovery route;
+room count alone is not progression.
 
-## Defence and upgrades
+## Work catalogue
 
-Pirates are a major scripted event, not a constant combat mode, and they arrive
-only once the ship-operation loop is fun without them. The attack runs in
-stages: vessel detected, warning, approach and incoming fire, defensive stations
-manned, boarders land, key compartments contested, survivors retreat, damage
-repaired, salvage collected.
+| Work type              | Design role                                                                    | Status                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Guest request          | Match need, item, guest, range, and timing.                                    | **Partial:** drink/meal/medical service slice in current data.                                            |
+| Restocking             | Move finite supply from a source to an outlet before guests feel the shortage. | **Planned as a complete cross-deck loop:** current cart take/return is a primitive, not a supply network. |
+| Housekeeping           | Clean cabins and public spaces; neglect compounds.                             | **Planned.** Ambient `housekeeping` activity is presentation, not a job system.                           |
+| Pool care              | Clean/treat pool systems before guest and reputation penalties.                | **Planned.** Pool-deck GLB and ambient swimming do not prove pool gameplay.                               |
+| Cooking and service    | Coordinate galley production and delivery under motion.                        | **Planned.** Current `main-galley` is map content; current service definitions are atrium-focused.        |
+| Medical/guest response | Treat or escort an injured/ill guest.                                          | **Planned.** `medical` is a current request type, not a medical bay or escort system.                     |
+| Cleaning/waste/laundry | Low-glamour jobs that become urgent when deferred.                             | **Planned.** No economy or schedule exists.                                                               |
+| Repair                 | Hold the correct tool at the correct host-authored target under pressure.      | **Partial:** galley breaker and engine-room steering relay.                                               |
+| Navigation             | Read the warning, reach the bridge, and clear the track.                       | **Partial:** one host-owned incident.                                                                     |
+| Fire response          | Use the correct extinguisher at range; accept pressure and scoring.            | **Partial:** galley fire only.                                                                            |
+| Pirate defence         | Detach boarding links, protect guests, then add bounded weapon actions.        | **Partial:** current state/presentation; combat contract is Slice C.                                      |
 
-The arsenal is a real one — pistols, shotguns, rifles, submachine guns, flare
-guns, mounted machine guns — alongside water cannons, stun equipment and
-automated turrets. Combat stays mechanically simpler than a dedicated shooter:
-no recoil patterns, attachment trees or reload minigames. It is a tool you pick
-up during one incident, not the game's core verb.
+## Hazards and disaster design
 
-Upgrades are bought with voyage payouts and persist between runs:
+The intended escalation is:
 
-- **Navigation** — radar range, rudder response, autopilot, earlier hazard
-  warnings, storm prediction
-- **Engineering** — engine power, fuel economy, repair speed, automatic pumps,
-  redundant electrical
-- **Safety** — lifeboats, fire suppression, reinforced doors, medical capacity,
-  emergency lighting
-- **Passenger services** — better restaurants, larger retail, improved cabins,
-  new entertainment, higher passenger capacity
-- **Defence** — weapons, turrets, armour, boarding detection, security doors
-- **Crew efficiency** — faster trolleys, larger carry capacity, better tools,
-  cleaning robots, comms
+1. **Signal:** warning and location are visible to every player from the host
+   snapshot.
+2. **Choice:** the crew chooses route, tool, station, or defence action.
+3. **Pressure:** time, passenger panic, stock, ship motion, or system integrity
+   makes delay meaningful.
+4. **Consequence:** host applies deterministic damage, score, passenger, or
+   voyage-state changes.
+5. **Recovery:** the crew performs a valid repair, pump, delivery, defence, or
+   escort action.
+6. **Review:** debrief reports what happened without inventing a client outcome.
 
-Every upgrade must change an authored number that an existing system already
-reads. An upgrade that needs a new subsystem is a new slice, not an upgrade.
+The first complete disaster should reuse current fire/repair contracts and add
+only one new failure chain. A larger incident catalogue comes after one chain is
+measured and fun.
 
-Players unlock cosmetics and small conveniences of their own — uniforms, tool
-skins, accessories, emotes, titles, extra inventory slots, task perks. Player
-progression must never make an unupgraded player useless on someone else's ship.
+## Pirate and arsenal design
 
-## Authority
+Pirates should create a clear boarding lane, not a second game. Initial defence
+should have:
 
-Unchanged and non-negotiable: `HostSession` decides everything. The client
-raycasts a candidate and submits intent; the host validates tool, target,
-ownership, range and state. Presentation, audio and animation are pure
-projections of authoritative snapshots.
+- A warning and approach window.
+- A physical boarding board and gangway that can be detached.
+- A small number of hostiles with readable positions and objectives.
+- A weapon presentation contract for one pistol and one cutlass.
+- Host-validated target, range, cooldown/availability, hit, damage, and score.
+- Passenger protection and ship-infrastructure stakes.
 
-**Animation never decides whether a dodge, a repair, a delivery, a suppression
-or a hit succeeds.** Neither does the renderer, the HUD or the audio layer.
+The arsenal can grow later through water cannons, stun equipment, turrets, and
+firearms, but each weapon must change a bounded simulation value or action. A GLB
+with an `Aim` or `Fire` Action is not a working weapon.
 
-## Current playable boundary
+## Authority and co-op contract
 
-The airliner vertical at `79bb002` is a historical boundary note. The current
-checkpoint is the first-person cruise-ship map plus host-authoritative
-navigation/invasion slices; the rest of the product remains planned. The source
-creates 78 ambient residents, but normal packaged NPC visibility is not proven.
+`HostSession` decides phase, voyage, player compartment, portal travel,
+interactions, object ownership, service results, fire/repair state, navigation,
+boarding state, crowd state, score, and events. A client may raycast or highlight
+a candidate, then submit intent. The host rechecks everything from its own state.
+
+Presentation follows the snapshot:
+
+- HUD explains current host state and rejected intent.
+- Three.js presents loaded GLBs, animation, feedback, and camera framing.
+- Animation never decides delivery, repair, dodge, hit, damage, or score.
+- Network role changes who steps simulation; it does not create a second ruleset.
+
+Current transport is a protocol-4 host/guest prototype with local simulated
+latency/loss tests and opt-in PeerJS/WebRTC room code. Separate-machine,
+separate-network acceptance is still a proof gate.
+
+## Progression design
+
+Progression is deliberately deferred until the task and disaster numbers are
+real. The eventual lines are:
+
+- **Navigation:** radar range, rudder response, warning lead, autopilot support.
+- **Engineering:** propulsion, fuel economy, repair speed, pump capacity.
+- **Safety:** hull integrity, fire suppression, compartment sealing, evacuation.
+- **Passenger service:** stock capacity, patience margin, service speed, guest
+  satisfaction.
+- **Defence:** boarding detection, weapons, turrets, armour, security doors.
+- **Quality of life:** inventory, cosmetics, task affordances, accessibility.
+
+Every upgrade must modify a value an existing host system reads. Persistence
+must include profile version, currency, reset, migration, and failure handling;
+otherwise it is decoration, not progression.
 
 ## Crew size
 
-The target is one to four players. One player is a valid session: task pressure
-scales down with crew size and, later, hired AI crew can cover a station. Two is
-what the current room code supports, and four needs snapshot delta compression
-first — see Phase 11 in [`ROADMAP.md`](ROADMAP.md). Drop-in and drop-out joining
-comes with that same slice.
+The product target is one to four players. The current proven mode is one host
+plus one guest, with host `crew-alpha` and guest `crew-bravo`. Solo support is a
+valid product goal, but task pressure cannot simply assume four workers. Scale
+work must add explicit pressure rules, snapshot relevance/deltas, and reconnect
+tests before claiming four-player co-op.
 
-## Camera
+## Current boundary
 
-First person, settled in [ADR 0002](adr/0002-first-person-camera.md). The
-authored `CM_FPARMS_ROOT` arms rig, pointer-lock capture and camera-forward
-interaction raycasting all stay. You see crewmates when they are in front of you,
-on the shared humanoid rig; you never see yourself.
+**Implemented:** first-person cruise scene; ship/ocean foundation; authored
+compartments and portal travel; host authority; GLB/fallback contracts; bounded
+service, fire, repair, and navigation slices; host-owned ambient crowd; authored
+boarding presentation; current HUD/debrief.
 
-## Open decisions
+**Partial:** full player-visible crowd at normal start is now covered for the
+atrium, but other arrival positions remain unverified; invasion assets present
+without combat; local/opt-in room paths without two-network proof; performance
+rails without hardware smoke; service primitives without task board/economy.
 
-- **Hidden compartments.** Restricted areas — a reinforced command centre, a
-  smuggler's hold, a sealed lower deck — are an attractive progression hook but
-  need a gating rule that is not just "buy the upgrade". Not scoped yet.
+**Planned:** task board; one complete guest/restock/repair loop; pirate weapon
+contract; disaster chain; upgrades/persistence; scale; more jobs and content.
 
-## Deferred deliberately
+## Deliberate non-claims
 
-Weather beyond scripted sea state and fog, autonomous guest pathfinding across
-decks, ports and shore excursions, recorded audio, matchmaking, and any economy
-beyond the voyage payout and cosmetic player unlocks.
+Do not claim any of the following from the current map, GLBs, HUD labels, or
+design prose alone:
 
-## Current product boundary: navigation slice and planned north star
+- A complete cruise-job catalogue or economy.
+- Progressive flooding, bilge pumps, power-loss chaining, or full disasters.
+- Playable firearms/melee combat, combat AI, bomb search/disarm, or persistent
+  pirate damage.
+- Arsenal upgrades, route progression, currency, save/load, or player profiles.
+- Four-player balance, solo pressure scaling, or separate-network multiplayer.
+- Hardware frame-rate, draw-call, texture-memory, or transition guarantees.
+- Autonomous guest needs/schedules merely because 78 ambient residents exist.
 
-This section supersedes the older airliner-boundary note above. The current
-browser slice is a cruise-ship navigation incident, not the complete product.
-
-### Implemented now
-
-- `HostSession` owns a deterministic collision-course incident with an explicit
-  36-second production warning/countdown (the 3-second debug trigger is test-only).
-  A moving authored contact is represented relative to a ship that stays at local
-  origin. The current vessel is a Blender-authored source/GLB pair
-  (`assets-src/blender/build_navigation_obstacle.py` plus
-  `navigation-obstacle-vessel.blend` → `public/assets/obstacles/navigation-vessel.glb`),
-  loaded by `NavigationObstaclePresenter`; procedural geometry is only an explicit
-  load-failure/future-kind fallback.
-- Avoidance requires a live player to be in the authored `bridge` compartment's
-  helm interaction area. The host rejects rudder, telegraph and emergency-stop
-  intent from a remote or incorrectly located player. A clear track awards the
-  authored +35 avoidance bonus.
-- Missing the contact applies host-owned steering-hydraulics damage and a score
-  loss. The repair objective is the authored `engine-room` relay station;
-  holding the host-validated toolbox in range completes it, restores the damage,
-  awards the repair transition, and records the result.
-- Both solo and PeerRoom snapshots expose the incident phase, countdown,
-  obstacle position, damage, repair location and outcome. HUD captions, the
-  warning card and the engine-room relay marker project that state. A debug
-  trigger exists for deterministic test and designer iteration.
-- PeerRoom is protocol v3. Navigation, crowd and cabin-object subtrees are strict at
-  the snapshot boundary, while the untouched mission subtrees remain
-  passthrough-validated; this is not a claim of full MissionState hardening.
-- The current interaction registry has a central feedback contract in
-  `src/three/interactable-feedback.ts`. Objects, passengers, fire, both repair
-  stations, helm and portal prompts all receive bounded visible feedback;
-  authored skeletal clips are used where the existing GLB animation contracts
-  provide them, with transform/material/light feedback for prop/station-only
-  interactions.
-- `HostSession` now owns a bounded pirate boarding flow from warning and approach
-  through boarders aboard, passenger/infrastructure pressure, link detachment,
-  repel or failure. `InvasionPresenter` loads eight validated Blender GLBs and
-  deterministically stages pirate/saboteur characters, weapons, boarding links
-  and gear from the authoritative snapshot. The HUD exposes the invasion warning,
-  countdown, hostile count and protection stakes.
-- `HostSession` owns 78 ambient residents distributed across eight cruise areas.
-  The occupied area renders the shared Blender passenger rig with authored
-  activity clips; invasion phases make the entire crowd evacuate.
-
-### Planned, not implemented in this slice
-
-- **Remaining invasions and security:** a playable bomb threat with bomber search
-  and disarm, combat AI, firearms/melee hit resolution, passenger escort and
-  persistent post-incident damage. The delivered pirate slice provides boarding,
-  pressure, link detachment and score consequences but not the complete defence game.
-- **Cruise jobs:** room service, pool cleaning, DJ performance, cooking with
-  chefs, mall/restaurant/bar restocking, passenger photography framed only as a
-  consensual performer or explicit guest-request challenge, plus further resort
-  work. These are design targets, not implemented claims here.
-- **Crowds and ship scale:** the first autonomous 78-resident layer now visibly
-  walks, socializes, dines, cooks, performs housekeeping, takes photographs,
-  swims, sunbathes and evacuates. The full resort, cross-deck schedules,
-  shopping economy and richer reactions are not implemented yet.
-- **Further map/obstacle expansion:** exterior hull and open decks, additional
-  decks and compartments, stairwell routes, and bespoke Blender-authored GLBs for
-  drifting containers, reefs, derelicts and other vessels. The current obstacle
-  renderer is extensible, but only the vessel GLB is delivered in this slice.
-  The unfinished exterior and compartment work remains intentionally in scope for
-  later slices.
+Next implementation decisions are frozen in [ROADMAP.md](ROADMAP.md), starting
+with the task surface rather than adding more map or more assets.

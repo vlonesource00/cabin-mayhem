@@ -5,9 +5,10 @@ interface FakeConnectionShape {
   open: boolean;
   sent: unknown[];
   closed: boolean;
+  sendBehavior?: (value: unknown) => void | Promise<void>;
   on(event: string, listener: (...args: unknown[]) => void): void;
   emit(event: string, ...args: unknown[]): void;
-  send(value: unknown): void;
+  send(value: unknown): void | Promise<void>;
   close(): void;
 }
 
@@ -29,6 +30,7 @@ vi.mock('peerjs', () => {
     public open = false;
     public sent: unknown[] = [];
     public closed = false;
+    public sendBehavior?: (value: unknown) => void | Promise<void>;
     private listeners = new Map<string, Array<(...args: unknown[]) => void>>();
 
     public constructor(metadata?: unknown) {
@@ -45,7 +47,8 @@ vi.mock('peerjs', () => {
       for (const listener of this.listeners.get(event) ?? []) listener(...args);
     }
 
-    public send(value: unknown): void {
+    public send(value: unknown): void | Promise<void> {
+      if (this.sendBehavior) return this.sendBehavior(value);
       this.sent.push(structuredClone(value));
     }
 
@@ -99,6 +102,8 @@ vi.mock('peerjs', () => {
 });
 
 import {
+  createSnapshotDeltaState,
+  missionStateHash,
   parseCommandPacketResult,
   PeerRoom,
   protocolVersion,
@@ -178,6 +183,26 @@ describe('PeerRoom connection lifecycle', () => {
     expect(connection.sent).toHaveLength(1);
   });
 
+  it('does not count a command packet when queueing throws', async () => {
+    const room = new PeerRoom();
+    const joined = room.join('ABCD2345');
+    const peer = peerInstances[0]!;
+    peer.emit('open', 'guest-peer');
+    const connection = peer.connections[0]!;
+    connection.open = true;
+    connection.emit('open');
+    connection.emit('data', welcome('ABCD2345'));
+    await joined;
+    connection.sendBehavior = () => {
+      throw new Error('command queue failed');
+    };
+
+    room.sendCommand(emptyCommand(), 0);
+
+    expect(room.status()).toMatchObject({ phase: 'error', bytesSent: 0 });
+    expect(connection.sent).toHaveLength(0);
+  });
+
   it('reserves a host slot while the first valid guest is still handshaking', async () => {
     const room = new PeerRoom();
     const hosting = room.host();
@@ -196,6 +221,117 @@ describe('PeerRoom connection lifecycle', () => {
     accepted.emit('open');
     expect((accepted.sent[0] as { type: string }).type).toBe('welcome');
     expect(room.status().phase).toBe('connected');
+  });
+
+  it('does not connect or count bytes when the welcome send throws synchronously', async () => {
+    const room = new PeerRoom();
+    const hosting = room.host();
+    const peer = peerInstances[0]!;
+    peer.emit('open', 'cabin-mayhem-abcd2345');
+    const roomCode = await hosting;
+    const connection = peer.connect('ignored', {
+      metadata: { protocol: protocolVersion, role: 'crew-bravo', roomCode },
+    });
+    connection.sendBehavior = () => {
+      throw new Error('welcome queue failed');
+    };
+
+    peer.emit('connection', connection);
+    connection.open = true;
+    connection.emit('open');
+
+    expect(connection.closed).toBe(true);
+    expect(room.status()).toMatchObject({ phase: 'error', bytesSent: 0 });
+  });
+
+  it('retries a full baseline without false telemetry after an async snapshot rejection', async () => {
+    const room = new PeerRoom();
+    const hosting = room.host();
+    const peer = peerInstances[0]!;
+    peer.emit('open', 'cabin-mayhem-abcd2345');
+    const roomCode = await hosting;
+    const connection = peer.connect('ignored', {
+      metadata: { protocol: protocolVersion, role: 'crew-bravo', roomCode },
+    });
+    peer.emit('connection', connection);
+    connection.open = true;
+    connection.emit('open');
+    const welcomeBytes = room.status().bytesSent;
+
+    connection.sendBehavior = () => Promise.reject(new Error('snapshot delivery failed'));
+    room.sendSnapshot(new HostSession(99).snapshot(), 0);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(room.status()).toMatchObject({
+      phase: 'connected',
+      bytesSent: welcomeBytes,
+      snapshotPacketsSent: 0,
+      snapshotBytesSent: 0,
+      snapshotMode: 'none',
+    });
+
+    connection.sendBehavior = undefined;
+    room.sendSnapshot(new HostSession(100).snapshot(), 101);
+
+    expect(connection.sent).toHaveLength(2);
+    expect(connection.sent[1]).toMatchObject({ type: 'snapshot', sequence: 1 });
+    expect(room.status().snapshotPacketsSent).toBe(1);
+    expect(room.status().snapshotBytesSent).toBeGreaterThan(0);
+  });
+
+  it('applies one full snapshot then reduced deltas with sequence telemetry', async () => {
+    const room = new PeerRoom();
+    const joined = room.join('ABCD2345');
+    const peer = peerInstances[0]!;
+    peer.emit('open', 'guest-peer');
+    const connection = peer.connections[0]!;
+    connection.open = true;
+    connection.emit('open');
+    connection.emit('data', welcome('ABCD2345'));
+    await joined;
+
+    const session = new HostSession(98);
+    const baseline = session.snapshot();
+    connection.emit('data', {
+      version: protocolVersion,
+      type: 'snapshot',
+      roomCode: 'ABCD2345',
+      epoch: 41,
+      sequence: 0,
+      sentAt: Date.now(),
+      acknowledgedCommand: -1,
+      stateHash: missionStateHash(baseline),
+      state: baseline,
+    });
+
+    session.step(1 / 60);
+    const next = session.snapshot();
+    const delta = {
+      version: protocolVersion,
+      type: 'snapshot-delta',
+      roomCode: 'ABCD2345',
+      epoch: 41,
+      sequence: 2,
+      sentAt: Date.now(),
+      acknowledgedCommand: -1,
+      stateHash: missionStateHash(next),
+      state: createSnapshotDeltaState(next),
+    } as const;
+    connection.emit('data', delta);
+
+    expect(room.snapshot()?.tick).toBe(next.tick);
+    expect(room.status()).toMatchObject({
+      snapshotDrops: 1,
+      snapshotRejected: 0,
+      snapshotPacketsReceived: 2,
+      snapshotMode: 'delta',
+    });
+    expect(room.status().deltaSnapshotBytes).toBeLessThan(room.status().fullSnapshotBytes);
+
+    connection.emit('data', { ...delta, sequence: 1 });
+    expect(room.snapshot()?.tick).toBe(next.tick);
+    expect(room.status().snapshotRejected).toBe(1);
   });
 
   it('fails cleanly on a v3 welcome before gameplay starts', () => {
@@ -218,7 +354,7 @@ describe('PeerRoom connection lifecycle', () => {
 
     expect(room.status()).toMatchObject({
       phase: 'error',
-      message: 'Incompatible protocol version for welcome: expected 4, received 3',
+      message: 'Incompatible protocol version for welcome: expected 5, received 3',
     });
     room.close();
   });
@@ -254,7 +390,7 @@ describe('PeerRoom connection lifecycle', () => {
     room.sendCommand(guestCommand, 0);
     const packet = connection.sent[0];
     const parsed = parseCommandPacketResult(packet);
-    expect(parsed.packet?.version).toBe(4);
+    expect(parsed.packet?.version).toBe(5);
     expect(parsed.packet?.command.interactionTargetId).toBe('elevator-option:grand-atrium:deck-4');
     if (!parsed.packet) throw new Error('Guest command packet failed to parse');
     host.submitCommand('crew-bravo', parsed.packet.command);

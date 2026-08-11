@@ -1,249 +1,255 @@
 # Roadmap
 
-> **Current status (2026-08-10):** The exact implemented checkpoint, runtime
-> observations, and proof gaps are in [CURRENT_STATUS.md](CURRENT_STATUS.md).
-> Proposal material is inspiration only; roadmap entries are not shipped claims
-> unless labeled implemented and backed by current evidence.
+> **Roadmap status:** The current source-backed boundary is in
+> [PROJECT_BASELINE.md](PROJECT_BASELINE.md). This page is forward work only.
+> **Implemented**, **Partial**, and **Planned** are used literally; missing
+> runtime, hardware, or network evidence is called out as an evidence gap.
 
-Phases 0–4 were the airliner premise. Phases 0–2 shipped; 3 and 4 were never
-started and are superseded by [ADR 0001](adr/0001-cruise-ship-pivot.md). The
-cruise ship starts at Phase 5.
+## North-star outcome
 
-Every phase has an exit condition that is a thing you can do in the running
-game, not a list of files. A phase is not finished until the full verification
-suite is green and the frame budget in [`PERFORMANCE.md`](PERFORMANCE.md) holds.
+Build a cooperative first-person cruise shift that feels like one moving ship:
+crew coordinate across decks, physical work consumes time and stock, hazards
+create consequences, pirate defence is a bounded escalation, and upgrades make
+later routes meaningfully different. Every slice must keep `HostSession` as the
+authority and keep renderer/GLB presentation downstream of snapshots.
 
-## Shipped (airliner premise)
+## Current checkpoint
 
-- **Phase 0** — Vite/Tauri baseline, TypeScript strict, CI, docs, Canvas
-  bootstrap, local test tooling.
-- **Phase 1** — moving-vehicle technical proof: greybox cabin, host authority,
-  simulated client, vehicle-relative force, grabbing, straps, turbulence.
-- **Phase 2** — the vertical: automatic flight, passenger service, galley fire,
-  breaker repair, two-player WebRTC rooms, landing debrief, Blender cabin GLB
-  with procedural fallback, procedural Web Audio, two skeletal rigs with 44
-  clips on a Three.js `AnimationMixer`.
-- **Phases 3–4** — retired unstarted.
+**Implemented foundation:** moving ship/ocean state, 14-compartment/8-deck map,
+three stair towers, host-derived portal travel, GLB streaming with greybox
+fallback, bounded service/fire/repair/navigation state, invasion presentation,
+and a deterministic 78-resident crowd.
 
-## Phase 5 — pivot foundation
+**Partial slices:** service is an atrium-focused cart/request primitive;
+navigation is one collision-course incident; boarding is a two-link invasion
+state machine plus presentation; PeerRoom is a host/guest prototype.
 
-The ship exists, moves, and can be steered.
+**Planned:** task board, cross-deck task economy, progressive disasters,
+combat/hit resolution, arsenal progression, persistence, and four-player scaling.
+**Partial with evidence gaps:** PeerRoom live two-network proof and hardware
+performance measurement.
 
-- Rename `FlightState`→`VoyageState`, `FlightPhase`→`VoyagePhase`,
-  `flight-model.ts`→`ship-model.ts`, `PilotInput`→`HelmInput`. Mechanical, one
-  commit, tests updated with it.
-- Ocean: shader-displaced plane plus the matching wave function on the
-  simulation side. Hull pitch, roll and heave derived from it.
-- Ship motion model: heading, rudder, telegraph, speed, turning radius,
-  momentum. Derived deck acceleration feeds the existing `cabin-simulation`
-  unchanged.
-- A greybox compartment set — bridge, one corridor, one public room, engine room
-  — connected by the portal graph, with the streaming loader in place even
-  though everything fits in memory at this size.
-- Helm station on the bridge: a player stands at it and steers.
-- The collision-course incident end to end: host spawns an obstacle, every
-  client gets the warning and countdown, a player has to reach the bridge, the
-  host validates the avoidance, clearing throws loose objects and missing
-  breaches the hull.
+## Delivery rules
 
-**Exit:** the ship moves on an ocean, you can steer it, and two players can
-dodge one iceberg together.
+1. Add authoritative data/state before adding UI or animation.
+2. Treat every client action as intent. Host validates phase, target,
+   compartment, range, ownership, cooldown, and outcome.
+3. Keep interaction/collision proxies in data/simulation. A GLB may present them
+   but never decides whether an action succeeds.
+4. Extend the existing map before adding rooms. A new compartment pays for a
+   data entry, symmetric portal pair, Blender source/script, manifest entry,
+   asset validation, fallback, spawn/arrival audit, and browser proof.
+5. Do not call a slice complete until unit, integration, browser, and applicable
+   data/asset gates pass. Performance budgets are rails until hardware evidence
+   exists.
+6. Preserve the protected [CURRENT_STATUS.md](CURRENT_STATUS.md) and
+   [HANDOFF.md](../HANDOFF.md); update them only in their own work orders.
 
-## Phase 6 — interior and streaming
+## Next three vertical slices
 
-The ship becomes a place. **Mostly landed.**
+### A. HUD plus interaction/task board
 
-Done:
+**Status: Planned.** This slice turns the current compact objective card,
+interaction prompt, event log, stock readout, and debrief hooks into one truthful
+task surface.
 
-- The full compartment list in [`SHIP_LAYOUT.md`](SHIP_LAYOUT.md) — fourteen
-  compartments across eight occupied decks, plus the always-resident exterior —
-  one Blender build script and one GLB each, under `tools/blender/`.
-- Three stair towers as the ship's vertical spine
-  ([ADR 0004](adr/0004-stair-tower-traversal.md)); no room-to-room portal
-  crosses a deck.
-- Streaming against the portal graph: residency, eviction, reduced detail at two
-  hops, exterior X0/X1/X2 tiers, greybox fallback.
-- Merged geometry per material, one shared palette, real glazing.
-- Character LOD tiers and a 78-resident ambient crowd source/presenter slice.
-  Normal packaged-start NPC visibility remains unproven; focused `showCrowd()`
-  E2E teleport is not normal-start evidence.
-- The deck plan on **N**, so a ship this size can be read from inside it.
+**Player result:** A player can see a bounded list of active work, select one,
+see its target compartment/object/guest and current state, and understand why a
+host rejected an action. The board reads only authoritative snapshot fields.
 
-Outstanding:
+**Frozen implementation boundary:**
 
-- The perf smoke test and the runtime counters that enforce the frame budget.
-  This cannot be produced headlessly and is the phase's one real gap.
-- Instancing sweep for the repeated dressing that is currently authored as
-  joined static geometry.
-- meshopt and KTX2, once there are textures and bytes worth compressing.
-- The interior design pass: every room populated and arranged with intent, no
-  stair to nowhere, no clipping.
+- Add a versioned task definition/state contract, preferably alongside the
+  existing `MissionState` and `src/data/` definitions; do not hide task state in
+  DOM attributes or infer completion from animation.
+- Start with a small adapter over current service, repair, navigation, fire, and
+  invasion objectives. Do not pretend the adapter is the final job economy.
+- Submit task selection and task actions as explicit intent. Reject unknown,
+  stale, completed, wrong-phase, wrong-target, and wrong-compartment requests on
+  the host.
+- Keep the board bounded (six visible entries maximum), update on snapshot/HUD
+  cadence rather than every render frame, and reuse current icon/feedback
+  patterns.
 
-**Exit:** you can walk from the tank top to the bridge with no frame over 33 ms
-and draw calls under budget throughout — measured on hardware, not asserted.
+**Dependencies:** current `MissionState`, `HostSession`, `PlayerCommand`,
+`cabin-mayhem-app.ts`, and the existing interaction feedback contract. No new
+GLB is required.
 
-## Phase 7 — task economy
+**Ownership:** simulation owner defines task schema, lifecycle, rejection, and
+reward fields; content owner supplies stable task IDs and authored locations;
+presentation owner renders the board and accessibility text; test owner covers
+same-snapshot host/guest views and stale-intent rejection.
 
-The ordinary work that fills a voyage.
+**Acceptance gates:**
 
-- Guest requests generalised across decks from the existing service mission.
-- Stock: cold store, mall, bar and buffet as outlets with finite inventory,
-  restocking as a carry job.
-- Pool cleaning, bird fouling, housekeeping, waste and laundry.
-- Medical treatment and escort.
-- Breakage and repair generalised from `repair-response` to any compartment
-  system.
-- Reputation and the voyage payout that funds upgrades.
+- Unit tests prove schema bounds, deterministic ordering, task selection,
+  completion/failure transitions, and stale/forged intent rejection.
+- Integration tests prove the task state survives `HostSession` stepping and
+  simulated latency without client-side authority.
+- Browser test shows the board at normal start, selects a task, shows its
+  interaction prompt, and records a rejected-action message.
+- `pnpm validate:data`, `pnpm typecheck`, focused unit/integration tests,
+  focused Playwright test, Prettier check, and `git diff --check` pass.
 
-**Exit:** a full voyage with no incidents is still a busy, losable game.
+**Out of scope:** currency, persistent progression, a full job catalogue,
+four-player balancing, and any new ship deck.
 
-## Phase 8 — disasters
+### B. One complete guest/restock/repair loop
 
-- Fire generalised from `fire-response` to any compartment.
-- Hull breach, progressive flooding, bilge pumps, compartment sealing, list.
-- Rogue wave and tsunami with a long warning and a securing window.
-- Power failure cascading through lighting and powered systems.
-- Engine breakdown under manoeuvring pressure.
-- Man overboard and tender recovery.
-- Incident chaining: collision → breach → flood → power loss → angry guests.
+**Status: Planned; current service and repair primitives are Partial.** Build
+one end-to-end route through existing authored rooms before generalising the
+economy.
 
-**Exit:** an unattended incident reliably escalates into a related incident, and
-a crew of two can just barely hold it together.
+**Frozen scenario:**
 
-## Phase 9 — pirates and defence
+1. Task board assigns one guest request in the atrium.
+2. The service outlet/cart has finite stock. If the requested item is absent,
+   the crew travels to one authored supply/restock point, takes the matching
+   item, and returns it to the outlet/cart.
+3. The crew carries the item through the host-validated portal graph and serves
+   the correct guest. Wrong item, wrong guest, stale task, out-of-range delivery,
+   and duplicate consumption fail without mutating success state.
+4. A deterministic service-system fault interrupts the route. The crew obtains
+   the host-owned toolbox, reaches the authored repair target, holds the repair,
+   and sees pressure, interruption, completion, score, and task resolution on
+   the board.
 
-- Approach, radar contact, radio chatter, grapples, boarding.
-- Boarder AI: pathing, objectives, contesting compartments.
-- The arsenal: sidearms, shotguns, rifles, submachine guns, flare guns, mounted
-  machine guns, water cannons, stun equipment and automated turrets. Every hit
-  host-validated. Combat stays shallow on purpose — no recoil patterns,
-  attachments or reload minigames.
-- Damage, theft and reputation consequences for a successful boarding.
+Use the existing `service-mission`, cart ownership, galley fire, and repair
+contracts as the starting seam. The first route may use the atrium, main galley,
+and engine room; do not expand the ship to make the loop look larger.
 
-**Exit:** a boarding can be repelled, and losing one costs the voyage without
-ending it.
+**Dependencies:** Slice A task state and HUD; current `service.ts`,
+`service-mission.ts`, `repair-response.ts`, `fire-response.ts`,
+`HostSession.resolveInteractions`, and host portal travel.
 
-## Phase 10 — upgrades and persistence
+**Ownership:** simulation owner owns stock, request, carry, failure, repair,
+score, and terminal state; content owner authors one outlet, one supply point,
+one guest, one repair target, timings, and rewards; presentation owner exposes
+target/stock/progress/feedback; asset owner reuses current GLBs unless a missing
+interaction proxy is proven; test owner owns the full route gate.
 
-- Save file, currency, the chart-room upgrade console, and the `preparation`
-  voyage phase: route selection, weather preview, supply purchase, starting
-  assignments.
-- Six ship upgrade lines — navigation, engineering, safety, passenger services,
-  defence, crew efficiency — each changing an authored number an existing system
-  already reads.
-- Player progression: cosmetics, titles, inventory slots and task perks that
-  never make an unupgraded crewmate useless.
-- Difficulty scaling so upgrades open harder routes rather than trivialising old
-  ones.
+**Performance rails:** one task chain, bounded object count, no per-frame DOM
+redraw, no new always-resident mesh, and no extra animated resident budget.
+Portal streaming must remain within the current residency rule; a failed GLB
+must still leave the loop playable in greybox.
 
-**Exit:** voyage two is measurably different from voyage one because of what you
-bought.
+**Acceptance gates:**
 
-## Phase 11 — crew scale
+- Unit tests cover stock depletion/return, matching delivery, task identity,
+  ownership, range, interruption, repair pressure, and exactly-once rewards.
+- Integration test runs the complete chain from task assignment to repair and
+  terminal result through `HostSession`; guest commands cannot advance it
+  locally.
+- Browser test walks the authored route, shows the board and prompts, proves a
+  rejection path, completes the guest request, triggers the fault, completes
+  repair, and verifies the final result/debrief.
+- Data and asset validators pass; no new content is labelled **Implemented** until the
+  browser path covers it.
 
-- Public snapshot projection, delta compression, backpressure — the prerequisite
-  named in [`NETWORK_MODEL.md`](NETWORK_MODEL.md).
-- Crews of one to four; relay-backed networking; drop-in and drop-out joining.
-- Solo viability: task pressure scales with crew size.
+**Out of scope:** all resort jobs, dynamic economy, reputation simulation,
+multi-fault chains, flooding, upgrades, and persistence.
 
-**Exit:** four players on one ship at the same bandwidth as two are now, and one
-player alone can still finish a voyage.
+### C. Pirate boarding plus weapon presentation/combat contract
 
-## Phase 12 — polish and release
+**Status: Planned; invasion state/presentation is Partial.** Convert the
+current boarding warning/links/hostile presentation into one explicit combat
+contract without turning the slice into a full shooter.
 
-Onboarding, accessibility, controller hardening, recorded audio, network stress,
-final performance pass, signed builds, external playtest.
+**Frozen scenario:** one scheduled pirate boarding on the promenade, one
+boarding pistol and one cutlass presentation, one host-validated defence action,
+and one deterministic hit/damage outcome. Existing `boarding-pistol.glb`,
+`boarding-cutlass.glb`, pirate character, boarding links, and gear crate are the
+starting assets.
 
-## Phase numbering
+**Contract requirements:**
 
-The revised plan numbers the cruise work from zero. This repository continues its
-existing numbering because Phases 0–2 already shipped and are referenced by
-commit. The mapping, so the two schemes never get confused:
+- Extend the command/snapshot schema deliberately; do not overload
+  `boardingAction` with weapon semantics. Intent names the actor/action/target;
+  host derives phase, compartment, range, cooldown, ammo/availability, and hit.
+- Host owns target eligibility, hit result, passenger/infrastructure damage,
+  score, and terminal outcome. Client animation and muzzle/impact effects are
+  presentation only.
+- `InvasionPresenter` consumes semantic weapon state, attaches the authored GLB
+  at a validated socket, and selects an Action from the snapshot. Missing assets
+  use explicit partial fallback and never create authority.
+- Keep combat shallow: no tactical AI, attachment tree, persistent wounds,
+  bomb-search/disarm, or arsenal upgrade tree in this slice.
 
-| Plan phase              | Repo phase |
-| ----------------------- | ---------- |
-| 0 Foundation            | 5          |
-| 1 Ship structure        | 5–6        |
-| 2 Navigation            | 5          |
-| 3 Task system           | 7          |
-| 4 Disasters             | 8          |
-| 5 Multiplayer expansion | 11         |
-| 6 Combat                | 9          |
-| 7 Progression           | 10         |
-| 8 Polish                | 12         |
+**Dependencies:** current `boarding-invasion.ts`, `invasions.ts`,
+`invasion-presenter.ts`, protocol parser, host action validation, and Slice A
+feedback. Slice B is not a code dependency for combat, but its task-state
+contract should be stable before shared HUD work is accepted.
 
-Repo ordering differs deliberately in two places. Multiplayer expansion sits late
-because it depends on snapshot delta compression, which is real engineering, not
-a toggle. Combat sits before progression because upgrades need something to
-upgrade.
+**Ownership:** simulation owner defines weapon intent, hit/damage state, and
+rejection rules; content owner defines one event and balance numbers; Blender
+owner validates roots/sockets/Actions; presentation owner maps snapshot state to
+weapon/character animation; network owner updates protocol schemas; test owner
+proves deterministic host/guest results.
 
-## 2026-08 navigation incident slice status
+**Performance rails:** reuse loaded invasion assets, cap active hostiles at the
+current authored event count, avoid per-hostile DOM, keep mixer count within
+[`PERFORMANCE.md`](PERFORMANCE.md), and verify partial asset fallback.
 
-The first substantial cruise-ship gameplay slice is now implemented and is the
-current Phase 5/Navigation checkpoint. It is deliberately smaller than the
-product north star.
+**Acceptance gates:**
 
-### Implemented now: Phase 5 navigation checkpoint
+- Asset validation proves source/runtime paths, required nodes, sockets, and
+  Actions for the two weapon assets and pirate rig.
+- Unit tests prove valid and invalid intent, target/range/cooldown rejection,
+  deterministic hit/damage, duplicate-action handling, and snapshot parsing.
+- Integration test proves a second client sees the same weapon state, hit result,
+  damage, and score under simulated transport.
+- Browser test renders the weapon presentation, drives one real host-approved
+  defence, shows the hit/outcome feedback, and proves animation cannot create a
+  hit by itself.
 
-- deterministic collision-course warning, countdown and authored relative sea
-  contact, with a 36-second production travel window and a separate 3-second
-  debug trigger;
-- host-validated bridge/command-center presence before helm input counts;
-- avoidance success with the authored +35 score bonus;
-- impact with steering-hydraulics damage, score loss and a repair objective at
-  the authored engine-room relay station;
-- host-validated toolbox, compartment, range and held-object repair resolution;
-- authoritative snapshots, PeerRoom validation, disconnect-safe input, HUD
-  warning/damage/resolution states, authored relay presentation and a debug
-  trigger;
-- Blender 5.1 authored vessel source/GLB loaded as the obstacle production path;
-  procedural obstacle geometry is only an explicit load-failure or future-kind
-  fallback;
-- a centralized current-interactable feedback contract covering objects,
-  passengers, fire, repair stations, helm and portals.
-- a host-owned pirate boarding state machine with passenger/infrastructure
-  pressure, link-detachment resolution, score consequences, warning/countdown HUD,
-  and a Three.js presenter loading eight validated Blender invasion GLBs with
-  authored character, weapon, explosive, link and prop Actions.
-- a host-owned 78-resident ambient crowd across eight cruise areas. The source
-  and presenter implement Blender-authored passenger rigs, leisure/work
-  animation states, and evacuation switching. Instances wait for async rig load,
-  then residency/96 m culling and a 24-instance cap apply; normal packaged-start
-  visibility is unresolved.
+**Out of scope:** full combat AI, firearms/melee variety, bomb objectives,
+persistent damage, player progression, and separate-network acceptance.
 
-### Planned next phases, not implemented now
+## Ordered follow-on phases
 
-- **Remaining invasions/security:** bomb threat and bomber search/disarm, combat
-  AI, firearms/melee hit resolution, passenger escort, and persistent damage.
-  Pirate approach, boarding pressure, defeat, link detachment and score effects
-  now have a first host-authoritative visual slice.
-- **Resort jobs:** room service, pool cleaning, DJ performance, cooking with
-  chefs, mall/restaurant/bar restocking and consensual guest-request or
-  performer photography. The current service loop is not a claim that every job
-  exists.
-- **Crowds and ship scale:** the first 78-resident state/presenter layer covers
-  authored activity and evacuation contracts. Normal-start packaged visibility,
-  cross-compartment schedules, shopping, richer reactions, further crowd LOD
-  work, and additional resort spaces remain unfinished or unproven.
-- **Asset expansion:** the exterior, stairwells and open decks are now authored,
-  validated and shipped through the Blender-source to tracked-GLB pipeline. What
-  remains is more of the ship — the resort spaces listed at the end of
-  [`SHIP_LAYOUT.md`](SHIP_LAYOUT.md) — and bespoke obstacle kinds, each of which
-  still needs its own authored source/GLB contract. Do not replace authored
-  assets with procedural placeholders.
+### D. Disaster chain
 
-## Initial scope
+**Status: Planned.** Generalise the current fire/repair primitives into one
+authoritative chain: breach, progressive flooding, bilge pump, compartment
+sealing, power loss, passenger consequence, and recovery. Exit requires one
+complete chain in unit, integration, and browser tests; no phase is claimed from
+the presence of `fire-response.ts` alone.
 
-The first playable target, matching the revised plan's recommendation: one ship,
-six to eight functional compartments — fourteen exist, so this is met on
-structure and open on function — one route, one to four players, steering
-and iceberg avoidance, one fire, one engine failure, one flooding event, pool
-cleaning, shop restocking, guest assistance, basic upgrades. **No boarding
-pirates in the first playable** — the ship-operation loop has to be fun without
-them.
+### E. Upgrades and persistence
 
-## Ordering rules
+**Status: Planned.** Add currency and a save/profile boundary only after Slice B
+has stable task values and Phase D has stable damage values. Each upgrade must
+modify a number an existing simulation system reads. Exit requires save/load,
+reset, migration, debrief payout, and host/session tests; no client-only upgrade
+state is acceptable.
 
-- Performance work never trails content; the budget is enforced from Phase 6.
-- No phase starts before its predecessor's exit condition is demonstrated.
-- Snapshot deltas land before crew size, not after.
+### F. Crew scale and network proof
+
+**Status: Planned.** Add snapshot projection, deltas, relevance
+filtering, backpressure, solo task-pressure scaling, drop/rejoin behavior, and
+four-player room tests. Then execute the two-Windows/two-network procedure.
+Exit requires measured packet behavior and evidence from separate machines;
+local two-context Playwright is insufficient.
+
+### G. Ship/content expansion and release rails
+
+**Status: Planned.** Add jobs, guest behaviours, safety/disaster props, and new
+rooms only when they pay for their data, portal, GLB, fallback, spawn audit, and
+performance evidence. Finish with a full-route hardware smoke, narrow/desktop
+browser pass, packaged build pass, and a handoff that separates source proof
+from runtime proof.
+
+## Dependency gates
+
+| Gate               | Must be true before next gate                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------------------------- |
+| Map foundation     | Layout/data/asset contracts pass; portal travel and fallback remain playable. **Current: Implemented.** |
+| A: task surface    | One authoritative task lifecycle and rejection contract.                                                |
+| B: task loop       | One guest/restock/repair chain passes end to end.                                                       |
+| C: combat contract | One pirate weapon action has deterministic host result and presentation sync.                           |
+| D: disasters       | One recoverable ship-system chain has measured consequences.                                            |
+| E: progression     | Numbers persist and reset safely; upgrades affect existing simulation.                                  |
+| F: scale/release   | Network, hardware performance, and full-route evidence are current.                                     |
+
+Any failed gate returns to the owning slice. Do not widen scope by adding more
+rooms, weapons, jobs, or upgrade lines while the prior gate lacks its evidence.

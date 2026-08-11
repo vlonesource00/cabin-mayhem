@@ -2,11 +2,16 @@ import { Peer, type DataConnection, type PeerOptions } from 'peerjs';
 import { z } from 'zod';
 import { ambientActivitySchema } from '../data/ambient-crowd';
 import { navigationIncidentStateSchema } from '../sim/navigation-incident';
-import { emptyCommand, type MissionState, type PlayerCommand } from '../sim/types';
+import {
+  emptyCommand,
+  type AmbientResidentState,
+  type MissionState,
+  type PlayerCommand,
+} from '../sim/types';
 
-export const protocolVersion = 4 as const;
+export const protocolVersion = 5 as const;
 const roomPrefix = 'cabin-mayhem-';
-const snapshotIntervalMs = 1000 / 15;
+const snapshotIntervalMs = 1000 / 10;
 const commandIntervalMs = 1000 / 30;
 const staleCommandMs = 300;
 const reconnectDelayMs = 750;
@@ -87,6 +92,17 @@ const ambientCrowdStateSchema = z
   })
   .strict();
 
+const snapshotResidentDeltaSchema = ambientResidentSchema
+  .pick({
+    activity: true,
+    position: true,
+    routeIndex: true,
+    facing: true,
+    moving: true,
+    phase: true,
+  })
+  .strict();
+
 const missionStateSchema = z
   .object({
     seed: finite,
@@ -110,6 +126,16 @@ const missionStateSchema = z
     events: z.array(z.object({}).passthrough()),
   })
   .passthrough();
+
+const snapshotDeltaStateSchema = missionStateSchema.omit({ crowd: true }).extend({
+  crowd: z
+    .object({
+      elapsed: finite.nonnegative(),
+      residents: z.record(z.string().regex(/^guest-\d{3}$/), snapshotResidentDeltaSchema),
+      evacuating: z.boolean(),
+    })
+    .strict(),
+});
 const commandSchema = z
   .object({
     move: vec2Schema,
@@ -152,7 +178,7 @@ const commandPacketSchema = z
   })
   .strict();
 
-const snapshotPacketSchema = z
+const fullSnapshotPacketSchema = z
   .object({
     version: z.literal(protocolVersion),
     type: z.literal('snapshot'),
@@ -174,6 +200,22 @@ const snapshotPacketSchema = z
       });
   });
 
+const deltaSnapshotPacketSchema = z
+  .object({
+    version: z.literal(protocolVersion),
+    type: z.literal('snapshot-delta'),
+    roomCode: roomCodeSchema,
+    epoch: epochSchema,
+    sequence: z.number().int().nonnegative(),
+    sentAt: finite,
+    acknowledgedCommand: z.number().int().min(-1),
+    stateHash: z.string().regex(/^[0-9a-f]{8}$/),
+    state: snapshotDeltaStateSchema,
+  })
+  .strict();
+
+const snapshotPacketSchema = z.union([fullSnapshotPacketSchema, deltaSnapshotPacketSchema]);
+
 const welcomePacketSchema = z
   .object({
     version: z.literal(protocolVersion),
@@ -186,11 +228,33 @@ const welcomePacketSchema = z
   .strict();
 
 export type CommandPacket = z.infer<typeof commandPacketSchema>;
-export type SnapshotPacket = z.infer<typeof snapshotPacketSchema>;
+export type FullSnapshotPacket = z.infer<typeof fullSnapshotPacketSchema>;
+export type SnapshotPacket = FullSnapshotPacket | SnapshotDeltaPacket;
 export type WelcomePacket = z.infer<typeof welcomePacketSchema>;
+export type SnapshotDeltaResident = Pick<
+  AmbientResidentState,
+  'activity' | 'position' | 'routeIndex' | 'facing' | 'moving' | 'phase'
+>;
+export type SnapshotDeltaState = Omit<MissionState, 'crowd'> & {
+  crowd: Omit<MissionState['crowd'], 'residents'> & {
+    residents: Record<string, SnapshotDeltaResident>;
+  };
+};
+export type SnapshotDeltaPacket = {
+  version: typeof protocolVersion;
+  type: 'snapshot-delta';
+  roomCode: string;
+  epoch: number;
+  sequence: number;
+  sentAt: number;
+  acknowledgedCommand: number;
+  stateHash: string;
+  state: SnapshotDeltaState;
+};
 export type RoomRole = 'solo' | 'host' | 'guest';
 export type RoomPhase =
   'idle' | 'opening' | 'waiting' | 'connecting' | 'connected' | 'closed' | 'error';
+export type SnapshotMode = 'none' | 'full' | 'delta';
 
 export interface RoomStatus {
   role: RoomRole;
@@ -202,6 +266,17 @@ export interface RoomStatus {
   bytesReceived: number;
   remoteTick: number;
   stateHash: string;
+  crewCount: number;
+  playersConnected: number;
+  snapshotDrops: number;
+  snapshotRejected: number;
+  snapshotPacketsSent: number;
+  snapshotPacketsReceived: number;
+  snapshotBytesSent: number;
+  snapshotBytesReceived: number;
+  fullSnapshotBytes: number;
+  deltaSnapshotBytes: number;
+  snapshotMode: SnapshotMode;
 }
 
 type StatusListener = (status: RoomStatus) => void;
@@ -260,7 +335,11 @@ export function parseCommandPacketResult(value: unknown): PacketParseResult<Comm
 }
 
 export function parseSnapshotPacketResult(value: unknown): PacketParseResult<SnapshotPacket> {
-  return parsePacket(snapshotPacketSchema, value, 'snapshot');
+  return parsePacket(
+    snapshotPacketSchema as unknown as z.ZodType<SnapshotPacket>,
+    value,
+    'snapshot',
+  );
 }
 
 export function parseWelcomePacketResult(value: unknown): PacketParseResult<WelcomePacket> {
@@ -301,13 +380,88 @@ function createEpoch(): number {
 }
 
 export function missionStateHash(state: MissionState): string {
-  const serialized = JSON.stringify(state);
+  const serialized = JSON.stringify(canonicalizeForHash(state));
   let hash = 0x811c9dc5;
   for (let index = 0; index < serialized.length; index += 1) {
     hash ^= serialized.charCodeAt(index);
     hash = Math.imul(hash, 0x01000193);
   }
   return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+function canonicalizeForHash(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizeForHash);
+  if (value === null || typeof value !== 'object') return value;
+  const entries = Object.entries(value)
+    .filter(([, entryValue]) => entryValue !== undefined)
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+  return Object.fromEntries(
+    entries.map(([key, entryValue]) => [key, canonicalizeForHash(entryValue)]),
+  );
+}
+
+export function createSnapshotDeltaState(state: MissionState): SnapshotDeltaState {
+  const residents = Object.fromEntries(
+    Object.entries(state.crowd.residents).map(([id, resident]) => [
+      id,
+      {
+        activity: resident.activity,
+        position: resident.position,
+        routeIndex: resident.routeIndex,
+        facing: resident.facing,
+        moving: resident.moving,
+        phase: resident.phase,
+      },
+    ]),
+  );
+  return {
+    ...state,
+    crowd: { ...state.crowd, residents },
+  } as SnapshotDeltaState;
+}
+
+export function mergeSnapshotPacketResult(
+  previousState: MissionState | undefined,
+  packet: SnapshotPacket,
+): PacketParseResult<MissionState> {
+  if (packet.type === 'snapshot') {
+    return missionStateHash(packet.state) === packet.stateHash
+      ? { packet: packet.state }
+      : invalidSnapshotResult('Authoritative snapshot hash mismatch.');
+  }
+  if (!previousState) return invalidSnapshotResult('Snapshot delta received before full snapshot.');
+
+  const previousResidents = previousState.crowd.residents;
+  const deltaResidents = packet.state.crowd.residents;
+  const previousIds = Object.keys(previousResidents);
+  const deltaIds = Object.keys(deltaResidents);
+  if (previousIds.length !== deltaIds.length || deltaIds.some((id) => !(id in previousResidents)))
+    return invalidSnapshotResult('Snapshot delta resident baseline mismatch.');
+
+  const mergedState = {
+    ...packet.state,
+    crowd: {
+      ...packet.state.crowd,
+      residents: Object.fromEntries(
+        previousIds.map((id) => [id, { ...previousResidents[id], ...deltaResidents[id] }]),
+      ),
+    },
+  } as unknown as MissionState;
+  if (!isMissionState(mergedState))
+    return invalidSnapshotResult('Merged snapshot delta failed state validation.');
+  return missionStateHash(mergedState) === packet.stateHash
+    ? { packet: mergedState }
+    : invalidSnapshotResult('Merged snapshot delta hash mismatch.');
+}
+
+function invalidSnapshotResult<T>(message: string): PacketParseResult<T> {
+  return {
+    error: {
+      kind: 'invalid',
+      message,
+      expectedVersion: protocolVersion,
+    },
+  };
 }
 
 export class PeerRoom {
@@ -321,6 +475,7 @@ export class PeerRoom {
   private lastSnapshotSentAt = -Infinity;
   private commandSequence = 0;
   private snapshotSequence = 0;
+  private snapshotNeedsFull = true;
   private receivedCommandSequence = -1;
   private receivedSnapshotSequence = -1;
   private roomEpoch = 0;
@@ -337,6 +492,17 @@ export class PeerRoom {
     bytesReceived: 0,
     remoteTick: 0,
     stateHash: '',
+    crewCount: 1,
+    playersConnected: 1,
+    snapshotDrops: 0,
+    snapshotRejected: 0,
+    snapshotPacketsSent: 0,
+    snapshotPacketsReceived: 0,
+    snapshotBytesSent: 0,
+    snapshotBytesReceived: 0,
+    fullSnapshotBytes: 0,
+    deltaSnapshotBytes: 0,
+    snapshotMode: 'none',
   };
 
   public status(): RoomStatus {
@@ -429,7 +595,6 @@ export class PeerRoom {
       nowMs - this.lastCommandSentAt < commandIntervalMs
     )
       return;
-    this.lastCommandSentAt = nowMs;
     const packet: CommandPacket = {
       version: protocolVersion,
       type: 'command',
@@ -440,9 +605,9 @@ export class PeerRoom {
       sentAt: Date.now(),
       command: structuredClone(command),
     };
+    if (!this.sendPacket(packet)) return;
+    this.lastCommandSentAt = nowMs;
     this.commandSequence += 1;
-    this.sendPacket(packet);
-    this.addBytes('sent', packet);
   }
 
   public sendSnapshot(state: MissionState, nowMs: number): void {
@@ -453,22 +618,39 @@ export class PeerRoom {
       nowMs - this.lastSnapshotSentAt < snapshotIntervalMs
     )
       return;
-    this.lastSnapshotSentAt = nowMs;
     const stateHash = missionStateHash(state);
-    const packet: SnapshotPacket = {
-      version: protocolVersion,
-      type: 'snapshot',
-      roomCode: this.statusValue.roomCode,
-      epoch: this.roomEpoch,
-      sequence: this.snapshotSequence,
-      sentAt: Date.now(),
-      acknowledgedCommand: this.receivedCommandSequence,
-      stateHash,
-      state,
-    };
+    const full = this.snapshotNeedsFull;
+    const packet: SnapshotPacket = full
+      ? {
+          version: protocolVersion,
+          type: 'snapshot',
+          roomCode: this.statusValue.roomCode,
+          epoch: this.roomEpoch,
+          sequence: this.snapshotSequence,
+          sentAt: Date.now(),
+          acknowledgedCommand: this.receivedCommandSequence,
+          stateHash,
+          state,
+        }
+      : {
+          version: protocolVersion,
+          type: 'snapshot-delta',
+          roomCode: this.statusValue.roomCode,
+          epoch: this.roomEpoch,
+          sequence: this.snapshotSequence,
+          sentAt: Date.now(),
+          acknowledgedCommand: this.receivedCommandSequence,
+          stateHash,
+          state: createSnapshotDeltaState(state),
+        };
+    const queued = this.sendPacket(packet, full ? 'full' : 'delta', (error) => {
+      this.snapshotNeedsFull = true;
+      this.setStatus({ message: `Snapshot send failed; retrying full baseline: ${error}` });
+    });
+    if (!queued) return;
+    this.lastSnapshotSentAt = nowMs;
     this.snapshotSequence += 1;
-    this.sendPacket(packet);
-    this.addBytes('sent', packet);
+    this.snapshotNeedsFull = false;
     this.setStatus({ remoteTick: state.tick, stateHash });
   }
 
@@ -499,6 +681,7 @@ export class PeerRoom {
     this.lastSnapshotSentAt = -Infinity;
     this.commandSequence = 0;
     this.snapshotSequence = 0;
+    this.snapshotNeedsFull = true;
     this.receivedCommandSequence = -1;
     this.receivedSnapshotSequence = -1;
     this.roomEpoch = 0;
@@ -512,6 +695,17 @@ export class PeerRoom {
       bytesReceived: 0,
       remoteTick: 0,
       stateHash: '',
+      crewCount: 1,
+      playersConnected: 1,
+      snapshotDrops: 0,
+      snapshotRejected: 0,
+      snapshotPacketsSent: 0,
+      snapshotPacketsReceived: 0,
+      snapshotBytesSent: 0,
+      snapshotBytesReceived: 0,
+      fullSnapshotBytes: 0,
+      deltaSnapshotBytes: 0,
+      snapshotMode: 'none',
     };
     this.listener?.(this.status());
   }
@@ -529,6 +723,7 @@ export class PeerRoom {
       return;
     }
     this.connection = connection;
+    this.snapshotNeedsFull = true;
     connection.on('open', () => {
       if (this.connection !== connection) return;
       const welcome: WelcomePacket = {
@@ -539,9 +734,25 @@ export class PeerRoom {
         clientId: 'crew-bravo',
         hostId: 'crew-alpha',
       };
-      this.sendPacket(welcome);
-      this.addBytes('sent', welcome);
-      this.setStatus({ phase: 'connected', message: 'Crew Bravo aboard.' });
+      const queued = this.sendPacket(
+        welcome,
+        undefined,
+        (error) => {
+          if (this.connection !== connection) return;
+          this.connection = undefined;
+          connection.close();
+          this.fail(error);
+        },
+        () => {
+          if (this.connection === connection)
+            this.setStatus({ phase: 'connected', message: 'Crew Bravo aboard.' });
+        },
+      );
+      if (!queued) {
+        this.connection = undefined;
+        connection.close();
+        return;
+      }
     });
     connection.on('data', (data) => this.receiveCommand(data));
     connection.on('close', () => {
@@ -567,10 +778,10 @@ export class PeerRoom {
       message: this.guestWasConnected ? 'Rejoining cabin...' : 'Joining cabin...',
     });
     const connection = peer.connect(`${roomPrefix}${roomCode.toLowerCase()}`, {
-      label: 'cabin-mayhem-v4',
+      label: 'cabin-mayhem-v5',
       metadata: { protocol: protocolVersion, role: 'crew-bravo', roomCode },
       reliable: true,
-      serialization: 'json',
+      serialization: 'binary',
     });
     this.connection = connection;
     connection.on('open', () => {
@@ -674,51 +885,110 @@ export class PeerRoom {
       this.addBytes('received', welcome);
       return true;
     }
-    if (packetType !== 'snapshot') return false;
+    if (packetType !== 'snapshot' && packetType !== 'snapshot-delta') return false;
     const snapshotResult = parseSnapshotPacketResult(value);
     if (snapshotResult.error?.kind === 'incompatible-version') {
       this.fail(snapshotResult.error.message);
       return false;
     }
     const packet = snapshotResult.packet;
+    if (!packet) {
+      this.rejectSnapshot();
+      return false;
+    }
     if (
-      !packet ||
       packet.roomCode !== this.statusValue.roomCode ||
       packet.epoch !== this.roomEpoch ||
       packet.sequence <= this.receivedSnapshotSequence
-    )
+    ) {
+      this.rejectSnapshot();
       return false;
+    }
+    const merged = mergeSnapshotPacketResult(this.latestState, packet);
+    if (!merged.packet) {
+      this.rejectSnapshot();
+      return false;
+    }
+    const snapshotDrops =
+      this.receivedSnapshotSequence >= 0
+        ? this.statusValue.snapshotDrops +
+          Math.max(0, packet.sequence - this.receivedSnapshotSequence - 1)
+        : this.statusValue.snapshotDrops;
     this.receivedSnapshotSequence = packet.sequence;
-    this.latestState = packet.state;
+    this.latestState = merged.packet;
     this.setStatus({
       latencyMs: Math.max(0, Date.now() - packet.sentAt),
-      remoteTick: packet.state.tick,
+      remoteTick: merged.packet.tick,
       stateHash: packet.stateHash,
+      snapshotDrops,
     });
-    this.addBytes('received', packet);
+    this.addBytes('received', packet, packet.type === 'snapshot' ? 'full' : 'delta');
     return true;
   }
 
-  private sendPacket(value: CommandPacket | SnapshotPacket | WelcomePacket): void {
-    if (!this.connection?.open) return;
+  private sendPacket(
+    value: CommandPacket | SnapshotPacket | WelcomePacket,
+    snapshotMode?: Exclude<SnapshotMode, 'none'>,
+    onAsyncReject?: (message: string) => void,
+    onAccepted?: () => void,
+  ): boolean {
+    const connection = this.connection;
+    if (!connection?.open) return false;
     try {
-      const result = this.connection.send(value);
-      if (result instanceof Promise)
-        void result.catch((error: unknown) =>
-          this.fail(error instanceof Error ? error.message : 'Data channel send failed.'),
+      const normalized = JSON.parse(JSON.stringify(value));
+      const result = connection.send(normalized);
+      if (result instanceof Promise) {
+        void result.then(
+          () => {
+            if (this.connection === connection) {
+              this.addBytes('sent', normalized, snapshotMode);
+              onAccepted?.();
+            }
+          },
+          (error: unknown) => {
+            const message = error instanceof Error ? error.message : 'Data channel send failed.';
+            if (onAsyncReject) onAsyncReject(message);
+            else this.fail(message);
+          },
         );
+      } else {
+        this.addBytes('sent', normalized, snapshotMode);
+        onAccepted?.();
+      }
+      return true;
     } catch (error) {
       this.fail(error instanceof Error ? error.message : 'Data channel send failed.');
+      return false;
     }
   }
 
-  private addBytes(direction: 'sent' | 'received', value: unknown): void {
-    const bytes = JSON.stringify(value).length;
-    this.setStatus(
+  private addBytes(
+    direction: 'sent' | 'received',
+    value: unknown,
+    snapshotMode?: Exclude<SnapshotMode, 'none'>,
+  ): void {
+    const bytes = utf8ByteLength(value);
+    const next: Partial<RoomStatus> =
       direction === 'sent'
         ? { bytesSent: this.statusValue.bytesSent + bytes }
-        : { bytesReceived: this.statusValue.bytesReceived + bytes },
-    );
+        : { bytesReceived: this.statusValue.bytesReceived + bytes };
+    if (snapshotMode) {
+      next.snapshotMode = snapshotMode;
+      if (direction === 'sent') {
+        next.snapshotPacketsSent = this.statusValue.snapshotPacketsSent + 1;
+        next.snapshotBytesSent = this.statusValue.snapshotBytesSent + bytes;
+      } else {
+        next.snapshotPacketsReceived = this.statusValue.snapshotPacketsReceived + 1;
+        next.snapshotBytesReceived = this.statusValue.snapshotBytesReceived + bytes;
+      }
+      if (snapshotMode === 'full') next.fullSnapshotBytes = bytes;
+      else next.deltaSnapshotBytes = bytes;
+    }
+    this.setStatus(next);
+  }
+
+  private rejectSnapshot(): void {
+    this.setStatus({ snapshotRejected: this.statusValue.snapshotRejected + 1 });
   }
 
   private fail(message: string): void {
@@ -726,13 +996,26 @@ export class PeerRoom {
   }
 
   private setStatus(next: Partial<RoomStatus>): void {
-    this.statusValue = { ...this.statusValue, ...next };
+    const status = { ...this.statusValue, ...next };
+    const playersConnected = status.role !== 'solo' && status.phase === 'connected' ? 2 : 1;
+    this.statusValue = { ...status, crewCount: playersConnected, playersConnected };
     this.listener?.(this.status());
   }
 }
 
 function isMissionState(value: unknown): value is MissionState {
   return missionStateSchema.safeParse(value).success;
+}
+
+function utf8ByteLength(value: unknown): number {
+  const serialized = JSON.stringify(value);
+  if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(serialized).byteLength;
+  let bytes = 0;
+  for (const character of serialized) {
+    const codePoint = character.codePointAt(0)!;
+    bytes += codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2 : codePoint <= 0xffff ? 3 : 4;
+  }
+  return bytes;
 }
 
 export function missionStateValidationIssues(value: unknown): string[] {

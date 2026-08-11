@@ -6,6 +6,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev", "--port", "5173"],
       "port": 5173
+    },
+    {
+      "name": "cabin-mayhem-alt",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev", "--port", "5174"],
+      "port": 5174
     }
   ]
 }
